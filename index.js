@@ -710,6 +710,98 @@ client.on(Events.InteractionCreate, async interaction => {
       }
     }
 
+    if (interaction.commandName === "serverpulse") {
+      const days = Object.values(config.pulse.days || {});
+      const totals = days.reduce((a, d) => ({
+        messages: a.messages + (d.messages || 0),
+        joins: a.joins + (d.joins || 0),
+        leaves: a.leaves + (d.leaves || 0),
+        active: a.active + (d.activeIds?.length || 0)
+      }), { messages: 0, joins: 0, leaves: 0, active: 0 });
+      const embed = new EmbedBuilder().setColor(0x7c5cff).setTitle("📡 PARADOX PULSE")
+        .setDescription("Community activity snapshot from the bot's stored daily aggregates.")
+        .addFields(
+          { name: "💬 Messages tracked", value: String(totals.messages), inline: true },
+          { name: "📥 Joins", value: String(totals.joins), inline: true },
+          { name: "📤 Leaves", value: String(totals.leaves), inline: true },
+          { name: "📅 Days recorded", value: String(days.length), inline: true }
+        ).setFooter({ text: "Aggregate counts only • No message content stored" }).setTimestamp();
+      return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    if (interaction.commandName === "rankpredict") {
+      const user = interaction.options.getUser("member", true);
+      const role = interaction.options.getRole("target_rank", true);
+      const member = await interaction.guild.members.fetch(user.id).catch(() => null);
+      if (!member) return replyError(interaction, "That member isn't in this server.");
+      const current = getHighestConfiguredRank(member, config.ranks);
+      const targetIndex = config.ranks.findIndex(r => r.id === role.id);
+      const currentIndex = current ? config.ranks.findIndex(r => r.id === current.id) : -1;
+      if (targetIndex < 0) return replyError(interaction, "That role isn't in the configured rank hierarchy.");
+      const gap = targetIndex - currentIndex;
+      const result = gap === 0 ? "Already at that rank."
+        : gap > 0 ? `**${gap}** rank level(s) above the current rank.`
+        : `**${Math.abs(gap)}** rank level(s) below the current rank.`;
+      return interaction.reply({
+        embeds: [new EmbedBuilder().setColor(0x7c5cff).setTitle("🎯 Rank trajectory")
+          .setDescription(`**Member:** ${user}\n**Current:** ${current ? `<@&${current.id}>` : "Unranked"}\n**Target:** <@&${role.id}>\n\n${result}`)
+          .setFooter({ text: "Paradoxplus • Rank intelligence" })],
+        ephemeral: true, allowedMentions: { parse: [] }
+      });
+    }
+
+    if (interaction.commandName === "staffactivity") {
+      const counts = {};
+      for (const item of config.history) counts[item.actorId] = (counts[item.actorId] || 0) + 1;
+      for (const item of config.moderationCases || []) counts[item.moderatorId] = (counts[item.moderatorId] || 0) + 1;
+      const rows = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,10);
+      const lines = rows.map(([id,count],i) => `**${i+1}.** <@${id}> — ${count} recorded action(s)`);
+      return interaction.reply({
+        embeds: [new EmbedBuilder().setColor(0x7c5cff).setTitle("🛡️ Staff activity")
+          .setDescription(lines.join("\n") || "No staff actions have been recorded yet.")
+          .setFooter({ text: "Rank changes + recorded moderation cases" })],
+        ephemeral: true, allowedMentions: { parse: [] }
+      });
+    }
+
+    if (interaction.commandName === "memberjourney") {
+      const user = interaction.options.getUser("member", true);
+      const member = await interaction.guild.members.fetch(user.id).catch(() => null);
+      if (!member) return replyError(interaction, "That member isn't in this server.");
+      const rows = config.history.filter(item => item.memberId === user.id);
+      const latest = rows.slice(0,5).map(item => {
+        const from = item.oldRankId ? `<@&${item.oldRankId}>` : "Unranked";
+        const to = item.newRankId ? `<@&${item.newRankId}>` : "Unranked";
+        return `• ${from} → ${to} · <t:${Math.floor(new Date(item.timestamp).getTime()/1000)}:R>`;
+      });
+      const rank = getHighestConfiguredRank(member, config.ranks);
+      const embed = new EmbedBuilder().setColor(0x7c5cff).setTitle("🧭 Member journey")
+        .setThumbnail(user.displayAvatarURL())
+        .addFields(
+          { name: "Member", value: `${user}`, inline: true },
+          { name: "Current rank", value: rank ? `<@&${rank.id}>` : "Unranked", inline: true },
+          { name: "Joined server", value: member.joinedTimestamp ? `<t:${Math.floor(member.joinedTimestamp/1000)}:D>` : "Unknown", inline: true },
+          { name: "Recorded rank changes", value: String(rows.length), inline: true },
+          { name: "Recent journey", value: latest.join("\n") || "No rank changes recorded yet." }
+        ).setFooter({ text: "Paradoxplus • Member timeline" });
+      return interaction.reply({ embeds: [embed], ephemeral: true, allowedMentions: { parse: [] } });
+    }
+
+    if (interaction.commandName === "spotlight") {
+      if (!hasManagerPermission(interaction.member)) return replyError(interaction, "You need Manage Roles, Administrator, or bot-owner access to use Spotlight.");
+      const user = interaction.options.getUser("member", true);
+      const reason = interaction.options.getString("reason") || "Recognized by the staff team.";
+      const member = await interaction.guild.members.fetch(user.id).catch(() => null);
+      if (!member) return replyError(interaction, "That member isn't in this server.");
+      const rank = getHighestConfiguredRank(member, config.ranks);
+      const embed = new EmbedBuilder().setColor(0xffc857).setTitle("🌟 COMMUNITY SPOTLIGHT")
+        .setThumbnail(user.displayAvatarURL())
+        .setDescription(`## ${user} deserves the spotlight!\n${reason}`)
+        .addFields({ name: "Current rank", value: rank ? `<@&${rank.id}>` : "Unranked", inline: true })
+        .setFooter({ text: `${interaction.guild.name} • Paradoxplus` }).setTimestamp();
+      return interaction.reply({ embeds: [embed], allowedMentions: { users: [user.id], parse: [] } });
+    }
+
     if (interaction.commandName === "rank") {
       const user = interaction.options.getUser("member") ?? interaction.user;
       const member = interaction.guild.members.cache.get(user.id) ?? await interaction.guild.members.fetch(user.id).catch(() => null);
