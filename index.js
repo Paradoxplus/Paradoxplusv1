@@ -144,26 +144,33 @@ async function applyRank(interaction, target, desiredRank, action, reason) {
     reason: reason || null
   };
   config.history.unshift(historyEntry);
-  config.history = config.history.slice(0, 1000);
-  await saveDatabase();
+  config.history.length = Math.min(config.history.length, 1000);
 
-  await logRankChange(interaction.guild, config, action, target.user, oldRank, desiredRank, interaction.user, reason);
-  if (config.announceChannelId) {
-    const announcementChannel = interaction.guild.channels.cache.get(config.announceChannelId) ?? await interaction.guild.channels.fetch(config.announceChannelId).catch(() => null);
-    if (announcementChannel?.isTextBased()) {
-      await announcementChannel.send({
-        content: `🎉 **Rank update!** <@${target.id}> has moved to <@&${desiredRank.id}>!`,
-        allowedMentions: { users: [target.id], roles: [desiredRank.id] }
-      }).catch(error => console.error("Rank announcement failed:", error));
-    }
-  }
-
+  // Acknowledge the successful role change immediately. Disk writes and
+  // optional notifications run in the background so they don't delay replies.
   const verb = action === "PROMOTED" ? "promoted" : action === "DEMOTED" ? "demoted" : "updated";
   const from = oldRank ? `<@&${oldRank.id}>` : "Unranked";
-  await interaction.editReply({
+  const response = await interaction.editReply({
     content: `✅ **${target.user.tag}** was ${verb}.\n**Previous:** ${from}\n**New:** <@&${desiredRank.id}>${reason ? `\n**Reason:** ${reason}` : ""}`,
     allowedMentions: { users: [], roles: [desiredRank.id] }
   });
+
+  void saveDatabase().catch(error => console.error("Rank history save failed:", error));
+  void logRankChange(interaction.guild, config, action, target.user, oldRank, desiredRank, interaction.user, reason)
+    .catch(error => console.error("Rank log failed:", error));
+  if (config.announceChannelId) {
+    void (async () => {
+      const announcementChannel = interaction.guild.channels.cache.get(config.announceChannelId)
+        ?? await interaction.guild.channels.fetch(config.announceChannelId).catch(() => null);
+      if (announcementChannel?.isTextBased()) {
+        await announcementChannel.send({
+          content: `🎉 **Rank update!** <@${target.id}> has moved to <@&${desiredRank.id}>!`,
+          allowedMentions: { users: [target.id], roles: [desiredRank.id] }
+        });
+      }
+    })().catch(error => console.error("Rank announcement failed:", error));
+  }
+  return response;
 }
 
 client.once(Events.ClientReady, readyClient => {
@@ -191,7 +198,7 @@ client.on(Events.InteractionCreate, async interaction => {
         if (role.id === interaction.guildId || role.managed) {
           return replyError(interaction, "That role can't be used as a rank.");
         }
-        const botMember = await interaction.guild.members.fetchMe();
+        const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
         if (role.position >= botMember.roles.highest.position) {
           return replyError(interaction, "Move my bot role above this rank before adding it.");
         }
@@ -428,7 +435,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (!target) return replyError(interaction, "That member isn't in this server.");
       if (target.id === interaction.client.user.id) return replyError(interaction, "I can't change my own rank.");
 
-      const actor = await interaction.guild.members.fetch(interaction.user.id);
+      const actor = interaction.member;
       if (interaction.guild.ownerId !== actor.id &&
           target.roles.highest.comparePositionTo(actor.roles.highest) >= 0) {
         return replyError(interaction, "You can't change the rank of someone whose highest role is equal to or above yours.");
@@ -540,7 +547,7 @@ client.on(Events.MessageCreate, async message => {
       if (!hasManagerPermission(message.member)) return fail("You need Manage Roles or Administrator.");
       const id = mentionedId(args[0]);
       if (!id) return fail(`Usage: .${command} @member [reason]`);
-      const target = await message.guild.members.fetch(id).catch(()=>null);
+      const target = message.guild.members.cache.get(id) ?? await message.guild.members.fetch(id).catch(()=>null);
       if (!target) return fail("That member isn't in this server.");
       const actor = message.member;
       if (message.guild.ownerId !== actor.id && target.roles.highest.comparePositionTo(actor.roles.highest) >= 0)
