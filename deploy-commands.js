@@ -184,6 +184,18 @@ const commands = [
     .setName("rank-panel")
     .setDescription("Display this server's rank hierarchy."),
 
+  new SlashCommandBuilder().setName("serverpulse").setDescription("View Paradox Pulse community activity aggregates."),
+  new SlashCommandBuilder().setName("rankpredict").setDescription("See the rank-level distance to a target rank.")
+    .addUserOption(o=>o.setName("member").setDescription("Member to check").setRequired(true))
+    .addRoleOption(o=>o.setName("target_rank").setDescription("Configured target rank").setRequired(true)),
+  new SlashCommandBuilder().setName("staffactivity").setDescription("View the top staff by recorded rank and moderation actions.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+  new SlashCommandBuilder().setName("memberjourney").setDescription("View a member's rank timeline and server join date.")
+    .addUserOption(o=>o.setName("member").setDescription("Member to inspect").setRequired(true)),
+  new SlashCommandBuilder().setName("spotlight").setDescription("Give a member a public community spotlight.")
+    .addUserOption(o=>o.setName("member").setDescription("Member to recognize").setRequired(true))
+    .addStringOption(o=>o.setName("reason").setDescription("Why they deserve recognition").setMaxLength(500)),
+
   new SlashCommandBuilder()
     .setName("rank-help")
     .setDescription("Show Paradoxplus command help."),
