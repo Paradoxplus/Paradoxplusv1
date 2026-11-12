@@ -65,6 +65,12 @@ function getGuildConfig(guildId) {
   return config;
 }
 
+function canActOnTarget(actor, target, guild) {
+  return guild.ownerId === actor.id ||
+    actor.permissions.has(PermissionFlagsBits.Administrator) ||
+    target.roles.highest.comparePositionTo(actor.roles.highest) < 0;
+}
+
 function hasManagerPermission(member) {
   return member.permissions.has(PermissionFlagsBits.Administrator) ||
     member.permissions.has(PermissionFlagsBits.ManageRoles);
@@ -444,12 +450,54 @@ client.on(Events.InteractionCreate, async interaction => {
           "`/rank-search query:` — search server members",
           "`/rank-stats` — rank distribution",
           "`/rank-leaderboard` — highest configured ranks",
-          "`/promote`, `/demote`, `/setrank` — staff-controlled rank changes",
+          "`/promote`, `/demote`, `/setrank` — staff-controlled rank changes",\n          "`/kick`, `/ban`, `/timeout`, `/untimeout`, `/purge` — moderation tools",
           "`/rank-config` — configure ranks, logs, announcements and detection",
           "Progression is manual. The bot never promotes members automatically."
         ].join("\n"),
         ephemeral: true
       });
+    }
+
+    if (["kick", "ban", "timeout", "untimeout", "purge"].includes(interaction.commandName)) {
+      const cmd = interaction.commandName;
+      const perm = {kick:PermissionFlagsBits.KickMembers,ban:PermissionFlagsBits.BanMembers,timeout:PermissionFlagsBits.ModerateMembers,untimeout:PermissionFlagsBits.ModerateMembers,purge:PermissionFlagsBits.ManageMessages}[cmd];
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) && !interaction.memberPermissions?.has(perm))
+        return replyError(interaction, "You don't have permission to use this moderation command.");
+      if (cmd === "purge") {
+        await interaction.deferReply({ephemeral:true});
+        const deleted = await interaction.channel.bulkDelete(interaction.options.getInteger("amount",true), true);
+        return interaction.editReply(`🧹 Deleted **${deleted.size}** recent messages. Messages older than 14 days cannot be bulk-deleted.`);
+      }
+      const user = interaction.options.getUser("member",true);
+      const target = await interaction.guild.members.fetch(user.id).catch(()=>null);
+      if (!target) return replyError(interaction,"That member isn't in this server.");
+      if (target.id === interaction.user.id || target.id === client.user.id) return replyError(interaction,"You can't use this command on yourself or the bot.");
+      const actor = await interaction.guild.members.fetch(interaction.user.id);
+      if (!canActOnTarget(actor,target,interaction.guild)) return replyError(interaction,"That member has an equal or higher role than you.");
+      const bot = await interaction.guild.members.fetchMe();
+      if (target.roles.highest.comparePositionTo(bot.roles.highest) >= 0) return replyError(interaction,"My highest role must be above the target member's highest role.");
+      const reason = (interaction.options.getString("reason") || `Action by ${interaction.user.tag}`).slice(0,480);
+      await interaction.deferReply({ephemeral:true});
+      if (cmd === "kick") {
+        if (!target.kickable) return replyError(interaction,"I can't kick that member. Check my Kick Members permission and role position.");
+        await target.kick(reason);
+        return interaction.editReply(`👢 **${user.tag}** was kicked. Reason: ${reason}`);
+      }
+      if (cmd === "ban") {
+        if (!target.bannable) return replyError(interaction,"I can't ban that member. Check my Ban Members permission and role position.");
+        await target.ban({reason});
+        return interaction.editReply(`🔨 **${user.tag}** was banned. Reason: ${reason}`);
+      }
+      if (cmd === "timeout") {
+        const mins=interaction.options.getInteger("minutes",true);
+        if (!target.moderatable) return replyError(interaction,"I can't timeout that member.");
+        await target.timeout(mins*60000,reason);
+        return interaction.editReply(`⏳ **${user.tag}** was timed out for **${mins} minutes**. Reason: ${reason}`);
+      }
+      if (!target.moderatable) return replyError(interaction,"I can't remove that member's timeout.");
+      if (!target.communicationDisabledUntilTimestamp) return replyError(interaction,"That member isn't timed out.");
+      await target.timeout(null,reason);
+      return interaction.editReply(`✅ Removed the timeout from **${user.tag}**.`);
     }
 
     if (interaction.commandName === "rank") {
@@ -542,10 +590,34 @@ client.on(Events.MessageCreate, async message => {
   try {
     if (command === "rankhelp" || command === "help") return send("✨ Paradoxplus command center", [
       "**Member:** `.rank [@member]`, `.rankpanel`, `.rankhistory @member`, `.ranksearch name`, `.rankstats`, `.rankleaderboard`",
-      "**Staff:** `.promote @member [reason]`, `.demote @member [reason]`, `.setrank @member @rank [reason]`",
+      "**Staff:** `.promote @member [reason]`, `.demote @member [reason]`, `.setrank @member @rank [reason]`",\n      "**Moderation:** `.kick @member`, `.ban @member`, `.timeout @member minutes`, `.untimeout @member`, `.purge 1-100`",
       "**Configuration:** use `/rank-config` for setup, detection, logs, announcements and backups.",
       "Prefix: `.` • All slash commands remain available."
     ].join("\n"));
+    if (["kick","ban","timeout","untimeout","purge"].includes(command)) {
+      const perm={kick:PermissionFlagsBits.KickMembers,ban:PermissionFlagsBits.BanMembers,timeout:PermissionFlagsBits.ModerateMembers,untimeout:PermissionFlagsBits.ModerateMembers,purge:PermissionFlagsBits.ManageMessages}[command];
+      if (!message.member.permissions.has(PermissionFlagsBits.Administrator) && !message.member.permissions.has(perm)) return fail("You don't have permission to use that moderation command.");
+      if(command==="purge"){
+        const n=Number(args[0]); if(!Number.isInteger(n)||n<1||n>100) return fail("Usage: .purge 1-100");
+        const deleted=await message.channel.bulkDelete(n,true); return send("🧹 Messages cleared",`Deleted **${deleted.size}** recent messages.`);
+      }
+      const id=mentionedId(args[0]); if(!id) return fail(`Usage: .${command} @member [reason]`);
+      const target=await message.guild.members.fetch(id).catch(()=>null); if(!target) return fail("Member not found.");
+      if(target.id===message.author.id||target.id===client.user.id) return fail("You can't moderate yourself or the bot.");
+      if(!canActOnTarget(message.member,target,message.guild)) return fail("That member has an equal or higher role than you.");
+      const bot=message.guild.members.me??await message.guild.members.fetchMe();
+      if(target.roles.highest.comparePositionTo(bot.roles.highest)>=0) return fail("My highest role must be above the target member's highest role.");
+      const reason=args.slice(command==="timeout"?2:1).join(" ").slice(0,480)||`Action by ${message.author.tag}`;
+      if(command==="kick"){if(!target.kickable)return fail("I can't kick that member.");await target.kick(reason);return send("👢 Member kicked",`**${target.user.tag}** was kicked. ${reason}`);}
+      if(command==="ban"){if(!target.bannable)return fail("I can't ban that member.");await target.ban({reason});return send("🔨 Member banned",`**${target.user.tag}** was banned. ${reason}`);}
+      if(command==="timeout"){
+        const mins=Number(args[1]);if(!Number.isInteger(mins)||mins<1||mins>40320)return fail("Usage: .timeout @member minutes [reason]");
+        if(!target.moderatable)return fail("I can't timeout that member.");await target.timeout(mins*60000,reason);return send("⏳ Member timed out",`**${target.user.tag}** for **${mins} minutes**.`);
+      }
+      if(!target.moderatable)return fail("I can't remove that timeout.");
+      if(!target.communicationDisabledUntilTimestamp)return fail("That member isn't timed out.");
+      await target.timeout(null,reason);return send("✅ Timeout removed",`Removed timeout from **${target.user.tag}**.`);
+    }
     if (command === "rank") {
       const id = mentionedId(args[0]) || message.author.id;
       const target = message.guild.members.cache.get(id) ?? await message.guild.members.fetch(id).catch(() => null);
