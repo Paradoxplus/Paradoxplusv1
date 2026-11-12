@@ -58,6 +58,7 @@ function getGuildConfig(guildId) {
   const config = database.guilds[guildId];
   if (!Array.isArray(config.ranks)) config.ranks = [];
   if (!Array.isArray(config.history)) config.history = [];
+  if (!Array.isArray(config.ignoredRoleIds)) config.ignoredRoleIds = [];
   if (typeof config.announceChannelId !== "string") config.announceChannelId = null;
   config.ranks.sort((a, b) => a.position - b.position);
   return config;
@@ -231,6 +232,35 @@ client.on(Events.InteractionCreate, async interaction => {
         return interaction.reply({ content: `✅ Removed <@&${role.id}> from the rank hierarchy. Members keep the role until changed manually.`, ephemeral: true });
       }
 
+      if (sub === "ignore") {
+        const role = interaction.options.getRole("role", true);
+        if (role.id === interaction.guildId) return replyError(interaction, "@everyone is already excluded from detection.");
+        if (!config.ignoredRoleIds.includes(role.id)) config.ignoredRoleIds.push(role.id);
+        const wasRank = config.ranks.some(rank => rank.id === role.id);
+        if (wasRank) config.ranks = config.ranks.filter(rank => rank.id !== role.id);
+        await saveDatabase();
+        return interaction.reply({
+          content: `✅ **${role.name}** is now excluded from autodetection.${wasRank ? " It was also removed from the configured rank hierarchy; members keep the role." : ""}`,
+          ephemeral: true,
+          allowedMentions: { parse: [] }
+        });
+      }
+
+      if (sub === "unignore") {
+        const role = interaction.options.getRole("role", true);
+        const before = config.ignoredRoleIds.length;
+        config.ignoredRoleIds = config.ignoredRoleIds.filter(id => id !== role.id);
+        if (config.ignoredRoleIds.length === before) return replyError(interaction, "That role isn't on the autodetection ignore list.");
+        await saveDatabase();
+        return interaction.reply({ content: `✅ **${role.name}** can now appear in autodetection previews again.`, ephemeral: true });
+      }
+
+      if (sub === "ignored") {
+        if (!config.ignoredRoleIds.length) return interaction.reply({ content: "No roles are being ignored. Autodetection can consider all eligible roles.", ephemeral: true });
+        const lines = config.ignoredRoleIds.map(id => `• <@&${id}>`);
+        return interaction.reply({ content: `**Roles excluded from autodetection**\n${lines.join("\n")}\n\nUse \`/rank-config unignore role:\` to allow a role again.`, ephemeral: true, allowedMentions: { parse: [] } });
+      }
+
       if (sub === "list") {
         if (!config.ranks.length) return interaction.reply({ content: "No ranks configured yet. Add them with `/rank-config add`.", ephemeral: true });
         const lines = config.ranks.map((r, i) => `${i + 1}. <@&${r.id}>`).join("\n");
@@ -279,6 +309,7 @@ client.on(Events.InteractionCreate, async interaction => {
           interaction.guild.members.fetchMe()
         ]);
         const configuredIds = new Set(config.ranks.map(rank => rank.id));
+        const ignoredIds = new Set(config.ignoredRoleIds);
         const blockedByHierarchy = allRoles.filter(role =>
           role.id !== interaction.guildId &&
           !role.managed &&
@@ -295,13 +326,14 @@ client.on(Events.InteractionCreate, async interaction => {
             role.id !== interaction.guildId &&
             !role.managed &&
             !configuredIds.has(role.id) &&
+            !ignoredIds.has(role.id) &&
             role.position < botMember.roles.highest.position
           )
           .sort((a, b) => a.position - b.position);
 
         if (!candidates.size) {
           return interaction.reply({
-            content: "I couldn't find any new eligible roles below the bot's highest role. @everyone, managed integration roles, and already-configured ranks are skipped.",
+            content: "I couldn't find any new eligible roles below the bot's highest role. @everyone, managed integration roles, already-configured ranks, and roles on your ignore list are skipped.",
             ephemeral: true
           });
         }
@@ -310,7 +342,7 @@ client.on(Events.InteractionCreate, async interaction => {
           const preview = candidates.map((role, index) => `${index + 1}. **${role.name}**`).slice(0, 35);
           const remaining = candidates.size - preview.length;
           return interaction.reply({
-            content: `**Rank-role detection preview**\nFound **${candidates.size}** possible rank roles, ordered from lowest to highest by Discord role position.\n\n${preview.join("\n")}${remaining > 0 ? `\n…and ${remaining} more.` : ""}\n\nNothing has been changed. Run \`/rank-config autodetect confirm:true\` to import these roles. Review the list first. Full scan: **${allRoles.size}** roles; blocked by bot hierarchy: **${blockedByHierarchy.size}**; managed roles: **${managedRoles.size}**.`,
+            content: `**Rank-role detection preview**\nFound **${candidates.size}** possible rank roles, ordered from lowest to highest by Discord role position.\n\n${preview.join("\n")}${remaining > 0 ? `\n…and ${remaining} more.` : ""}\n\nNothing has been changed. Run \`/rank-config autodetect confirm:true\` to import these roles. Review the list first. Full scan: **${allRoles.size}** roles; blocked by bot hierarchy: **${blockedByHierarchy.size}**; managed roles: **${managedRoles.size}**; ignored by you: **${config.ignoredRoleIds.length}**.`,
             ephemeral: true,
             allowedMentions: { parse: [] }
           });
