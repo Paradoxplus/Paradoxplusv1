@@ -71,12 +71,50 @@ const commands = [
     .addSubcommand(s => s.setName("clear-logs")
       .setDescription("Disable rank-change logging."))
 
+    .addSubcommand(s => s.setName("announce")
+      .setDescription("Set the channel for rank-up announcements.")
+      .addChannelOption(o =>
+        o.setName("channel").setDescription("Announcement channel")
+          .addChannelTypes(ChannelType.GuildText).setRequired(true)))
+
+    .addSubcommand(s => s.setName("clear-announcements")
+      .setDescription("Disable rank-up announcements."))
+
+    .addSubcommand(s => s.setName("backup")
+      .setDescription("Download a backup of this server's rank configuration."))
+
     .addSubcommand(s => s.setName("autodetect")
       .setDescription("Detect server roles and preview or import them.")
       .addBooleanOption(o =>
         o.setName("confirm")
           .setDescription("Set true to import the detected roles")
           .setRequired(true)))
+  new SlashCommandBuilder()
+    .setName("rank-history")
+    .setDescription("Show a member's recent rank changes.")
+    .addUserOption(o => o.setName("member").setDescription("Member to inspect").setRequired(true)),
+
+  new SlashCommandBuilder()
+    .setName("rank-search")
+    .setDescription("Search server members by username or nickname.")
+    .addStringOption(o => o.setName("query").setDescription("Name to search for").setMinLength(2).setMaxLength(32).setRequired(true)),
+
+  new SlashCommandBuilder()
+    .setName("rank-stats")
+    .setDescription("Show how members are distributed across ranks."),
+
+  new SlashCommandBuilder()
+    .setName("rank-leaderboard")
+    .setDescription("Show members with the highest configured ranks."),
+
+  new SlashCommandBuilder()
+    .setName("rank-panel")
+    .setDescription("Display this server's rank hierarchy."),
+
+  new SlashCommandBuilder()
+    .setName("rank-help")
+    .setDescription("Show Paradoxplus command help."),
+
 ].map(c => c.toJSON());
 
 const token = process.env.DISCORD_TOKEN;
