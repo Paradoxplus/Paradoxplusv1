@@ -77,7 +77,7 @@ async function replyError(interaction, message) {
 
 async function logRankChange(guild, config, action, target, oldRank, newRank, actor, reason) {
   if (!config.logChannelId) return;
-  const channel = await guild.channels.fetch(config.logChannelId).catch(() => null);
+  const channel = guild.channels.cache.get(config.logChannelId) ?? await guild.channels.fetch(config.logChannelId).catch(() => null);
   if (!channel || !channel.isTextBased()) return;
 
   const embed = new EmbedBuilder()
@@ -113,7 +113,7 @@ async function applyRank(interaction, target, desiredRank, action, reason) {
     .filter(r => target.roles.cache.has(r.id) && r.id !== desiredRank.id)
     .map(r => interaction.guild.roles.cache.get(r.id))
     .filter(Boolean);
-  const newRole = await interaction.guild.roles.fetch(desiredRank.id).catch(() => null);
+  const newRole = interaction.guild.roles.cache.get(desiredRank.id) ?? await interaction.guild.roles.fetch(desiredRank.id).catch(() => null);
 
   if (!newRole) return replyError(interaction, "That rank role no longer exists. Update the hierarchy with `/rank-config`.");
   if (!newRole.editable || rolesToRemove.some(role => !role.editable)) {
@@ -149,7 +149,7 @@ async function applyRank(interaction, target, desiredRank, action, reason) {
 
   await logRankChange(interaction.guild, config, action, target.user, oldRank, desiredRank, interaction.user, reason);
   if (config.announceChannelId) {
-    const announcementChannel = await interaction.guild.channels.fetch(config.announceChannelId).catch(() => null);
+    const announcementChannel = interaction.guild.channels.cache.get(config.announceChannelId) ?? await interaction.guild.channels.fetch(config.announceChannelId).catch(() => null);
     if (announcementChannel?.isTextBased()) {
       await announcementChannel.send({
         content: `🎉 **Rank update!** <@${target.id}> has moved to <@&${desiredRank.id}>!`,
@@ -405,7 +405,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (interaction.commandName === "rank") {
       const user = interaction.options.getUser("member") ?? interaction.user;
-      const member = await interaction.guild.members.fetch(user.id).catch(() => null);
+      const member = interaction.guild.members.cache.get(user.id) ?? await interaction.guild.members.fetch(user.id).catch(() => null);
       if (!member) return replyError(interaction, "I couldn't find that member in this server.");
       const ids = new Set(config.ranks.map(r => r.id));
       const found = config.ranks
@@ -422,8 +422,9 @@ client.on(Events.InteractionCreate, async interaction => {
       if (!hasManagerPermission(interaction.member)) {
         return replyError(interaction, "You need **Manage Roles** or **Administrator** to change ranks.");
       }
+      await interaction.deferReply({ ephemeral: false });
       const user = interaction.options.getUser("member", true);
-      const target = await interaction.guild.members.fetch(user.id).catch(() => null);
+      const target = interaction.guild.members.cache.get(user.id) ?? await interaction.guild.members.fetch(user.id).catch(() => null);
       if (!target) return replyError(interaction, "That member isn't in this server.");
       if (target.id === interaction.client.user.id) return replyError(interaction, "I can't change my own rank.");
 
@@ -465,7 +466,6 @@ client.on(Events.InteractionCreate, async interaction => {
       }
 
       const reason = interaction.options.getString("reason");
-      await interaction.deferReply({ ephemeral: false });
       return applyRank(interaction, target, desired, action, reason);
     }
   } catch (error) {
@@ -501,7 +501,7 @@ client.on(Events.MessageCreate, async message => {
     ].join("\n"));
     if (command === "rank") {
       const id = mentionedId(args[0]) || message.author.id;
-      const target = await message.guild.members.fetch(id).catch(() => null);
+      const target = message.guild.members.cache.get(id) ?? await message.guild.members.fetch(id).catch(() => null);
       if (!target) return fail("Member not found. Mention them or use their ID.");
       const rank = config.ranks.filter(r => target.roles.cache.has(r.id)).sort((a,b)=>b.position-a.position)[0];
       return send("🏅 Member rank", `**${target.user.tag}**\n${rank ? `<@&${rank.id}>` : "Unranked"}`);
@@ -545,7 +545,7 @@ client.on(Events.MessageCreate, async message => {
       const actor = message.member;
       if (message.guild.ownerId !== actor.id && target.roles.highest.comparePositionTo(actor.roles.highest) >= 0)
         return fail("You can't manage someone whose highest role is equal to or above yours.");
-      const bot = await message.guild.members.fetchMe();
+      const bot = message.guild.members.me ?? await message.guild.members.fetchMe();
       if (target.roles.highest.comparePositionTo(bot.roles.highest) >= 0)
         return fail("My highest role must be above the target member's highest role.");
       const ranks = config.ranks;
