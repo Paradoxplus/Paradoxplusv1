@@ -43,14 +43,20 @@ export function startDashboard({client,getGuildConfig,saveDatabase}) {
      const ignored=config.ignoredRoleIds.map(id=>guild.roles.cache.get(id)).filter(Boolean).map(info);
      const available=guild.roles.cache.filter(r=>r.id!==guildId&&!r.managed).sort((a,b)=>a.position-b.position).map(info);
      const channels=guild.channels.cache.filter(c=>c.isTextBased()&&c.guildId===guildId).map(c=>({id:c.id,name:c.name}));
-     return json(res,200,{guild:{id:guild.id,name:guild.name,icon:guild.iconURL({size:128})},ranks,ignored,available,channels,logChannelId:config.logChannelId||"",announceChannelId:config.announceChannelId||"",botReady:true});
+     const members=await guild.members.fetch().catch(()=>guild.members.cache);
+     const rankCounts=config.ranks.map(rank=>({id:rank.id,name:guild.roles.cache.get(rank.id)?.name||"Deleted role",count:members.filter(member=>member.roles.cache.has(rank.id)).size}));
+     const leaderboard=members.map(member=>({id:member.id,name:member.displayName||member.user.username,avatar:member.user.displayAvatarURL({size:64}),rank:config.ranks.filter(rank=>member.roles.cache.has(rank.id)).sort((a,b)=>b.position-a.position)[0]})).filter(item=>item.rank).sort((a,b)=>b.rank.position-a.rank.position||a.name.localeCompare(b.name)).slice(0,10).map((item,index)=>({position:index+1,id:item.id,name:item.name,avatar:item.avatar,rankName:guild.roles.cache.get(item.rank.id)?.name||"Rank"}));
+     const activity=config.history.slice(0,12).map(item=>({timestamp:item.timestamp,memberId:item.memberId,actorId:item.actorId,action:item.action,oldRankName:item.oldRankId?guild.roles.cache.get(item.oldRankId)?.name||"Deleted role":"Unranked",newRankName:item.newRankId?guild.roles.cache.get(item.newRankId)?.name||"Deleted role":"Unranked",reason:item.reason||""}));
+     const rankedMembers=members.filter(member=>config.ranks.some(rank=>member.roles.cache.has(rank.id))).size;
+     return json(res,200,{guild:{id:guild.id,name:guild.name,icon:guild.iconURL({size:128})},stats:{members:members.size,rankedMembers,rankCount:config.ranks.length,botPing:client.ws.ping},rankCounts,leaderboard,activity,ranks,ignored,available,channels,logChannelId:config.logChannelId||"",announceChannelId:config.announceChannelId||"",botReady:true});
     }
     if(req.method==="POST"){
      const input=await body(req);
      if(url.pathname.endsWith("/roles")){
       const role=guild.roles.cache.get(String(input.roleId||""));if(!role||role.id===guildId||role.managed)return json(res,400,{error:"Choose a normal server role."});
-      if(input.action==="add"){if(role.position>=bot.roles.highest.position||!role.editable)return json(res,400,{error:"Move the bot's role above this role first."});const position=Math.max(1,Math.min(100,Number(input.position)||config.ranks.length+1));config.ranks=config.ranks.filter(r=>r.id!==role.id&&r.position!==position);config.ranks.push({id:role.id,position});config.ranks.sort((a,b)=>a.position-b.position);config.ignoredRoleIds=config.ignoredRoleIds.filter(id=>id!==role.id);}
-      else if(input.action==="remove")config.ranks=config.ranks.filter(r=>r.id!==role.id);
+      if(input.action==="add"){if(role.position>=bot.roles.highest.position||!role.editable)return json(res,400,{error:"Move the bot's role above this role first."});const position=Math.max(1,Math.min(100,Number(input.position)||config.ranks.length+1));config.ranks=config.ranks.filter(r=>r.id!==role.id);config.ranks.push({id:role.id,position});config.ranks.sort((a,b)=>a.position-b.position);config.ranks.forEach((rank,index)=>rank.position=index+1);config.ignoredRoleIds=config.ignoredRoleIds.filter(id=>id!==role.id);}
+      else if(input.action==="remove"){config.ranks=config.ranks.filter(r=>r.id!==role.id);config.ranks.forEach((rank,index)=>rank.position=index+1);}
+      else if(input.action==="move"){const from=config.ranks.findIndex(r=>r.id===role.id);const to=Math.max(0,Math.min(config.ranks.length-1,Number(input.position)-1));if(from<0)return json(res,404,{error:"Rank not found."});const [moved]=config.ranks.splice(from,1);config.ranks.splice(to,0,moved);config.ranks.forEach((rank,index)=>rank.position=index+1);}
       else if(input.action==="ignore"){config.ranks=config.ranks.filter(r=>r.id!==role.id);if(!config.ignoredRoleIds.includes(role.id))config.ignoredRoleIds.push(role.id);}
       else if(input.action==="unignore")config.ignoredRoleIds=config.ignoredRoleIds.filter(id=>id!==role.id);
       else return json(res,400,{error:"Unknown role action."});
