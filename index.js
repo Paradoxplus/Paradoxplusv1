@@ -213,7 +213,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (sub === "autodetect") {
         const confirm = interaction.options.getBoolean("confirm", true);
         const botMember = await interaction.guild.members.fetchMe();
-        const excludedName = /\\b(admin(istrator)?|owner|co[- ]?owner|staff|moderator|mod|helper|support|bot|verified|member|muted|mute|booster|nitro|ping|notification|announcement|ticket|blacklist|banned|jail|quarantine|developer|management)\\b/i;
+        const excludedName = /\b(admin(istrator)?|owner|co[- ]?owner|staff|moderator|mod|helper|support|bot|verified|member|muted|mute|booster|nitro|ping|notification|announcement|ticket|blacklist|banned|jail|quarantine|developer|management)\b/i;
         const configuredIds = new Set(config.ranks.map(rank => rank.id));
         const candidates = interaction.guild.roles.cache
           .filter(role =>
