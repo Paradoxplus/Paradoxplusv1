@@ -106,24 +106,47 @@ async function replyError(interaction, message) {
   return interaction.reply(payload);
 }
 
+function rankActionStyle(action) {
+  if (action === "PROMOTE" || action === "PROMOTED") {
+    return { verb: "got promoted", title: "PROMOTION", color: 0x35d07f, emoji: "🚀" };
+  }
+  if (action === "DEMOTE" || action === "DEMOTED") {
+    return { verb: "got demoted", title: "DEMOTION", color: 0xf0a33a, emoji: "📉" };
+  }
+  return { verb: "had their rank updated", title: "RANK UPDATE", color: 0x8b75ff, emoji: "👑" };
+}
+
+function rankChangeEmbed(action, target, oldRank, newRank, actor, reason, guild) {
+  const style = rankActionStyle(action);
+  const embed = new EmbedBuilder()
+    .setColor(style.color)
+    .setAuthor({ name: `PARADOXPLUS • ${style.title}`, iconURL: guild.iconURL() || undefined })
+    .setTitle(`${style.emoji} Rank change`)
+    .setDescription(`## ${target} ${style.verb} by ${actor}`)
+    .addFields(
+      { name: "⬅️ Previous rank", value: oldRank ? `<@&${oldRank.id}>` : "Unranked", inline: true },
+      { name: "➡️ New rank", value: newRank ? `<@&${newRank.id}>` : "Unranked", inline: true },
+      { name: "🛡️ Staff member", value: `${actor}`, inline: false }
+    )
+    .setFooter({ text: `${guild.name} • Paradoxplus Rank System` })
+    .setTimestamp();
+  if (reason) embed.addFields({ name: "📝 Reason", value: reason.slice(0, 300) });
+  return embed;
+}
+
 async function logRankChange(guild, config, action, target, oldRank, newRank, actor, reason) {
   if (!config.logChannelId) return;
   const channel = guild.channels.cache.get(config.logChannelId) ?? await guild.channels.fetch(config.logChannelId).catch(() => null);
   if (!channel || !channel.isTextBased()) return;
-
-  const embed = new EmbedBuilder()
-    .setColor(action === "PROMOTED" ? 0x36c98f : action === "DEMOTED" ? 0xe0a33a : 0x6597e8)
-    .setTitle(`Rank ${action.toLowerCase()}`)
-    .addFields(
-      { name: "Member", value: `${target} (\`${target.id}\`)`, inline: false },
-      { name: "Previous rank", value: oldRank ? `<@&${oldRank.id}>` : "Unranked", inline: true },
-      { name: "New rank", value: newRank ? `<@&${newRank.id}>` : "Unranked", inline: true },
-      { name: "Changed by", value: `${actor}`, inline: true }
-    )
-    .setTimestamp();
-
-  if (reason) embed.addFields({ name: "Reason", value: reason.slice(0, 300) });
-  await channel.send({ embeds: [embed] }).catch(err => console.error("Could not send rank log:", err));
+  const embed = rankChangeEmbed(action, target, oldRank, newRank, actor, reason, guild);
+  await channel.send({
+    embeds: [embed],
+    allowedMentions: {
+      users: [target.id, actor.id],
+      roles: [oldRank?.id, newRank?.id].filter(Boolean),
+      parse: []
+    }
+  }).catch(err => console.error("Could not send rank log:", err));
 }
 
 async function applyRank(interaction, target, desiredRank, action, reason) {
@@ -192,9 +215,16 @@ async function applyRank(interaction, target, desiredRank, action, reason) {
       const announcementChannel = interaction.guild.channels.cache.get(config.announceChannelId)
         ?? await interaction.guild.channels.fetch(config.announceChannelId).catch(() => null);
       if (announcementChannel?.isTextBased()) {
+        const style = rankActionStyle(action);
+        const embed = rankChangeEmbed(action, target.user, oldRank, desiredRank, interaction.user, reason, interaction.guild);
         await announcementChannel.send({
-          content: `🎉 **Rank update!** <@${target.id}> has moved to <@&${desiredRank.id}>!`,
-          allowedMentions: { users: [target.id], roles: [desiredRank.id] }
+          content: `${style.emoji} <@${target.id}> ${style.verb} by <@${interaction.user.id}>!`,
+          embeds: [embed],
+          allowedMentions: {
+            users: [target.id, interaction.user.id],
+            roles: [oldRank?.id, desiredRank.id].filter(Boolean),
+            parse: []
+          }
         });
       }
     })().catch(error => console.error("Rank announcement failed:", error));
