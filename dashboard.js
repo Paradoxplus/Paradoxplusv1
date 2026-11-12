@@ -55,7 +55,7 @@ export function startDashboard({client,getGuildConfig,saveDatabase}) {
     if(req.method==="POST"){
      const input=await body(req);
      if(url.pathname.endsWith("/roles")){
-      const role=guild.roles.cache.get(String(input.roleId||""));if(!role||role.id===guildId||role.managed)return json(res,400,{error:"Choose a normal server role."});
+      const isBulk=input.action==="addMany"||input.action==="ignoreMany";const role=isBulk?null:guild.roles.cache.get(String(input.roleId||""));if(!isBulk&&(!role||role.id===guildId||role.managed))return json(res,400,{error:"Choose a normal server role."});
       if(input.action==="addMany"||input.action==="ignoreMany"){
        const ids=[...new Set(Array.isArray(input.roleIds)?input.roleIds.map(String):[])];
        if(!ids.length||ids.length>100)return json(res,400,{error:"Select between 1 and 100 roles."});
