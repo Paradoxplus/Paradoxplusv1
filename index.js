@@ -66,6 +66,7 @@ function getGuildConfig(guildId) {
   if (!config.pulse || typeof config.pulse !== "object") config.pulse = { days: {} };
   if (!config.pulse.days || typeof config.pulse.days !== "object") config.pulse.days = {};
   if (!Array.isArray(config.ignoredRoleIds)) config.ignoredRoleIds = [];
+  if (!Array.isArray(config.autoresponders)) config.autoresponders = [];
   if (typeof config.announceChannelId !== "string") config.announceChannelId = null;
   config.ranks.sort((a, b) => a.position - b.position);
   return config;
@@ -260,6 +261,24 @@ client.on(Events.MessageCreate, message => {
     void saveDatabase().catch(error => console.error("Pulse save failed:", error));
   }
 });
+// Built-in and configurable autoresponders.
+client.on(Events.MessageCreate, async message => {
+  if (!message.guild || message.author.bot) return;
+  const config = getGuildConfig(message.guild.id);
+  const text = message.content.toLowerCase();
+  const botMentioned = message.mentions.has(client.user.id) || text.includes("paradox#7975");
+  const ownerQuestion = /\bwho(?:'|’)s your owner\b|\bwho is your owner\b|\bwhos your owner\b/.test(text);
+  if (botMentioned && ownerQuestion) {
+    return message.reply({
+      content: "<@1367968697884606524> is my owner",
+      allowedMentions: { users: ["1367968697884606524"], repliedUser: false }
+    }).catch(error => console.error("Built-in autoresponder failed:", error));
+  }
+  const match = config.autoresponders.find(item => item && typeof item.trigger === "string" && text.includes(item.trigger.toLowerCase()));
+  if (match) return message.reply({ content: match.response, allowedMentions: { repliedUser: false, parse: [] } })
+    .catch(error => console.error("Custom autoresponder failed:", error));
+});
+
 client.on(Events.GuildMemberAdd, member => {
   const config=getGuildConfig(member.guild.id); pulseDay(config).joins++; trimPulse(config);
   void saveDatabase().catch(error=>console.error("Pulse join save failed:",error));
@@ -781,6 +800,39 @@ client.on(Events.MessageCreate, async message => {
   });
   const fail = text => send("⚠️ Command error", text);
   try {
+    if (command === "ar" || command === "autoresponder") {
+      const sub = (args.shift() || "").toLowerCase();
+      const allowed = isBotOwner(message.author.id) || message.member.permissions.has(PermissionFlagsBits.Administrator) || message.member.permissions.has(PermissionFlagsBits.ManageMessages) || message.member.permissions.has(PermissionFlagsBits.ManageGuild);
+      if (sub === "list") {
+        if (!config.autoresponders.length) return send("💬 Autoresponders", "No custom autoresponders are configured.");
+        return send("💬 Custom autoresponders", config.autoresponders.map((item, i) => (i + 1) + ". **Trigger:** " + item.trigger + "\n   **Reply:** " + item.response).join("\n"));
+      }
+      if (!allowed) return fail("You need Manage Messages, Manage Server, or Administrator to manage autoresponders.");
+      if (sub === "add") {
+        const raw = args.join(" ");
+        const split = raw.indexOf("|");
+        if (split < 1 || split === raw.length - 1) return fail("Usage: .ar add trigger | response");
+        const trigger = raw.slice(0, split).trim();
+        const response = raw.slice(split + 1).trim();
+        if (trigger.length < 2 || trigger.length > 100) return fail("Triggers must be 2–100 characters.");
+        if (!response || response.length > 1800) return fail("Replies must be 1–1800 characters.");
+        if (config.autoresponders.some(item => item.trigger.toLowerCase() === trigger.toLowerCase())) return fail("That trigger already exists. Remove it first if you want to replace it.");
+        if (config.autoresponders.length >= 25) return fail("This server has reached the 25 custom autoresponder limit.");
+        config.autoresponders.push({ trigger, response });
+        await saveDatabase();
+        return send("✅ Autoresponder added", "**Trigger:** " + trigger + "\n**Reply:** " + response);
+      }
+      if (sub === "remove" || sub === "delete") {
+        const trigger = args.join(" ").trim();
+        if (!trigger) return fail("Usage: .ar remove trigger");
+        const before = config.autoresponders.length;
+        config.autoresponders = config.autoresponders.filter(item => item.trigger.toLowerCase() !== trigger.toLowerCase());
+        if (config.autoresponders.length === before) return fail("I couldn't find that exact trigger.");
+        await saveDatabase();
+        return send("🗑️ Autoresponder removed", "Removed trigger: **" + trigger + "**");
+      }
+      return fail("Use .ar add trigger | response, .ar remove trigger, or .ar list.");
+    }
     if (command === "rankhelp" || command === "help") return send("✨ Paradoxplus command center", [
       "**Member:** `.rank [@member]`, `.rankpanel`, `.rankhistory @member`, `.ranksearch name`, `.rankstats`, `.rankleaderboard`",
       "**Staff:** `.promote @member [reason]`, `.demote @member [reason]`, `.setrank @member @rank [reason]`",
