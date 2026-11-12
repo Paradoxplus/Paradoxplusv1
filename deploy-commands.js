@@ -88,7 +88,8 @@ const commands = [
       .addBooleanOption(o =>
         o.setName("confirm")
           .setDescription("Set true to import the detected roles")
-          .setRequired(true)))
+          .setRequired(true))),
+
   new SlashCommandBuilder()
     .setName("rank-history")
     .setDescription("Show a member's recent rank changes.")
