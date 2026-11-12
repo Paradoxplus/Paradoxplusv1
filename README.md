@@ -32,6 +32,10 @@ Paradoxplus uses **manual progression only**. It does not award XP, grind points
 - `/rank-config clear-announcements` — disable rank announcements.
 - `/rank-config backup` — download a JSON backup of the server's rank configuration and history.
 
+## Browser dashboard
+
+The dashboard runs in the same Railway service as the bot at the service's public HTTPS domain. It supports Discord sign-in, server selection, rank-role management, detection exclusions, and log/announcement channel settings. The dashboard only displays servers where the signed-in user has Manage Roles or Administrator and Paradoxplus is online.
+
 ## Prefix commands
 
 Paradoxplus also supports the `.` message prefix alongside slash commands:
@@ -49,9 +53,12 @@ To enable prefix commands, turn on **Message Content Intent** in the Discord Dev
 2. Install dependencies with `npm install`.
 3. Set `DISCORD_TOKEN` and `CLIENT_ID`. Set `GUILD_ID` for fast guild-scoped command registration during testing.
 4. Enable **Server Members Intent** and **Message Content Intent** in the Discord Developer Portal.
-5. Invite the bot with the `bot` and `applications.commands` scopes. Grant only the permissions it needs: Manage Roles, View Channels, Send Messages, Embed Links, and Read Message History.
-6. Move the bot's highest role above every rank role it needs to manage.
-7. Run `npm start` (the prestart script registers slash commands).
+5. For the browser dashboard, add these environment variables to Railway: `DASHBOARD_URL` (your public HTTPS Railway domain), `DISCORD_CLIENT_SECRET` (from Developer Portal → OAuth2 → Client Secret), and `DASHBOARD_SESSION_SECRET` (a long random secret). Keep the existing `CLIENT_ID`.
+6. In Developer Portal → OAuth2 → Redirects, add the exact URL `https://YOUR-DASHBOARD-DOMAIN/auth/callback` (replace the domain with your Railway domain). The dashboard uses Discord OAuth2 scopes `identify` and `guilds`.
+7. Open your Railway public domain in a browser and sign in with Discord. You must have Manage Roles or Administrator in a server, and Paradoxplus must already be in that server.
+8. Invite the bot with the `bot` and `applications.commands` scopes. Grant only the permissions it needs: Manage Roles, View Channels, Send Messages, Embed Links, and Read Message History.
+9. Move the bot's highest role above every rank role it needs to manage.
+10. Run `npm start` (the prestart script registers slash commands).
 
 ## Storage
 
