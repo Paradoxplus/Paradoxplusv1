@@ -282,7 +282,7 @@ client.on(Events.InteractionCreate, async interaction => {
           const preview = candidates.map((role, index) => `${index + 1}. **${role.name}**`).slice(0, 35);
           const remaining = candidates.size - preview.length;
           return interaction.reply({
-            content: `**Rank-role detection preview**\\nFound **${candidates.size}** possible rank roles, ordered from lowest to highest by Discord role position.\\n\\n${preview.join("\\n")}${remaining > 0 ? `\\n…and ${remaining} more.` : ""}\\n\\nNothing has been changed. Run \`/rank-config autodetect confirm:true\` to import these roles. Review the list first; staff, bot, and utility roles are filtered by name.`,
+            content: `**Rank-role detection preview**\nFound **${candidates.size}** possible rank roles, ordered from lowest to highest by Discord role position.\n\n${preview.join("\n")}${remaining > 0 ? `\n…and ${remaining} more.` : ""}\n\nNothing has been changed. Run \`/rank-config autodetect confirm:true\` to import these roles. Review the list first; staff, bot, and utility roles are filtered by name.`,
             ephemeral: true,
             allowedMentions: { parse: [] }
           });
@@ -300,7 +300,7 @@ client.on(Events.InteractionCreate, async interaction => {
         const names = candidates.map(role => role.name).slice(0, 25);
         const remaining = candidates.size - names.length;
         return interaction.reply({
-          content: `✅ Imported **${candidates.size}** detected rank roles into the existing hierarchy. Existing configured ranks were kept. New roles were added above them, ordered by Discord role position.\\n\\n${names.map((name, index) => `${index + 1}. **${name}**`).join("\\n")}${remaining > 0 ? `\\n…and ${remaining} more.` : ""}\\n\\nUse \`/rank-config list\` to review the full hierarchy.`,
+          content: `✅ Imported **${candidates.size}** detected rank roles into the existing hierarchy. Existing configured ranks were kept. New roles were added above them, ordered by Discord role position.\n\n${names.map((name, index) => `${index + 1}. **${name}**`).join("\n")}${remaining > 0 ? `\n…and ${remaining} more.` : ""}\n\nUse \`/rank-config list\` to review the full hierarchy.`,
           ephemeral: true,
           allowedMentions: { parse: [] }
         });
@@ -317,7 +317,7 @@ client.on(Events.InteractionCreate, async interaction => {
         const date = new Date(item.timestamp).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
         return `• **${item.action}**: ${oldRank} → ${newRank} — <t:${Math.floor(new Date(item.timestamp).getTime() / 1000)}:R> (by <@${item.actorId}>)`;
       });
-      return interaction.reply({ content: `**Rank history — ${user.tag}**\\n${lines.join("\\n")}`, ephemeral: true, allowedMentions: { parse: [] } });
+      return interaction.reply({ content: `**Rank history — ${user.tag}**\n${lines.join("\n")}`, ephemeral: true, allowedMentions: { parse: [] } });
     }
 
     if (interaction.commandName === "rank-search") {
@@ -333,7 +333,7 @@ client.on(Events.InteractionCreate, async interaction => {
         const rank = config.ranks.filter(item => member.roles.cache.has(item.id)).sort((a,b) => b.position-a.position)[0];
         return `• ${member.user.tag} — ${rank ? `<@&${rank.id}>` : "Unranked"}`;
       });
-      return interaction.editReply({ content: `**Member search results**\\n${lines.join("\\n")}`, allowedMentions: { parse: [] } });
+      return interaction.editReply({ content: `**Member search results**\n${lines.join("\n")}`, allowedMentions: { parse: [] } });
     }
 
     if (interaction.commandName === "rank-stats" || interaction.commandName === "rank-leaderboard") {
@@ -347,7 +347,7 @@ client.on(Events.InteractionCreate, async interaction => {
         const totalRanked = counts.reduce((sum, item) => sum + item.count, 0);
         const lines = counts.map(item => `• <@&${item.rank.id}> — **${item.count}** members`);
         return interaction.editReply({
-          content: `**Rank statistics**\\nMembers in server: **${members.size}**\\nRanked members (rank-role assignments): **${totalRanked}**\\n\\n${lines.length ? lines.join("\\n") : "No ranks configured."}`,
+          content: `**Rank statistics**\nMembers in server: **${members.size}**\nRanked members (rank-role assignments): **${totalRanked}**\n\n${lines.length ? lines.join("\n") : "No ranks configured."}`,
           allowedMentions: { parse: [] }
         });
       }
@@ -357,7 +357,7 @@ client.on(Events.InteractionCreate, async interaction => {
       }).filter(Boolean).sort((a,b) => b.rank.position-a.rank.position || a.member.user.username.localeCompare(b.member.user.username)).slice(0,10);
       if (!ranked.length) return interaction.editReply("No ranked members found.");
       return interaction.editReply({
-        content: `**Rank leaderboard — highest ranks first**\\n${ranked.map((item,index) => `${index+1}. **${item.member.user.tag}** — <@&${item.rank.id}>`).join("\\n")}`,
+        content: `**Rank leaderboard — highest ranks first**\n${ranked.map((item,index) => `${index+1}. **${item.member.user.tag}** — <@&${item.rank.id}>`).join("\n")}`,
         allowedMentions: { parse: [] }
       });
     }
@@ -367,7 +367,7 @@ client.on(Events.InteractionCreate, async interaction => {
         .setColor(0x6f8cff)
         .setTitle(`${interaction.guild.name} — Rank hierarchy`)
         .setDescription(config.ranks.length
-          ? config.ranks.map((rank,index) => `${index+1}. <@&${rank.id}>`).join("\\n")
+          ? config.ranks.map((rank,index) => `${index+1}. <@&${rank.id}>`).join("\n")
           : "No ranks have been configured yet.")
         .setFooter({ text: "Manual progression • Staff-controlled promotions" });
       return interaction.reply({ embeds: [embed], ephemeral: false, allowedMentions: { parse: [] } });
@@ -386,7 +386,7 @@ client.on(Events.InteractionCreate, async interaction => {
           "`/promote`, `/demote`, `/setrank` — staff-controlled rank changes",
           "`/rank-config` — configure ranks, logs, announcements and detection",
           "Progression is manual. The bot never promotes members automatically."
-        ].join("\\n"),
+        ].join("\n"),
         ephemeral: true
       });
     }
