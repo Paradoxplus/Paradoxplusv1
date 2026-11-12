@@ -60,7 +60,7 @@ function getGuildConfig(guildId) {
   if (!Array.isArray(config.ranks)) config.ranks = [];
   if (!Array.isArray(config.history)) config.history = [];
   if (!Array.isArray(config.warnings)) config.warnings = [];
-  if (!Array.isArray(config.moderationCases)) config.moderationCases = [];
+  if (!Array.isArray(config.moderationCases)) config.moderationCases = [];\n  if (!config.pulse || typeof config.pulse !== "object") config.pulse = { days: {} };\n  if (!config.pulse.days || typeof config.pulse.days !== "object") config.pulse.days = {};
   if (!Array.isArray(config.ignoredRoleIds)) config.ignoredRoleIds = [];
   if (typeof config.announceChannelId !== "string") config.announceChannelId = null;
   config.ranks.sort((a, b) => a.position - b.position);
@@ -191,6 +191,43 @@ async function applyRank(interaction, target, desiredRank, action, reason) {
   }
   return response;
 }
+
+
+// Paradox Pulse: privacy-light aggregate community activity, never message contents.
+function pulseDay(config) {
+  const key = new Date().toISOString().slice(0,10);
+  const days = config.pulse.days;
+  if (!days[key]) days[key] = { messages: 0, joins: 0, leaves: 0, activeIds: [] };
+  return days[key];
+}
+function trimPulse(config) {
+  const cutoff = Date.now() - 30*86400000;
+  for (const key of Object.keys(config.pulse.days)) {
+    if (new Date(key+"T00:00:00Z").getTime() < cutoff) delete config.pulse.days[key];
+  }
+}
+let pulseMessageBuffer = 0;
+client.on(Events.MessageCreate, message => {
+  if (!message.guild || message.author.bot) return;
+  const config = getGuildConfig(message.guild.id);
+  const day = pulseDay(config);
+  day.messages++;
+  if (!day.activeIds.includes(message.author.id)) day.activeIds.push(message.author.id);
+  trimPulse(config);
+  pulseMessageBuffer++;
+  if (pulseMessageBuffer >= 20) {
+    pulseMessageBuffer = 0;
+    void saveDatabase().catch(error => console.error("Pulse save failed:", error));
+  }
+});
+client.on(Events.GuildMemberAdd, member => {
+  const config=getGuildConfig(member.guild.id); pulseDay(config).joins++; trimPulse(config);
+  void saveDatabase().catch(error=>console.error("Pulse join save failed:",error));
+});
+client.on(Events.GuildMemberRemove, member => {
+  const config=getGuildConfig(member.guild.id); pulseDay(config).leaves++; trimPulse(config);
+  void saveDatabase().catch(error=>console.error("Pulse leave save failed:",error));
+});
 
 client.once(Events.ClientReady, readyClient => {
   console.log(`Online as ${readyClient.user.tag}`);
