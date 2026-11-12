@@ -39,7 +39,10 @@ async function loadDatabase() {
 }
 
 function saveDatabase() {
-  saveQueue = saveQueue.then(async () => {
+  // Recover the queue after a failed disk write so later saves can still run.
+  saveQueue = saveQueue.catch(error => {
+    console.error("Previous database save failed; retrying with latest data:", error);
+  }).then(async () => {
     await fs.mkdir(DATA_DIR, { recursive: true });
     const tempFile = `${DATA_FILE}.tmp`;
     await fs.writeFile(tempFile, JSON.stringify(database, null, 2), "utf8");
