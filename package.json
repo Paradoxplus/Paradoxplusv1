@@ -2,7 +2,7 @@
   "name": "premium-discord-rank-bot",
   "version": "1.0.0",
   "private": true,
-  "description": "A manual Discord rank-management bot with role detection, rank history, announcements, analytics, search, and audit logs.",
+  "description": "A branded Discord rank-management bot with slash and dot-prefix commands, role detection, rank history, announcements, analytics, search, and audit logs.",
   "type": "module",
   "main": "index.js",
   "scripts": {
