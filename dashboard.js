@@ -125,7 +125,7 @@ export function startDashboard({ client, getGuildConfig, saveDatabase }) {
           const roleInfo = role => ({ id: role.id, name: role.name, position: role.position, color: role.hexColor, managed: role.managed, editable: role.editable });
           const ranks = config.ranks.map(r => guild.roles.cache.get(r.id)).filter(Boolean).map(roleInfo);
           const ignored = config.ignoredRoleIds.map(id => guild.roles.cache.get(id)).filter(Boolean).map(roleInfo);
-          const available = guild.roles.cache.filter(r => r.id !== guildId && !r.managed && r.position < bot.roles.highest.position).sort((a,b)=>a.position-b.position).map(roleInfo);
+          const available = guild.roles.cache.filter(r => r.id !== guildId && !r.managed).sort((a,b)=>a.position-b.position).map(roleInfo);
           const channels = guild.channels.cache.filter(c => c.isTextBased() && c.guildId === guildId).map(c => ({ id:c.id, name:c.name }));
           return json(res, 200, {
             guild: { id:guild.id, name:guild.name, icon:guild.iconURL({size:128}) },
@@ -138,9 +138,9 @@ export function startDashboard({ client, getGuildConfig, saveDatabase }) {
           const body = await readBody(req);
           if (url.pathname.endsWith("/roles")) {
             const role = guild.roles.cache.get(String(body.roleId || ""));
-            if (!role || role.id === guildId || role.managed || role.position >= bot.roles.highest.position) return json(res, 400, { error: "That role cannot be managed by the bot. Check its position and type." });
+            if (!role || role.id === guildId || role.managed) return json(res, 400, { error: "That role cannot be used. Choose a normal server role." });
             if (body.action === "add") {
-              if (!role.editable) return json(res, 400, { error: "Move the bot's role above this role first." });
+              if (role.position >= bot.roles.highest.position || !role.editable) return json(res, 400, { error: "Move the bot's role above this role first." });
               const position = Math.max(1, Math.min(100, Number(body.position) || config.ranks.length + 1));
               config.ranks = config.ranks.filter(r => r.id !== role.id && r.position !== position);
               config.ranks.push({ id: role.id, position });
