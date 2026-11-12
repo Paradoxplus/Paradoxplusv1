@@ -17,3 +17,4 @@ jobs:
       - run: npm install
       - run: node --check index.js
       - run: node --check deploy-commands.js
+      - run: node --check dashboard.js
