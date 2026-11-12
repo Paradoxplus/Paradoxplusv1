@@ -512,7 +512,7 @@ client.on(Events.MessageCreate, async message => {
       const rows = config.history.filter(x => x.memberId === id).slice(0, 10);
       return send("🗂️ Rank history", rows.map(x =>
         `• **${x.action}** ${x.oldRankId ? `<@&${x.oldRankId}>` : "Unranked"} → ${x.newRankId ? `<@&${x.newRankId}>` : "Unranked"} <t:${Math.floor(new Date(x.timestamp).getTime()/1000)}:R>`
-      ).join("\\n") || "No history found.");
+      ).join("\n") || "No history found.");
     }
     if (command === "ranksearch") {
       const query = args.join(" ").toLowerCase();
@@ -522,17 +522,17 @@ client.on(Events.MessageCreate, async message => {
       return send("🔎 Member search", matches.map(m => {
         const rank = config.ranks.filter(r => m.roles.cache.has(r.id)).sort((a,b)=>b.position-a.position)[0];
         return `• **${m.user.tag}** — ${rank ? `<@&${rank.id}>` : "Unranked"}`;
-      }).join("\\n") || "No matches found.");
+      }).join("\n") || "No matches found.");
     }
     if (command === "rankstats" || command === "rankleaderboard") {
       const members = await message.guild.members.fetch();
       if (command === "rankleaderboard") {
         const top = members.map(m => ({ member: m, rank: config.ranks.filter(r => m.roles.cache.has(r.id)).sort((a,b)=>b.position-a.position)[0] }))
           .filter(x => x.rank).sort((a,b)=>b.rank.position-a.rank.position).slice(0,10);
-        return send("👑 Rank leaderboard", top.map((x,i)=>`${i+1}. **${x.member.user.tag}** — <@&${x.rank.id}>`).join("\\n") || "No ranked members.");
+        return send("👑 Rank leaderboard", top.map((x,i)=>`${i+1}. **${x.member.user.tag}** — <@&${x.rank.id}>`).join("\n") || "No ranked members.");
       }
       const lines = config.ranks.map(r => `• <@&${r.id}> — **${members.filter(m=>m.roles.cache.has(r.id)).size}**`);
-      return send("📊 Rank statistics", `**Server members:** ${members.size}\\n${lines.join("\\n") || "No ranks configured."}`);
+      return send("📊 Rank statistics", `**Server members:** ${members.size}\n${lines.join("\n") || "No ranks configured."}`);
     }
     if (command === "rankpanel") return send("🏆 Server rank hierarchy",
       config.ranks.map((r,i)=>`**${i+1}.** <@&${r.id}>`).join("\n") || "No ranks configured.");
