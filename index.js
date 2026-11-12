@@ -5,6 +5,7 @@ import {
 } from "discord.js";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { startDashboard } from "./dashboard.js";
 
 const TOKEN = process.env.DISCORD_TOKEN;
 if (!TOKEN) {
@@ -628,4 +629,5 @@ client.on(Events.MessageCreate, async message => {
 });
 
 await loadDatabase();
+startDashboard({ client, getGuildConfig, saveDatabase });
 client.login(TOKEN);
