@@ -132,31 +132,30 @@ async function applyRank(interaction, target, desiredRank, action, reason) {
     return replyError(interaction, "The rank hierarchy needs at least two ranks. Ask an administrator to configure it with `/rank-config add`.");
   }
 
-  const configuredIds = new Set(config.ranks.map(r => r.id));
   const oldRank = getHighestConfiguredRank(target, config.ranks);
-  const rolesToRemove = config.ranks
-    .filter(r => target.roles.cache.has(r.id) && r.id !== desiredRank.id)
-    .map(r => interaction.guild.roles.cache.get(r.id))
-    .filter(Boolean);
   const newRole = interaction.guild.roles.cache.get(desiredRank.id) ?? await interaction.guild.roles.fetch(desiredRank.id).catch(() => null);
+  const oldRole = oldRank && oldRank.id !== desiredRank.id
+    ? interaction.guild.roles.cache.get(oldRank.id)
+    : null;
 
   if (!newRole) return replyError(interaction, "That rank role no longer exists. Update the hierarchy with `/rank-config`.");
-  if (!newRole.editable || rolesToRemove.some(role => !role.editable)) {
-    return replyError(interaction, "I can't manage one or more of those roles. Move my bot role above every rank role in Server Settings → Roles.");
+  if (!newRole.editable || (oldRole && !oldRole.editable)) {
+    return replyError(interaction, "I can't manage the rank role. Move my bot role above it in Server Settings → Roles.");
   }
 
-  // Change only configured rank roles; preserve every unrelated role.
+  // Add the new rank first, then remove ONLY the member's current highest rank.
+  // Never replace the member's full role list or remove unrelated roles.
   try {
-    if (rolesToRemove.length) {
-      await target.roles.remove(
-        rolesToRemove,
-        `Remove previous configured rank for ${action.toLowerCase()} by ${interaction.user.tag}`
-      );
-    }
     if (!target.roles.cache.has(newRole.id)) {
       await target.roles.add(
         newRole,
         `Assign configured rank by ${interaction.user.tag}`
+      );
+    }
+    if (oldRole && target.roles.cache.has(oldRole.id)) {
+      await target.roles.remove(
+        oldRole,
+        `Replace previous rank for ${action.toLowerCase()} by ${interaction.user.tag}`
       );
     }
   } catch (error) {
