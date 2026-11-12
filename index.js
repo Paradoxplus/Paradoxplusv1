@@ -1010,7 +1010,7 @@ client.on(Events.MessageCreate, async message => {
     if (command === "rankhelp" || command === "help") return send("✨ Paradoxplus command center", [
       "**Member:** `.rank [@member]`, `.rankpanel`, `.rankhistory @member`, `.ranksearch name`, `.rankstats`, `.rankleaderboard`",
       "**Staff:** `.promote @member [reason]`, `.demote @member [reason]`, `.setrank @member @rank [reason]`",
-      "**Moderation:** `.kick @member`, `.ban @member`, `.timeout @member minutes`, `.untimeout @member`, `.purge 1-100`",
+      "**Moderation:** `.kick @member`, `.ban @member`, `.timeout @member minutes`, `.untimeout @member`, `.purge 1-100`, `.lock`, `.unlock`, `.slowmode seconds`",
       "**Configuration:** use `/rank-config` for setup, detection, logs, announcements and backups.",
       "Prefix: `.` • All slash commands remain available."
     ].join("\n"));
@@ -1037,6 +1037,26 @@ client.on(Events.MessageCreate, async message => {
       if(!target.moderatable)return fail("I can't remove that timeout.");
       if(!target.communicationDisabledUntilTimestamp)return fail("That member isn't timed out.");
       await target.timeout(null,reason);return send("✅ Timeout removed",`Removed timeout from **${target.user.tag}**.`);
+    }
+    if (["lock","unlock","slowmode"].includes(command)) {
+      const required = command === "slowmode" ? PermissionFlagsBits.ManageChannels : PermissionFlagsBits.ManageChannels;
+      if (!isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.Administrator) && !message.member.permissions.has(required))
+        return fail("You need Manage Channels or Administrator to use this command.");
+      if (!message.channel.permissionOverwrites?.edit) return fail("This channel doesn't support permission overwrites.");
+      const bot = message.guild.members.me ?? await message.guild.members.fetchMe();
+      if (!bot.permissions.has(PermissionFlagsBits.ManageChannels)) return fail("I need Manage Channels permission.");
+      if (command === "lock" || command === "unlock") {
+        await message.channel.permissionOverwrites.edit(message.guild.roles.everyone, {
+          SendMessages: command === "lock" ? false : null
+        }, { reason: `${command} by ${message.author.tag}` });
+        return send(command === "lock" ? "🔒 Channel locked" : "🔓 Channel unlocked",
+          command === "lock" ? "Members can no longer send messages in this channel." : "The channel's message permission override has been cleared.");
+      }
+      const seconds = Number(args[0]);
+      if (!Number.isInteger(seconds) || seconds < 0 || seconds > 21600) return fail("Usage: .slowmode seconds (0–21600)");
+      if (typeof message.channel.setRateLimitPerUser !== "function") return fail("Slowmode isn't supported in this channel.");
+      await message.channel.setRateLimitPerUser(seconds, `Slowmode changed by ${message.author.tag}`);
+      return send("⏱️ Slowmode updated", seconds ? `Slowmode is now **${seconds} seconds**.` : "Slowmode has been disabled.");
     }
     if (command === "rank") {
       const id = mentionedId(args[0]) || message.author.id;
