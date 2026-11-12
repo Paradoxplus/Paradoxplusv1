@@ -44,7 +44,7 @@ const commands = [
   new SlashCommandBuilder()
     .setName("rank-config")
     .setDescription("Configure this server's rank system.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
 
     .addSubcommand(s => s.setName("add")
       .setDescription("Add or update a rank. Position 1 is the lowest.")
