@@ -141,15 +141,20 @@ async function applyRank(interaction, target, desiredRank, action, reason) {
     return replyError(interaction, "I can't manage one or more of those roles. Move my bot role above every rank role in Server Settings → Roles.");
   }
 
-  // Replace configured rank roles in one API request, preserving unrelated roles.
+  // Change only configured rank roles; preserve every unrelated role.
   try {
-    const preservedRoleIds = target.roles.cache
-      .filter(role => !configuredIds.has(role.id))
-      .map(role => role.id);
-    await target.roles.set(
-      [...preservedRoleIds, newRole.id],
-      `Rank ${action.toLowerCase()} by ${interaction.user.tag}`
-    );
+    if (rolesToRemove.length) {
+      await target.roles.remove(
+        rolesToRemove,
+        `Remove previous configured rank for ${action.toLowerCase()} by ${interaction.user.tag}`
+      );
+    }
+    if (!target.roles.cache.has(newRole.id)) {
+      await target.roles.add(
+        newRole,
+        `Assign configured rank by ${interaction.user.tag}`
+      );
+    }
   } catch (error) {
     console.error("Role update failed:", error);
     return replyError(interaction, "Discord rejected the role update. Check my Manage Roles permission and role position.");
@@ -678,6 +683,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
       const actor = interaction.guild.members.cache.get(interaction.user.id) ?? await interaction.guild.members.fetch(interaction.user.id);
       if (interaction.guild.ownerId !== actor.id &&
+          !actor.permissions.has(PermissionFlagsBits.Administrator) &&
           target.roles.highest.comparePositionTo(actor.roles.highest) >= 0) {
         return replyError(interaction, "You can't change the rank of someone whose highest role is equal to or above yours.");
       }
@@ -816,7 +822,7 @@ client.on(Events.MessageCreate, async message => {
       const target = message.guild.members.cache.get(id) ?? await message.guild.members.fetch(id).catch(()=>null);
       if (!target) return fail("That member isn't in this server.");
       const actor = message.member;
-      if (message.guild.ownerId !== actor.id && target.roles.highest.comparePositionTo(actor.roles.highest) >= 0)
+      if (message.guild.ownerId !== actor.id && !actor.permissions.has(PermissionFlagsBits.Administrator) && target.roles.highest.comparePositionTo(actor.roles.highest) >= 0)
         return fail("You can't manage someone whose highest role is equal to or above yours.");
       const bot = message.guild.members.me ?? await message.guild.members.fetchMe();
       if (target.roles.highest.comparePositionTo(bot.roles.highest) >= 0)
