@@ -263,6 +263,17 @@ client.on(Events.InteractionCreate, async interaction => {
           interaction.guild.members.fetchMe()
         ]);
         const configuredIds = new Set(config.ranks.map(rank => rank.id));
+        const blockedByHierarchy = allRoles.filter(role =>
+          role.id !== interaction.guildId &&
+          !role.managed &&
+          !configuredIds.has(role.id) &&
+          role.position >= botMember.roles.highest.position
+        );
+        const managedRoles = allRoles.filter(role =>
+          role.id !== interaction.guildId &&
+          role.managed &&
+          !configuredIds.has(role.id)
+        );
         const candidates = allRoles
           .filter(role =>
             role.id !== interaction.guildId &&
@@ -283,7 +294,7 @@ client.on(Events.InteractionCreate, async interaction => {
           const preview = candidates.map((role, index) => `${index + 1}. **${role.name}**`).slice(0, 35);
           const remaining = candidates.size - preview.length;
           return interaction.reply({
-            content: `**Rank-role detection preview**\nFound **${candidates.size}** possible rank roles, ordered from lowest to highest by Discord role position.\n\n${preview.join("\n")}${remaining > 0 ? `\n…and ${remaining} more.` : ""}\n\nNothing has been changed. Run \`/rank-config autodetect confirm:true\` to import these roles. Review the list first; all eligible role names are included. @everyone, managed integration roles, already-configured ranks, and roles at or above the bot's highest role are excluded.`,
+            content: `**Rank-role detection preview**\nFound **${candidates.size}** possible rank roles, ordered from lowest to highest by Discord role position.\n\n${preview.join("\n")}${remaining > 0 ? `\n…and ${remaining} more.` : ""}\n\nNothing has been changed. Run \`/rank-config autodetect confirm:true\` to import these roles. Review the list first. Full scan: **${allRoles.size}** roles; blocked by bot hierarchy: **${blockedByHierarchy.size}**; managed roles: **${managedRoles.size}**.`,
             ephemeral: true,
             allowedMentions: { parse: [] }
           });
