@@ -59,6 +59,8 @@ function getGuildConfig(guildId) {
   const config = database.guilds[guildId];
   if (!Array.isArray(config.ranks)) config.ranks = [];
   if (!Array.isArray(config.history)) config.history = [];
+  if (!Array.isArray(config.warnings)) config.warnings = [];
+  if (!Array.isArray(config.moderationCases)) config.moderationCases = [];
   if (!Array.isArray(config.ignoredRoleIds)) config.ignoredRoleIds = [];
   if (typeof config.announceChannelId !== "string") config.announceChannelId = null;
   config.ranks.sort((a, b) => a.position - b.position);
@@ -498,6 +500,117 @@ client.on(Events.InteractionCreate, async interaction => {
       if (!target.communicationDisabledUntilTimestamp) return replyError(interaction,"That member isn't timed out.");
       await target.timeout(null,reason);
       return interaction.editReply(`✅ Removed the timeout from **${user.tag}**.`);
+    }
+
+    if (["warn","warnings","clear-warnings","lock","unlock","slowmode","nickname","role-add","role-remove","userinfo","serverinfo","modstats"].includes(interaction.commandName)) {
+      const cmd=interaction.commandName;
+      const isAdmin=interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
+      const has=(p)=>isAdmin||interaction.memberPermissions?.has(p);
+      const addCase=(action,targetId,reason)=> {
+        const item={id:config.moderationCases.length+1,action,targetId,moderatorId:interaction.user.id,reason:reason||null,timestamp:new Date().toISOString()};
+        config.moderationCases.unshift(item); config.moderationCases=config.moderationCases.slice(0,500);
+        void saveDatabase().catch(e=>console.error("Moderation case save failed:",e));
+        return item;
+      };
+      if (cmd==="warn") {
+        if(!has(PermissionFlagsBits.ModerateMembers)) return replyError(interaction,"You need Moderate Members or Administrator.");
+        const user=interaction.options.getUser("member",true), reason=interaction.options.getString("reason",true);
+        const target=await interaction.guild.members.fetch(user.id).catch(()=>null);
+        if(!target)return replyError(interaction,"Member not found.");
+        const actor=await interaction.guild.members.fetch(interaction.user.id);
+        if(!canActOnTarget(actor,target,interaction.guild))return replyError(interaction,"That member has an equal or higher role than you.");
+        const warning={id:config.warnings.length+1,memberId:user.id,moderatorId:interaction.user.id,reason,timestamp:new Date().toISOString()};
+        config.warnings.unshift(warning); config.warnings=config.warnings.slice(0,1000);
+        const c=addCase("WARN",user.id,reason); warning.caseId=c.id;
+        await saveDatabase();
+        return interaction.reply({content:`⚠️ **${user.tag}** has been warned. Case #${c.id}. They now have **${config.warnings.filter(w=>w.memberId===user.id).length}** active recorded warnings.`,ephemeral:false});
+      }
+      if(cmd==="warnings"||cmd==="clear-warnings"){
+        if(!has(PermissionFlagsBits.ModerateMembers))return replyError(interaction,"You need Moderate Members or Administrator.");
+        const user=interaction.options.getUser("member",true);
+        const rows=config.warnings.filter(w=>w.memberId===user.id);
+        if(cmd==="warnings"){
+          if(!rows.length)return interaction.reply({content:`No warnings recorded for **${user.tag}**.`,ephemeral:true});
+          return interaction.reply({content:`**Warnings for ${user.tag}**\n${rows.slice(0,15).map(w=>`• #${w.id} — ${w.reason} (<t:${Math.floor(new Date(w.timestamp).getTime()/1000)}:R>)`).join("\n")}`,ephemeral:true});
+        }
+        if(!rows.length)return interaction.reply({content:"That member has no recorded warnings.",ephemeral:true});
+        config.warnings=config.warnings.filter(w=>w.memberId!==user.id);
+        addCase("CLEAR_WARNINGS",user.id,`Cleared ${rows.length} warnings`);
+        await saveDatabase();
+        return interaction.reply({content:`✅ Cleared **${rows.length}** warnings for **${user.tag}**.`,ephemeral:true});
+      }
+      if(cmd==="lock"||cmd==="unlock"){
+        if(!has(PermissionFlagsBits.ManageChannels))return replyError(interaction,"You need Manage Channels or Administrator.");
+        const channel=interaction.options.getChannel("channel")||interaction.channel;
+        if(!channel?.permissionOverwrites)return replyError(interaction,"That channel can't be locked.");
+        await channel.permissionOverwrites.edit(interaction.guild.roles.everyone,{SendMessages:cmd==="lock"?false:null}, {reason:`${cmd} by ${interaction.user.tag}`});
+        addCase(cmd.toUpperCase(),null,channel.name);
+        return interaction.reply({content:cmd==="lock"?`🔒 Locked ${channel} for @everyone.`:`🔓 Unlocked ${channel} for @everyone (restored inherited permission).`,ephemeral:false});
+      }
+      if(cmd==="slowmode"){
+        if(!has(PermissionFlagsBits.ManageChannels))return replyError(interaction,"You need Manage Channels or Administrator.");
+        const seconds=interaction.options.getInteger("seconds",true);
+        const channel=interaction.options.getChannel("channel")||interaction.channel;
+        if(!channel?.setRateLimitPerUser)return replyError(interaction,"That channel doesn't support slowmode.");
+        await channel.setRateLimitPerUser(seconds, `Slowmode set by ${interaction.user.tag}`);
+        addCase("SLOWMODE",null,`${channel.name}: ${seconds}s`);
+        return interaction.reply({content:`🐢 Slowmode set to **${seconds} seconds** in ${channel}.`});
+      }
+      if(cmd==="nickname"){
+        if(!has(PermissionFlagsBits.ManageNicknames))return replyError(interaction,"You need Manage Nicknames or Administrator.");
+        const user=interaction.options.getUser("member",true), nick=interaction.options.getString("nickname");
+        const target=await interaction.guild.members.fetch(user.id).catch(()=>null);
+        if(!target)return replyError(interaction,"Member not found.");
+        const actor=await interaction.guild.members.fetch(interaction.user.id);
+        if(!canActOnTarget(actor,target,interaction.guild))return replyError(interaction,"That member has an equal or higher role than you.");
+        if(!target.manageable)return replyError(interaction,"I can't manage that member's nickname. Check my role position.");
+        await target.setNickname(nick, `Nickname changed by ${interaction.user.tag}`);
+        addCase("NICKNAME",user.id,nick||"Nickname reset");
+        return interaction.reply({content:`✅ Updated nickname for **${user.tag}**.`,ephemeral:true});
+      }
+      if(cmd==="role-add"||cmd==="role-remove"){
+        if(!has(PermissionFlagsBits.ManageRoles))return replyError(interaction,"You need Manage Roles or Administrator.");
+        const user=interaction.options.getUser("member",true), role=interaction.options.getRole("role",true);
+        const target=await interaction.guild.members.fetch(user.id).catch(()=>null);
+        if(!target)return replyError(interaction,"Member not found.");
+        const actor=await interaction.guild.members.fetch(interaction.user.id);
+        const bot=await interaction.guild.members.fetchMe();
+        if(!canActOnTarget(actor,target,interaction.guild))return replyError(interaction,"That member has an equal or higher role than you.");
+        if(role.managed||role.position>=actor.roles.highest.position||role.position>=bot.roles.highest.position)return replyError(interaction,"That role is managed or above your/bot's role.");
+        if(!role.editable)return replyError(interaction,"I can't manage that role.");
+        if(cmd==="role-add")await target.roles.add(role,`Role added by ${interaction.user.tag}`);
+        else await target.roles.remove(role,`Role removed by ${interaction.user.tag}`);
+        addCase(cmd.toUpperCase(),user.id,role.name);
+        return interaction.reply({content:`✅ ${cmd==="role-add"?"Added":"Removed"} **${role.name}** ${cmd==="role-add"?"to":"from"} **${user.tag}**.`,ephemeral:true});
+      }
+      if(cmd==="userinfo"){
+        const user=interaction.options.getUser("member")||interaction.user;
+        const member=await interaction.guild.members.fetch(user.id).catch(()=>null);
+        if(!member)return replyError(interaction,"Member not found.");
+        const roles=member.roles.cache.filter(r=>r.id!==interaction.guild.id).sort((a,b)=>b.position-a.position).map(r=>r.toString()).slice(0,15);
+        const embed=new EmbedBuilder().setColor(0x7c5cff).setTitle(`User info • ${user.tag}`).setThumbnail(user.displayAvatarURL()).addFields(
+          {name:"User ID",value:user.id},{name:"Account created",value:`<t:${Math.floor(user.createdTimestamp/1000)}:F>`},
+          {name:"Joined server",value:member.joinedTimestamp?`<t:${Math.floor(member.joinedTimestamp/1000)}:R>`:"Unknown"},
+          {name:"Highest role",value:member.roles.highest.toString()},
+          {name:"Roles",value:roles.join(", ")||"None"}
+        );
+        return interaction.reply({embeds:[embed],ephemeral:true,allowedMentions:{parse:[]}});
+      }
+      if(cmd==="serverinfo"){
+        const g=interaction.guild;
+        const embed=new EmbedBuilder().setColor(0x7c5cff).setTitle(`Server info • ${g.name}`).setThumbnail(g.iconURL()).addFields(
+          {name:"Server ID",value:g.id},{name:"Owner",value:`<@!${g.ownerId}>`},
+          {name:"Members",value:String(g.memberCount),inline:true},{name:"Channels",value:String(g.channels.cache.size),inline:true},
+          {name:"Roles",value:String(g.roles.cache.size),inline:true},{name:"Created",value:`<t:${Math.floor(g.createdTimestamp/1000)}:D>`}
+        );
+        return interaction.reply({embeds:[embed],ephemeral:true});
+      }
+      if(cmd==="modstats"){
+        if(!has(PermissionFlagsBits.ModerateMembers))return replyError(interaction,"You need Moderate Members or Administrator.");
+        const counts={}; for(const c of config.moderationCases)counts[c.action]=(counts[c.action]||0)+1;
+        const summary=Object.entries(counts).map(([k,v])=>`• **${k}**: ${v}`).join("\n")||"No moderation cases yet.";
+        return interaction.reply({content:`**Paradoxplus moderation statistics**\nTotal cases: **${config.moderationCases.length}**\nWarnings recorded: **${config.warnings.length}**\n\n${summary}`,ephemeral:true});
+      }
     }
 
     if (interaction.commandName === "rank") {
