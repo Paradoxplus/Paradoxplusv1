@@ -56,7 +56,30 @@ export function startDashboard({client,getGuildConfig,saveDatabase}) {
      const input=await body(req);
      if(url.pathname.endsWith("/roles")){
       const role=guild.roles.cache.get(String(input.roleId||""));if(!role||role.id===guildId||role.managed)return json(res,400,{error:"Choose a normal server role."});
-      if(input.action==="add"){if(role.position>=bot.roles.highest.position||!role.editable)return json(res,400,{error:"Move the bot's role above this role first."});const position=Math.max(1,Math.min(100,Number(input.position)||config.ranks.length+1));config.ranks=config.ranks.filter(r=>r.id!==role.id);config.ranks.push({id:role.id,position});config.ranks.sort((a,b)=>a.position-b.position);config.ranks.forEach((rank,index)=>rank.position=index+1);config.ignoredRoleIds=config.ignoredRoleIds.filter(id=>id!==role.id);}
+      if(input.action==="addMany"||input.action==="ignoreMany"){
+       const ids=[...new Set(Array.isArray(input.roleIds)?input.roleIds.map(String):[])];
+       if(!ids.length||ids.length>100)return json(res,400,{error:"Select between 1 and 100 roles."});
+       const selected=ids.map(id=>guild.roles.cache.get(id));
+       if(selected.some(r=>!r||r.id===guildId||r.managed))return json(res,400,{error:"One or more selected roles are invalid."});
+       if(input.action==="addMany"){
+        if(selected.some(r=>r.position>=bot.roles.highest.position||!r.editable))return json(res,400,{error:"Move the bot's role above every selected rank first."});
+        let position=Math.max(1,Math.min(100,Number(input.position)||config.ranks.length+1));
+        for(const selectedRole of selected){
+         config.ranks=config.ranks.filter(r=>r.id!==selectedRole.id);
+         config.ranks.splice(Math.min(position-1,config.ranks.length),0,{id:selectedRole.id,position});
+         config.ignoredRoleIds=config.ignoredRoleIds.filter(id=>id!==selectedRole.id);
+         position++;
+        }
+        config.ranks.forEach((rank,index)=>rank.position=index+1);
+       }else{
+        for(const selectedRole of selected){
+         config.ranks=config.ranks.filter(r=>r.id!==selectedRole.id);
+         if(!config.ignoredRoleIds.includes(selectedRole.id))config.ignoredRoleIds.push(selectedRole.id);
+        }
+        config.ranks.forEach((rank,index)=>rank.position=index+1);
+       }
+      }
+      else if(input.action==="add"){if(role.position>=bot.roles.highest.position||!role.editable)return json(res,400,{error:"Move the bot's role above this role first."});const position=Math.max(1,Math.min(100,Number(input.position)||config.ranks.length+1));config.ranks=config.ranks.filter(r=>r.id!==role.id);config.ranks.push({id:role.id,position});config.ranks.sort((a,b)=>a.position-b.position);config.ranks.forEach((rank,index)=>rank.position=index+1);config.ignoredRoleIds=config.ignoredRoleIds.filter(id=>id!==role.id);}
       else if(input.action==="remove"){config.ranks=config.ranks.filter(r=>r.id!==role.id);config.ranks.forEach((rank,index)=>rank.position=index+1);}
       else if(input.action==="move"){const from=config.ranks.findIndex(r=>r.id===role.id);const to=Math.max(0,Math.min(config.ranks.length-1,Number(input.position)-1));if(from<0)return json(res,404,{error:"Rank not found."});const [moved]=config.ranks.splice(from,1);config.ranks.splice(to,0,moved);config.ranks.forEach((rank,index)=>rank.position=index+1);}
       else if(input.action==="ignore"){config.ranks=config.ranks.filter(r=>r.id!==role.id);if(!config.ignoredRoleIds.includes(role.id))config.ignoredRoleIds.push(role.id);}
