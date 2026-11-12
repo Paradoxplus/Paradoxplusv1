@@ -209,6 +209,56 @@ client.on(Events.InteractionCreate, async interaction => {
         await saveDatabase();
         return interaction.reply({ content: "✅ Rank-change logging disabled.", ephemeral: true });
       }
+
+      if (sub === "autodetect") {
+        const confirm = interaction.options.getBoolean("confirm", true);
+        const botMember = await interaction.guild.members.fetchMe();
+        const excludedName = /\\b(admin(istrator)?|owner|co[- ]?owner|staff|moderator|mod|helper|support|bot|verified|member|muted|mute|booster|nitro|ping|notification|announcement|ticket|blacklist|banned|jail|quarantine|developer|management)\\b/i;
+        const configuredIds = new Set(config.ranks.map(rank => rank.id));
+        const candidates = interaction.guild.roles.cache
+          .filter(role =>
+            role.id !== interaction.guildId &&
+            !role.managed &&
+            !configuredIds.has(role.id) &&
+            role.position < botMember.roles.highest.position &&
+            !excludedName.test(role.name)
+          )
+          .sort((a, b) => a.position - b.position);
+
+        if (!candidates.size) {
+          return interaction.reply({
+            content: "I couldn't find any new eligible rank roles. Existing ranks, managed roles, and common staff/utility roles are skipped.",
+            ephemeral: true
+          });
+        }
+
+        if (!confirm) {
+          const preview = candidates.map((role, index) => `${index + 1}. **${role.name}**`).slice(0, 35);
+          const remaining = candidates.size - preview.length;
+          return interaction.reply({
+            content: `**Rank-role detection preview**\\nFound **${candidates.size}** possible rank roles, ordered from lowest to highest by Discord role position.\\n\\n${preview.join("\\n")}${remaining > 0 ? `\\n…and ${remaining} more.` : ""}\\n\\nNothing has been changed. Run \`/rank-config autodetect confirm:true\` to import these roles. Review the list first; staff, bot, and utility roles are filtered by name.`,
+            ephemeral: true,
+            allowedMentions: { parse: [] }
+          });
+        }
+
+        const startPosition = config.ranks.reduce((max, rank) => Math.max(max, Number(rank.position) || 0), 0);
+        const imported = candidates.map((role, index) => ({
+          id: role.id,
+          position: startPosition + index + 1
+        }));
+        config.ranks.push(...imported);
+        config.ranks.sort((a, b) => a.position - b.position);
+        await saveDatabase();
+
+        const names = candidates.map(role => role.name).slice(0, 25);
+        const remaining = candidates.size - names.length;
+        return interaction.reply({
+          content: `✅ Imported **${candidates.size}** detected rank roles into the existing hierarchy. Existing configured ranks were kept. New roles were added above them, ordered by Discord role position.\\n\\n${names.map((name, index) => `${index + 1}. **${name}**`).join("\\n")}${remaining > 0 ? `\\n…and ${remaining} more.` : ""}\\n\\nUse \`/rank-config list\` to review the full hierarchy.`,
+          ephemeral: true,
+          allowedMentions: { parse: [] }
+        });
+      }
     }
 
     if (interaction.commandName === "rank") {
