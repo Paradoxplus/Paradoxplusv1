@@ -8,6 +8,8 @@ import path from "node:path";
 import { startDashboard } from "./dashboard.js";
 
 const TOKEN = process.env.DISCORD_TOKEN;
+const BOT_OWNER_ID = "1367968697884606524";
+const isBotOwner = userId => userId === BOT_OWNER_ID;
 if (!TOKEN) {
   console.error("DISCORD_TOKEN is missing. Add it to your hosting environment variables.");
   process.exit(1);
@@ -70,13 +72,15 @@ function getGuildConfig(guildId) {
 }
 
 function canActOnTarget(actor, target, guild) {
-  return guild.ownerId === actor.id ||
+  return isBotOwner(actor.id) ||
+    guild.ownerId === actor.id ||
     actor.permissions.has(PermissionFlagsBits.Administrator) ||
     target.roles.highest.comparePositionTo(actor.roles.highest) < 0;
 }
 
 function hasManagerPermission(member) {
-  return member.permissions.has(PermissionFlagsBits.Administrator) ||
+  return isBotOwner(member.id) ||
+    member.permissions.has(PermissionFlagsBits.Administrator) ||
     member.permissions.has(PermissionFlagsBits.ManageRoles);
 }
 
@@ -682,7 +686,8 @@ client.on(Events.InteractionCreate, async interaction => {
       if (target.id === interaction.client.user.id) return replyError(interaction, "I can't change my own rank.");
 
       const actor = interaction.guild.members.cache.get(interaction.user.id) ?? await interaction.guild.members.fetch(interaction.user.id);
-      if (interaction.guild.ownerId !== actor.id &&
+      if (!isBotOwner(actor.id) &&
+          interaction.guild.ownerId !== actor.id &&
           !actor.permissions.has(PermissionFlagsBits.Administrator) &&
           target.roles.highest.comparePositionTo(actor.roles.highest) >= 0) {
         return replyError(interaction, "You can't change the rank of someone whose highest role is equal to or above yours.");
@@ -822,7 +827,7 @@ client.on(Events.MessageCreate, async message => {
       const target = message.guild.members.cache.get(id) ?? await message.guild.members.fetch(id).catch(()=>null);
       if (!target) return fail("That member isn't in this server.");
       const actor = message.member;
-      if (message.guild.ownerId !== actor.id && !actor.permissions.has(PermissionFlagsBits.Administrator) && target.roles.highest.comparePositionTo(actor.roles.highest) >= 0)
+      if (!isBotOwner(actor.id) && message.guild.ownerId !== actor.id && !actor.permissions.has(PermissionFlagsBits.Administrator) && target.roles.highest.comparePositionTo(actor.roles.highest) >= 0)
         return fail("You can't manage someone whose highest role is equal to or above yours.");
       const bot = message.guild.members.me ?? await message.guild.members.fetchMe();
       if (target.roles.highest.comparePositionTo(bot.roles.highest) >= 0)
