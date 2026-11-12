@@ -258,9 +258,12 @@ client.on(Events.InteractionCreate, async interaction => {
 
       if (sub === "autodetect") {
         const confirm = interaction.options.getBoolean("confirm", true);
-        const botMember = await interaction.guild.members.fetchMe();
+        const [allRoles, botMember] = await Promise.all([
+          interaction.guild.roles.fetch(),
+          interaction.guild.members.fetchMe()
+        ]);
         const configuredIds = new Set(config.ranks.map(rank => rank.id));
-        const candidates = interaction.guild.roles.cache
+        const candidates = allRoles
           .filter(role =>
             role.id !== interaction.guildId &&
             !role.managed &&
