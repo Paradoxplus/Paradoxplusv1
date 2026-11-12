@@ -72,6 +72,18 @@ function rankLabel(rank, index, total) {
   return `${index + 1}. <@&${rank.id}>`;
 }
 
+function getHighestConfiguredRank(member, ranks) {
+  for (let i = ranks.length - 1; i >= 0; i--) {
+    if (member.roles.cache.has(ranks[i].id)) return ranks[i];
+  }
+  return null;
+}
+
+async function getGuildMembers(guild) {
+  if (guild.members.cache.size >= guild.memberCount) return guild.members.cache;
+  return guild.members.fetch();
+}
+
 async function replyError(interaction, message) {
   const payload = { content: `⚠️ ${message}`, ephemeral: true };
   if (interaction.deferred || interaction.replied) return interaction.editReply(payload);
@@ -105,13 +117,7 @@ async function applyRank(interaction, target, desiredRank, action, reason) {
   }
 
   const configuredIds = new Set(config.ranks.map(r => r.id));
-  const currentRanks = target.roles.cache
-    .filter(role => configuredIds.has(role.id))
-    .map(role => config.ranks.find(r => r.id === role.id))
-    .filter(Boolean)
-    .sort((a, b) => b.position - a.position);
-
-  const oldRank = currentRanks[0] ?? null;
+  const oldRank = getHighestConfiguredRank(target, config.ranks);
   const rolesToRemove = config.ranks
     .filter(r => target.roles.cache.has(r.id) && r.id !== desiredRank.id)
     .map(r => interaction.guild.roles.cache.get(r.id))
@@ -123,15 +129,15 @@ async function applyRank(interaction, target, desiredRank, action, reason) {
     return replyError(interaction, "I can't manage one or more of those roles. Move my bot role above every rank role in Server Settings → Roles.");
   }
 
-  // Apply the new role first. If adding fails, the member keeps their old rank.
+  // Replace configured rank roles in one API request, preserving unrelated roles.
   try {
-    if (!target.roles.cache.has(newRole.id)) {
-      await target.roles.add(newRole, `Rank ${action.toLowerCase()} by ${interaction.user.tag}`);
-    }
-    const removeIds = rolesToRemove.map(role => role.id);
-    if (removeIds.length) {
-      await target.roles.remove(removeIds, `Replace previous rank after ${action.toLowerCase()}`);
-    }
+    const preservedRoleIds = target.roles.cache
+      .filter(role => !configuredIds.has(role.id))
+      .map(role => role.id);
+    await target.roles.set(
+      [...preservedRoleIds, newRole.id],
+      `Rank ${action.toLowerCase()} by ${interaction.user.tag}`
+    );
   } catch (error) {
     console.error("Role update failed:", error);
     return replyError(interaction, "Discord rejected the role update. Check my Manage Roles permission and role position.");
@@ -345,14 +351,14 @@ client.on(Events.InteractionCreate, async interaction => {
     if (interaction.commandName === "rank-search") {
       const query = interaction.options.getString("query", true).toLowerCase();
       await interaction.deferReply({ ephemeral: true });
-      const members = await interaction.guild.members.fetch();
+      const members = await getGuildMembers(interaction.guild);
       const matches = members.filter(member =>
         member.user.username.toLowerCase().includes(query) ||
         (member.displayName || "").toLowerCase().includes(query)
       ).first(10);
       if (!matches.length) return interaction.editReply("No matching members found.");
       const lines = matches.map(member => {
-        const rank = config.ranks.filter(item => member.roles.cache.has(item.id)).sort((a,b) => b.position-a.position)[0];
+        const rank = getHighestConfiguredRank(member, config.ranks);
         return `• ${member.user.tag} — ${rank ? `<@&${rank.id}>` : "Unranked"}`;
       });
       return interaction.editReply({ content: `**Member search results**\n${lines.join("\n")}`, allowedMentions: { parse: [] } });
@@ -360,7 +366,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (interaction.commandName === "rank-stats" || interaction.commandName === "rank-leaderboard") {
       await interaction.deferReply({ ephemeral: true });
-      const members = await interaction.guild.members.fetch();
+      const members = await getGuildMembers(interaction.guild);
       const counts = config.ranks.map(rank => ({
         rank,
         count: members.filter(member => member.roles.cache.has(rank.id)).size
@@ -418,9 +424,7 @@ client.on(Events.InteractionCreate, async interaction => {
       const member = interaction.guild.members.cache.get(user.id) ?? await interaction.guild.members.fetch(user.id).catch(() => null);
       if (!member) return replyError(interaction, "I couldn't find that member in this server.");
       const ids = new Set(config.ranks.map(r => r.id));
-      const found = config.ranks
-        .filter(r => member.roles.cache.has(r.id))
-        .sort((a, b) => b.position - a.position)[0];
+      const found = getHighestConfiguredRank(member, config.ranks);
       return interaction.reply({
         content: found ? `**${member.user.tag}**'s rank: <@&${found.id}>` : `**${member.user.tag}** is currently unranked.`,
         ephemeral: true,
@@ -513,7 +517,7 @@ client.on(Events.MessageCreate, async message => {
       const id = mentionedId(args[0]) || message.author.id;
       const target = message.guild.members.cache.get(id) ?? await message.guild.members.fetch(id).catch(() => null);
       if (!target) return fail("Member not found. Mention them or use their ID.");
-      const rank = config.ranks.filter(r => target.roles.cache.has(r.id)).sort((a,b)=>b.position-a.position)[0];
+      const rank = getHighestConfiguredRank(target, config.ranks);
       return send("🏅 Member rank", `**${target.user.tag}**\n${rank ? `<@&${rank.id}>` : "Unranked"}`);
     }
     if (command === "rankhistory") {
@@ -527,15 +531,15 @@ client.on(Events.MessageCreate, async message => {
     if (command === "ranksearch") {
       const query = args.join(" ").toLowerCase();
       if (query.length < 2) return fail("Usage: .ranksearch name");
-      const members = await message.guild.members.fetch();
+      const members = await getGuildMembers(message.guild);
       const matches = members.filter(m => m.user.username.toLowerCase().includes(query) || m.displayName.toLowerCase().includes(query)).first(10);
       return send("🔎 Member search", matches.map(m => {
-        const rank = config.ranks.filter(r => m.roles.cache.has(r.id)).sort((a,b)=>b.position-a.position)[0];
+        const rank = getHighestConfiguredRank(m, config.ranks);
         return `• **${m.user.tag}** — ${rank ? `<@&${rank.id}>` : "Unranked"}`;
       }).join("\n") || "No matches found.");
     }
     if (command === "rankstats" || command === "rankleaderboard") {
-      const members = await message.guild.members.fetch();
+      const members = await getGuildMembers(message.guild);
       if (command === "rankleaderboard") {
         const top = members.map(m => ({ member: m, rank: config.ranks.filter(r => m.roles.cache.has(r.id)).sort((a,b)=>b.position-a.position)[0] }))
           .filter(x => x.rank).sort((a,b)=>b.rank.position-a.rank.position).slice(0,10);
