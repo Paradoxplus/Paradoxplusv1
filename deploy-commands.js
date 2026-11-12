@@ -46,6 +46,31 @@ const commands = [
   new SlashCommandBuilder().setName("serverinfo").setDescription("Show detailed server information."),
   new SlashCommandBuilder().setName("modstats").setDescription("Show Paradoxplus moderation case statistics.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+  new SlashCommandBuilder().setName("unban").setDescription("Unban a user by Discord ID.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+    .addStringOption(o=>o.setName("user_id").setDescription("Discord user ID").setRequired(true))
+    .addStringOption(o=>o.setName("reason").setDescription("Reason").setMaxLength(480)),
+  new SlashCommandBuilder().setName("voice-mute").setDescription("Server-mute a member in voice.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.MuteMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true))
+    .addStringOption(o=>o.setName("reason").setDescription("Reason").setMaxLength(480)),
+  new SlashCommandBuilder().setName("voice-unmute").setDescription("Remove a server voice mute.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.MuteMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true))
+    .addStringOption(o=>o.setName("reason").setDescription("Reason").setMaxLength(480)),
+  new SlashCommandBuilder().setName("disconnect").setDescription("Disconnect a member from voice.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.MoveMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true))
+    .addStringOption(o=>o.setName("reason").setDescription("Reason").setMaxLength(480)),
+  new SlashCommandBuilder().setName("inactive-reason").setDescription("Submit or review an inactivity appeal.")
+    .addSubcommand(sc=>sc.setName("submit").setDescription("Submit your reason for being inactive.")
+      .addStringOption(o=>o.setName("reason").setDescription("Explain your inactivity").setMaxLength(800).setRequired(true)))
+    .addSubcommand(sc=>sc.setName("review").setDescription("Accept, reject, or hold a member's appeal.")
+      .addUserOption(o=>o.setName("member").setDescription("Member whose appeal to review").setRequired(true))
+      .addStringOption(o=>o.setName("decision").setDescription("Decision").setRequired(true)
+        .addChoices({name:"Accept",value:"accepted"},{name:"Reject",value:"rejected"},{name:"Hold",value:"on_hold"}))
+      .addStringOption(o=>o.setName("note").setDescription("Optional staff note").setMaxLength(500)))
+    .addSubcommand(sc=>sc.setName("list").setDescription("View the latest inactivity appeals.")),
 
   new SlashCommandBuilder().setName("kick").setDescription("Kick a member.")
     .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers)
