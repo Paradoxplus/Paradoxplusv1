@@ -32,12 +32,23 @@ Paradoxplus uses **manual progression only**. It does not award XP, grind points
 - `/rank-config clear-announcements` — disable rank announcements.
 - `/rank-config backup` — download a JSON backup of the server's rank configuration and history.
 
+## Prefix commands
+
+Paradoxplus also supports the `.` message prefix alongside slash commands:
+- `.rank [@member]` — check a member's rank.
+- `.promote @member [reason]` / `.demote @member [reason]` — staff rank changes.
+- `.setrank @member @rank [reason]` — assign an exact configured rank.
+- `.rankpanel` — show the hierarchy.
+- `.rankhelp` — show prefix help.
+
+To enable prefix commands, turn on **Message Content Intent** in the Discord Developer Portal (Bot → Privileged Gateway Intents). The bot also needs the **Message Content Intent** gateway intent in code, which is already enabled. Slash commands remain available.
+
 ## Setup
 
 1. Use Node.js 20 or newer.
 2. Install dependencies with `npm install`.
 3. Set `DISCORD_TOKEN` and `CLIENT_ID`. Set `GUILD_ID` for fast guild-scoped command registration during testing.
-4. Enable the **Server Members Intent** in the Discord Developer Portal.
+4. Enable **Server Members Intent** and **Message Content Intent** in the Discord Developer Portal.
 5. Invite the bot with the `bot` and `applications.commands` scopes. Grant only the permissions it needs: Manage Roles, View Channels, Send Messages, Embed Links, and Read Message History.
 6. Move the bot's highest role above every rank role it needs to manage.
 7. Run `npm start` (the prestart script registers slash commands).
