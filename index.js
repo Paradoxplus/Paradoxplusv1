@@ -61,7 +61,8 @@ function getGuildConfig(guildId) {
   if (!Array.isArray(config.history)) config.history = [];
   if (!Array.isArray(config.warnings)) config.warnings = [];
   if (!Array.isArray(config.moderationCases)) config.moderationCases = [];
-  if (!config.pulse || typeof config.pulse !== "object") config.pulse = { days: {} };\n  if (!config.pulse.days || typeof config.pulse.days !== "object") config.pulse.days = {};
+  if (!config.pulse || typeof config.pulse !== "object") config.pulse = { days: {} };
+  if (!config.pulse.days || typeof config.pulse.days !== "object") config.pulse.days = {};
   if (!Array.isArray(config.ignoredRoleIds)) config.ignoredRoleIds = [];
   if (typeof config.announceChannelId !== "string") config.announceChannelId = null;
   config.ranks.sort((a, b) => a.position - b.position);
