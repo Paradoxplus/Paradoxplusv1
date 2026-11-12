@@ -67,6 +67,7 @@ function getGuildConfig(guildId) {
   if (!config.pulse.days || typeof config.pulse.days !== "object") config.pulse.days = {};
   if (!Array.isArray(config.ignoredRoleIds)) config.ignoredRoleIds = [];
   if (!Array.isArray(config.autoresponders)) config.autoresponders = [];
+  if (!Array.isArray(config.inactiveAppeals)) config.inactiveAppeals = [];
   if (typeof config.announceChannelId !== "string") config.announceChannelId = null;
   config.ranks.sort((a, b) => a.position - b.position);
   return config;
@@ -599,7 +600,7 @@ client.on(Events.InteractionCreate, async interaction => {
       return interaction.editReply(`✅ Removed the timeout from **${user.tag}**.`);
     }
 
-    if (["warn","warnings","clear-warnings","lock","unlock","slowmode","nickname","role-add","role-remove","userinfo","serverinfo","modstats"].includes(interaction.commandName)) {
+    if (["warn","warnings","clear-warnings","lock","unlock","slowmode","nickname","role-add","role-remove","userinfo","serverinfo","modstats","unban","voice-mute","voice-unmute","disconnect"].includes(interaction.commandName)) {
       const cmd=interaction.commandName;
       const isAdmin=isBotOwner(interaction.user.id) || interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
       const has=(p)=>isAdmin||interaction.memberPermissions?.has(p);
@@ -680,6 +681,34 @@ client.on(Events.InteractionCreate, async interaction => {
         addCase(cmd.toUpperCase(),user.id,role.name);
         return interaction.reply({content:`✅ ${cmd==="role-add"?"Added":"Removed"} **${role.name}** ${cmd==="role-add"?"to":"from"} **${user.tag}**.`,ephemeral:true});
       }
+      if (cmd === "unban") {
+        if (!has(PermissionFlagsBits.BanMembers)) return replyError(interaction, "You need Ban Members or Administrator.");
+        const userId = interaction.options.getString("user_id", true).trim();
+        if (!/^\\d{17,20}$/.test(userId)) return replyError(interaction, "Enter a valid Discord user ID.");
+        const reason = interaction.options.getString("reason") || "No reason provided";
+        await interaction.guild.bans.remove(userId, `Unban by ${interaction.user.tag}: ${reason}`);
+        addCase("UNBAN", userId, reason);
+        return interaction.reply({ content: `✅ User ID \`${userId}\` has been unbanned.`, ephemeral: false });
+      }
+      if (cmd === "voice-mute" || cmd === "voice-unmute" || cmd === "disconnect") {
+        if (!has(PermissionFlagsBits.MuteMembers) && !has(PermissionFlagsBits.MoveMembers))
+          return replyError(interaction, "You need Mute Members or Move Members permission.");
+        const user = interaction.options.getUser("member", true);
+        const target = await interaction.guild.members.fetch(user.id).catch(() => null);
+        if (!target) return replyError(interaction, "Member not found.");
+        const actor = await interaction.guild.members.fetch(interaction.user.id);
+        if (!canActOnTarget(actor, target, interaction.guild)) return replyError(interaction, "That member has an equal or higher role than you.");
+        if (!target.voice.channel) return replyError(interaction, "That member isn't in a voice channel.");
+        if (cmd === "disconnect") {
+          if (!has(PermissionFlagsBits.MoveMembers)) return replyError(interaction, "You need Move Members permission.");
+          await target.voice.disconnect(`Disconnected by ${interaction.user.tag}`);
+        } else {
+          if (!has(PermissionFlagsBits.MuteMembers)) return replyError(interaction, "You need Mute Members permission.");
+          await target.voice.setMute(cmd === "voice-mute", `Voice mute updated by ${interaction.user.tag}`);
+        }
+        addCase(cmd.toUpperCase(), user.id, interaction.options.getString("reason") || null);
+        return interaction.reply({ content: cmd === "disconnect" ? `🔌 Disconnected **${user.tag}** from voice.` : cmd === "voice-mute" ? `🔇 Server-muted **${user.tag}**.` : `🔊 Server-unmuted **${user.tag}**.` });
+      }
       if(cmd==="userinfo"){
         const user=interaction.options.getUser("member")||interaction.user;
         const member=await interaction.guild.members.fetch(user.id).catch(()=>null);
@@ -707,6 +736,59 @@ client.on(Events.InteractionCreate, async interaction => {
         const counts={}; for(const c of config.moderationCases)counts[c.action]=(counts[c.action]||0)+1;
         const summary=Object.entries(counts).map(([k,v])=>`• **${k}**: ${v}`).join("\n")||"No moderation cases yet.";
         return interaction.reply({content:`**Paradoxplus moderation statistics**\nTotal cases: **${config.moderationCases.length}**\nWarnings recorded: **${config.warnings.length}**\n\n${summary}`,ephemeral:true});
+      }
+    }
+
+    if (interaction.commandName === "inactive-reason") {
+      const sub = interaction.options.getSubcommand();
+      if (sub === "submit") {
+        const reason = interaction.options.getString("reason", true).trim().slice(0, 800);
+        const existing = config.inactiveAppeals.find(a => a.memberId === interaction.user.id && ["PENDING", "ON_HOLD"].includes(a.status));
+        if (existing) return replyError(interaction, `You already have an appeal #${existing.id} with status **${existing.status.toLowerCase().replace("_"," ")}**.`);
+        const appeal = {
+          id: (config.inactiveAppeals.reduce((max, a) => Math.max(max, Number(a.id) || 0), 0) + 1),
+          memberId: interaction.user.id,
+          reason,
+          status: "PENDING",
+          submittedAt: new Date().toISOString(),
+          reviewedAt: null,
+          reviewerId: null,
+          staffNote: null
+        };
+        config.inactiveAppeals.unshift(appeal);
+        config.inactiveAppeals = config.inactiveAppeals.slice(0, 500);
+        await saveDatabase();
+        return interaction.reply({ content: `📨 Your inactivity appeal **#${appeal.id}** has been submitted. Staff will review it.`, ephemeral: true });
+      }
+      if (sub === "review") {
+        if (!interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers) && !isBotOwner(interaction.user.id))
+          return replyError(interaction, "You need Moderate Members or Administrator to review appeals.");
+        const user = interaction.options.getUser("member", true);
+        const decision = interaction.options.getString("decision", true).toUpperCase();
+        const note = interaction.options.getString("note")?.trim().slice(0, 500) || null;
+        const appeal = config.inactiveAppeals.find(a => a.memberId === user.id && ["PENDING", "ON_HOLD"].includes(a.status));
+        if (!appeal) return replyError(interaction, "No pending or held inactivity appeal was found for that member.");
+        appeal.status = decision;
+        appeal.reviewedAt = new Date().toISOString();
+        appeal.reviewerId = interaction.user.id;
+        appeal.staffNote = note;
+        await saveDatabase();
+        const labels = { ACCEPTED: "accepted", REJECTED: "rejected", ON_HOLD: "placed on hold" };
+        return interaction.reply({
+          embeds: [new EmbedBuilder().setColor(decision === "ACCEPTED" ? 0x35d07f : decision === "REJECTED" ? 0xf05b67 : 0xf0a33a)
+            .setTitle("📋 Inactivity appeal reviewed")
+            .setDescription(`Appeal **#${appeal.id}** for <@${user.id}> was **${labels[decision]}** by <@${interaction.user.id}>.`)
+            .addFields({ name: "Submitted reason", value: appeal.reason.slice(0, 1000) }, ...(note ? [{ name: "Staff note", value: note }] : []))
+            .setTimestamp()]
+        });
+      }
+      if (sub === "list") {
+        if (!interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers) && !isBotOwner(interaction.user.id))
+          return replyError(interaction, "You need Moderate Members or Administrator to view the appeal queue.");
+        const rows = config.inactiveAppeals.slice(0, 15);
+        return interaction.reply({ content: rows.length
+          ? rows.map(a => `**#${a.id}** <@${a.memberId}> — **${a.status}** · <t:${Math.floor(new Date(a.submittedAt).getTime()/1000)}:R>\n> ${a.reason.slice(0, 180)}`).join("\n")
+          : "There are no inactivity appeals yet.", ephemeral: true, allowedMentions: { parse: [] } });
       }
     }
 
