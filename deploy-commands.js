@@ -9,6 +9,44 @@ import {
 } from "discord.js";
 
 const commands = [
+  new SlashCommandBuilder().setName("warn").setDescription("Record a formal member warning.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true))
+    .addStringOption(o=>o.setName("reason").setDescription("Warning reason").setMaxLength(300).setRequired(true)),
+  new SlashCommandBuilder().setName("warnings").setDescription("View a member's warning history.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true)),
+  new SlashCommandBuilder().setName("clear-warnings").setDescription("Clear a member's recorded warnings.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true)),
+  new SlashCommandBuilder().setName("lock").setDescription("Lock a text channel for @everyone.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+    .addChannelOption(o=>o.setName("channel").setDescription("Channel (defaults to this channel)")),
+  new SlashCommandBuilder().setName("unlock").setDescription("Unlock a text channel for @everyone.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+    .addChannelOption(o=>o.setName("channel").setDescription("Channel (defaults to this channel)")),
+  new SlashCommandBuilder().setName("slowmode").setDescription("Set channel slowmode.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+    .addIntegerOption(o=>o.setName("seconds").setDescription("0 to disable, up to 21600").setMinValue(0).setMaxValue(21600).setRequired(true))
+    .addChannelOption(o=>o.setName("channel").setDescription("Channel (defaults to this channel)")),
+  new SlashCommandBuilder().setName("nickname").setDescription("Change or reset a member nickname.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageNicknames)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true))
+    .addStringOption(o=>o.setName("nickname").setDescription("New nickname; leave blank to reset").setMaxLength(32)),
+  new SlashCommandBuilder().setName("role-add").setDescription("Add a role to a member.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true))
+    .addRoleOption(o=>o.setName("role").setDescription("Role to add").setRequired(true)),
+  new SlashCommandBuilder().setName("role-remove").setDescription("Remove a role from a member.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true))
+    .addRoleOption(o=>o.setName("role").setDescription("Role to remove").setRequired(true)),
+  new SlashCommandBuilder().setName("userinfo").setDescription("Show detailed information about a server member.")
+    .addUserOption(o=>o.setName("member").setDescription("Member to inspect")),
+  new SlashCommandBuilder().setName("serverinfo").setDescription("Show detailed server information."),
+  new SlashCommandBuilder().setName("modstats").setDescription("Show Paradoxplus moderation case statistics.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
+
   new SlashCommandBuilder().setName("kick").setDescription("Kick a member.")
     .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers)
     .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true))
