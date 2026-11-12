@@ -435,7 +435,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (!target) return replyError(interaction, "That member isn't in this server.");
       if (target.id === interaction.client.user.id) return replyError(interaction, "I can't change my own rank.");
 
-      const actor = interaction.member;
+      const actor = interaction.guild.members.cache.get(interaction.user.id) ?? await interaction.guild.members.fetch(interaction.user.id);
       if (interaction.guild.ownerId !== actor.id &&
           target.roles.highest.comparePositionTo(actor.roles.highest) >= 0) {
         return replyError(interaction, "You can't change the rank of someone whose highest role is equal to or above yours.");
