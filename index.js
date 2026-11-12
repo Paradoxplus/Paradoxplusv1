@@ -259,21 +259,19 @@ client.on(Events.InteractionCreate, async interaction => {
       if (sub === "autodetect") {
         const confirm = interaction.options.getBoolean("confirm", true);
         const botMember = await interaction.guild.members.fetchMe();
-        const excludedName = /\b(admin(istrator)?|owner|co[- ]?owner|staff|moderator|mod|helper|support|bot|verified|member|muted|mute|booster|nitro|ping|notification|announcement|ticket|blacklist|banned|jail|quarantine|developer|management)\b/i;
         const configuredIds = new Set(config.ranks.map(rank => rank.id));
         const candidates = interaction.guild.roles.cache
           .filter(role =>
             role.id !== interaction.guildId &&
             !role.managed &&
             !configuredIds.has(role.id) &&
-            role.position < botMember.roles.highest.position &&
-            !excludedName.test(role.name)
+            role.position < botMember.roles.highest.position
           )
           .sort((a, b) => a.position - b.position);
 
         if (!candidates.size) {
           return interaction.reply({
-            content: "I couldn't find any new eligible rank roles. Existing ranks, managed roles, and common staff/utility roles are skipped.",
+            content: "I couldn't find any new eligible roles below the bot's highest role. @everyone, managed integration roles, and already-configured ranks are skipped.",
             ephemeral: true
           });
         }
@@ -282,7 +280,7 @@ client.on(Events.InteractionCreate, async interaction => {
           const preview = candidates.map((role, index) => `${index + 1}. **${role.name}**`).slice(0, 35);
           const remaining = candidates.size - preview.length;
           return interaction.reply({
-            content: `**Rank-role detection preview**\nFound **${candidates.size}** possible rank roles, ordered from lowest to highest by Discord role position.\n\n${preview.join("\n")}${remaining > 0 ? `\n…and ${remaining} more.` : ""}\n\nNothing has been changed. Run \`/rank-config autodetect confirm:true\` to import these roles. Review the list first; staff, bot, and utility roles are filtered by name.`,
+            content: `**Rank-role detection preview**\nFound **${candidates.size}** possible rank roles, ordered from lowest to highest by Discord role position.\n\n${preview.join("\n")}${remaining > 0 ? `\n…and ${remaining} more.` : ""}\n\nNothing has been changed. Run \`/rank-config autodetect confirm:true\` to import these roles. Review the list first; all eligible role names are included. @everyone, managed integration roles, already-configured ranks, and roles at or above the bot's highest role are excluded.`,
             ephemeral: true,
             allowedMentions: { parse: [] }
           });
