@@ -285,6 +285,90 @@ client.on(Events.InteractionCreate, async interaction => {
       }
     }
 
+    if (interaction.commandName === "rank-history") {
+      const user = interaction.options.getUser("member", true);
+      const entries = config.history.filter(item => item.memberId === user.id).slice(0, 10);
+      if (!entries.length) return interaction.reply({ content: `No saved rank history for **${user.tag}**.`, ephemeral: true });
+      const lines = entries.map(item => {
+        const oldRank = item.oldRankId ? `<@&${item.oldRankId}>` : "Unranked";
+        const newRank = item.newRankId ? `<@&${item.newRankId}>` : "Unranked";
+        const date = new Date(item.timestamp).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+        return `• **${item.action}**: ${oldRank} → ${newRank} — <t:${Math.floor(new Date(item.timestamp).getTime() / 1000)}:R> (by <@${item.actorId}>)`;
+      });
+      return interaction.reply({ content: `**Rank history — ${user.tag}**\\n${lines.join("\\n")}`, ephemeral: true, allowedMentions: { parse: [] } });
+    }
+
+    if (interaction.commandName === "rank-search") {
+      const query = interaction.options.getString("query", true).toLowerCase();
+      await interaction.deferReply({ ephemeral: true });
+      const members = await interaction.guild.members.fetch();
+      const matches = members.filter(member =>
+        member.user.username.toLowerCase().includes(query) ||
+        (member.displayName || "").toLowerCase().includes(query)
+      ).first(10);
+      if (!matches.length) return interaction.editReply("No matching members found.");
+      const lines = matches.map(member => {
+        const rank = config.ranks.filter(item => member.roles.cache.has(item.id)).sort((a,b) => b.position-a.position)[0];
+        return `• ${member.user.tag} — ${rank ? `<@&${rank.id}>` : "Unranked"}`;
+      });
+      return interaction.editReply({ content: `**Member search results**\\n${lines.join("\\n")}`, allowedMentions: { parse: [] } });
+    }
+
+    if (interaction.commandName === "rank-stats" || interaction.commandName === "rank-leaderboard") {
+      await interaction.deferReply({ ephemeral: true });
+      const members = await interaction.guild.members.fetch();
+      const counts = config.ranks.map(rank => ({
+        rank,
+        count: members.filter(member => member.roles.cache.has(rank.id)).size
+      }));
+      if (interaction.commandName === "rank-stats") {
+        const totalRanked = counts.reduce((sum, item) => sum + item.count, 0);
+        const lines = counts.map(item => `• <@&${item.rank.id}> — **${item.count}** members`);
+        return interaction.editReply({
+          content: `**Rank statistics**\\nMembers in server: **${members.size}**\\nRanked members (rank-role assignments): **${totalRanked}**\\n\\n${lines.length ? lines.join("\\n") : "No ranks configured."}`,
+          allowedMentions: { parse: [] }
+        });
+      }
+      const ranked = members.map(member => {
+        const rank = config.ranks.filter(item => member.roles.cache.has(item.id)).sort((a,b) => b.position-a.position)[0];
+        return rank ? { member, rank } : null;
+      }).filter(Boolean).sort((a,b) => b.rank.position-a.rank.position || a.member.user.username.localeCompare(b.member.user.username)).slice(0,10);
+      if (!ranked.length) return interaction.editReply("No ranked members found.");
+      return interaction.editReply({
+        content: `**Rank leaderboard — highest ranks first**\\n${ranked.map((item,index) => `${index+1}. **${item.member.user.tag}** — <@&${item.rank.id}>`).join("\\n")}`,
+        allowedMentions: { parse: [] }
+      });
+    }
+
+    if (interaction.commandName === "rank-panel") {
+      const embed = new EmbedBuilder()
+        .setColor(0x6f8cff)
+        .setTitle(`${interaction.guild.name} — Rank hierarchy`)
+        .setDescription(config.ranks.length
+          ? config.ranks.map((rank,index) => `${index+1}. <@&${rank.id}>`).join("\\n")
+          : "No ranks have been configured yet.")
+        .setFooter({ text: "Manual progression • Staff-controlled promotions" });
+      return interaction.reply({ embeds: [embed], ephemeral: false, allowedMentions: { parse: [] } });
+    }
+
+    if (interaction.commandName === "rank-help") {
+      return interaction.reply({
+        content: [
+          "**Paradoxplus commands**",
+          "`/rank` — check a member's rank",
+          "`/rank-panel` — view the rank hierarchy",
+          "`/rank-history member:` — view rank changes",
+          "`/rank-search query:` — search server members",
+          "`/rank-stats` — rank distribution",
+          "`/rank-leaderboard` — highest configured ranks",
+          "`/promote`, `/demote`, `/setrank` — staff-controlled rank changes",
+          "`/rank-config` — configure ranks, logs, announcements and detection",
+          "Progression is manual. The bot never promotes members automatically."
+        ].join("\\n"),
+        ephemeral: true
+      });
+    }
+
     if (interaction.commandName === "rank") {
       const user = interaction.options.getUser("member") ?? interaction.user;
       const member = await interaction.guild.members.fetch(user.id).catch(() => null);
