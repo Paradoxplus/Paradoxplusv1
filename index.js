@@ -234,6 +234,28 @@ client.on(Events.InteractionCreate, async interaction => {
         return interaction.reply({ content: "✅ Rank-change logging disabled.", ephemeral: true });
       }
 
+      if (sub === "announce") {
+        const channel = interaction.options.getChannel("channel", true);
+        config.announceChannelId = channel.id;
+        await saveDatabase();
+        return interaction.reply({ content: `✅ Rank-up announcements will be sent to ${channel}.`, ephemeral: true });
+      }
+
+      if (sub === "clear-announcements") {
+        config.announceChannelId = null;
+        await saveDatabase();
+        return interaction.reply({ content: "✅ Rank-up announcements disabled.", ephemeral: true });
+      }
+
+      if (sub === "backup") {
+        const backup = JSON.stringify({ version: 1, guildId: interaction.guildId, config }, null, 2);
+        return interaction.reply({
+          content: "Your server's Paradoxplus configuration backup is attached.",
+          files: [{ attachment: Buffer.from(backup, "utf8"), name: `paradoxplus-backup-${interaction.guildId}.json` }],
+          ephemeral: true
+        });
+      }
+
       if (sub === "autodetect") {
         const confirm = interaction.options.getBoolean("confirm", true);
         const botMember = await interaction.guild.members.fetchMe();
