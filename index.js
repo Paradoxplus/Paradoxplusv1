@@ -491,7 +491,8 @@ client.on(Events.InteractionCreate, async interaction => {
           "`/rank-search query:` — search server members",
           "`/rank-stats` — rank distribution",
           "`/rank-leaderboard` — highest configured ranks",
-          "`/promote`, `/demote`, `/setrank` — staff-controlled rank changes",\n          "`/kick`, `/ban`, `/timeout`, `/untimeout`, `/purge` — moderation tools",
+          "`/promote`, `/demote`, `/setrank` — staff-controlled rank changes",
+          "`/kick`, `/ban`, `/timeout`, `/untimeout`, `/purge` — moderation tools",
           "`/rank-config` — configure ranks, logs, announcements and detection",
           "Progression is manual. The bot never promotes members automatically."
         ].join("\n"),
@@ -742,7 +743,8 @@ client.on(Events.MessageCreate, async message => {
   try {
     if (command === "rankhelp" || command === "help") return send("✨ Paradoxplus command center", [
       "**Member:** `.rank [@member]`, `.rankpanel`, `.rankhistory @member`, `.ranksearch name`, `.rankstats`, `.rankleaderboard`",
-      "**Staff:** `.promote @member [reason]`, `.demote @member [reason]`, `.setrank @member @rank [reason]`",\n      "**Moderation:** `.kick @member`, `.ban @member`, `.timeout @member minutes`, `.untimeout @member`, `.purge 1-100`",
+      "**Staff:** `.promote @member [reason]`, `.demote @member [reason]`, `.setrank @member @rank [reason]`",
+      "**Moderation:** `.kick @member`, `.ban @member`, `.timeout @member minutes`, `.untimeout @member`, `.purge 1-100`",
       "**Configuration:** use `/rank-config` for setup, detection, logs, announcements and backups.",
       "Prefix: `.` • All slash commands remain available."
     ].join("\n"));
