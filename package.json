@@ -2,7 +2,7 @@
   "name": "premium-discord-rank-bot",
   "version": "1.0.0",
   "private": true,
-  "description": "A configurable Discord rank progression bot with promote, demote, setrank, and audit logs.",
+  "description": "A manual Discord rank-management bot with role detection, rank history, announcements, analytics, search, and audit logs.",
   "type": "module",
   "main": "index.js",
   "scripts": {
