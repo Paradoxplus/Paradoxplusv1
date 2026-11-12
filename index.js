@@ -512,7 +512,7 @@ client.on(Events.InteractionCreate, async interaction => {
     if (["kick", "ban", "timeout", "untimeout", "purge"].includes(interaction.commandName)) {
       const cmd = interaction.commandName;
       const perm = {kick:PermissionFlagsBits.KickMembers,ban:PermissionFlagsBits.BanMembers,timeout:PermissionFlagsBits.ModerateMembers,untimeout:PermissionFlagsBits.ModerateMembers,purge:PermissionFlagsBits.ManageMessages}[cmd];
-      if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) && !interaction.memberPermissions?.has(perm))
+      if (!isBotOwner(interaction.user.id) && !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) && !interaction.memberPermissions?.has(perm))
         return replyError(interaction, "You don't have permission to use this moderation command.");
       if (cmd === "purge") {
         await interaction.deferReply({ephemeral:true});
@@ -553,7 +553,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (["warn","warnings","clear-warnings","lock","unlock","slowmode","nickname","role-add","role-remove","userinfo","serverinfo","modstats"].includes(interaction.commandName)) {
       const cmd=interaction.commandName;
-      const isAdmin=interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
+      const isAdmin=isBotOwner(interaction.user.id) || interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
       const has=(p)=>isAdmin||interaction.memberPermissions?.has(p);
       const addCase=(action,targetId,reason)=> {
         const item={id:config.moderationCases.length+1,action,targetId,moderatorId:interaction.user.id,reason:reason||null,timestamp:new Date().toISOString()};
@@ -761,7 +761,7 @@ client.on(Events.MessageCreate, async message => {
     ].join("\n"));
     if (["kick","ban","timeout","untimeout","purge"].includes(command)) {
       const perm={kick:PermissionFlagsBits.KickMembers,ban:PermissionFlagsBits.BanMembers,timeout:PermissionFlagsBits.ModerateMembers,untimeout:PermissionFlagsBits.ModerateMembers,purge:PermissionFlagsBits.ManageMessages}[command];
-      if (!message.member.permissions.has(PermissionFlagsBits.Administrator) && !message.member.permissions.has(perm)) return fail("You don't have permission to use that moderation command.");
+      if (!isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.Administrator) && !message.member.permissions.has(perm)) return fail("You don't have permission to use that moderation command.");
       if(command==="purge"){
         const n=Number(args[0]); if(!Number.isInteger(n)||n<1||n>100) return fail("Usage: .purge 1-100");
         const deleted=await message.channel.bulkDelete(n,true); return send("🧹 Messages cleared",`Deleted **${deleted.size}** recent messages.`);
