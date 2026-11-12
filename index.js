@@ -684,7 +684,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (cmd === "unban") {
         if (!has(PermissionFlagsBits.BanMembers)) return replyError(interaction, "You need Ban Members or Administrator.");
         const userId = interaction.options.getString("user_id", true).trim();
-        if (!/^\\d{17,20}$/.test(userId)) return replyError(interaction, "Enter a valid Discord user ID.");
+        if (!/^[0-9]{17,20}$/.test(userId)) return replyError(interaction, "Enter a valid Discord user ID.");
         const reason = interaction.options.getString("reason") || "No reason provided";
         await interaction.guild.bans.remove(userId, `Unban by ${interaction.user.tag}: ${reason}`);
         addCase("UNBAN", userId, reason);
