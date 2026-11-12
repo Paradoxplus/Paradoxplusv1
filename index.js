@@ -50,10 +50,12 @@ function saveDatabase() {
 
 function getGuildConfig(guildId) {
   if (!database.guilds[guildId]) {
-    database.guilds[guildId] = { ranks: [], logChannelId: null };
+    database.guilds[guildId] = { ranks: [], logChannelId: null, announceChannelId: null, history: [] };
   }
   const config = database.guilds[guildId];
   if (!Array.isArray(config.ranks)) config.ranks = [];
+  if (!Array.isArray(config.history)) config.history = [];
+  if (typeof config.announceChannelId !== "string") config.announceChannelId = null;
   config.ranks.sort((a, b) => a.position - b.position);
   return config;
 }
@@ -132,7 +134,29 @@ async function applyRank(interaction, target, desiredRank, action, reason) {
     return replyError(interaction, "Discord rejected the role update. Check my Manage Roles permission and role position.");
   }
 
+  const historyEntry = {
+    timestamp: new Date().toISOString(),
+    memberId: target.id,
+    actorId: interaction.user.id,
+    action,
+    oldRankId: oldRank?.id ?? null,
+    newRankId: desiredRank.id,
+    reason: reason || null
+  };
+  config.history.unshift(historyEntry);
+  config.history = config.history.slice(0, 1000);
+  await saveDatabase();
+
   await logRankChange(interaction.guild, config, action, target.user, oldRank, desiredRank, interaction.user, reason);
+  if (config.announceChannelId) {
+    const announcementChannel = await interaction.guild.channels.fetch(config.announceChannelId).catch(() => null);
+    if (announcementChannel?.isTextBased()) {
+      await announcementChannel.send({
+        content: `🎉 **Rank update!** <@${target.id}> has moved to <@&${desiredRank.id}>!`,
+        allowedMentions: { users: [target.id], roles: [desiredRank.id] }
+      }).catch(error => console.error("Rank announcement failed:", error));
+    }
+  }
 
   const verb = action === "PROMOTED" ? "promoted" : action === "DEMOTED" ? "demoted" : "updated";
   const from = oldRank ? `<@&${oldRank.id}>` : "Unranked";
