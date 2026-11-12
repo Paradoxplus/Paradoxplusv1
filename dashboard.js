@@ -73,14 +73,15 @@ export function startDashboard({ client, getGuildConfig, saveDatabase }) {
         authorize.searchParams.set("redirect_uri", base + "/auth/callback");
         authorize.searchParams.set("scope", "identify guilds");
         authorize.searchParams.set("state", state);
-        res.writeHead(302, { location: authorize.toString(), "cache-control": "no-store" }); return res.end();
+        res.writeHead(302, { location: authorize.toString(), "set-cookie": "pp_oauth_state=" + state + "; HttpOnly; Secure; SameSite=Lax; Path=/auth; Max-Age=300", "cache-control": "no-store" }); return res.end();
       }
       if (req.method === "GET" && url.pathname === "/auth/callback") {
         const state = url.searchParams.get("state");
+        const stateCookie = cookieMap(req.headers.cookie).pp_oauth_state;
         const expiry = states.get(state);
         states.delete(state);
         for (const [key, value] of states) if (value < Date.now()) states.delete(key);
-        if (!state || !expiry || expiry < Date.now() || !url.searchParams.get("code")) return json(res, 400, { error: "Login expired. Try again." });
+        if (!state || !stateCookie || !safeEqual(state, stateCookie) || !expiry || expiry < Date.now() || !url.searchParams.get("code")) return json(res, 400, { error: "Login expired. Try again." });
         const form = new URLSearchParams({
           client_id: clientId, client_secret: clientSecret, grant_type: "authorization_code",
           code: url.searchParams.get("code"), redirect_uri: base + "/auth/callback"
@@ -96,7 +97,7 @@ export function startDashboard({ client, getGuildConfig, saveDatabase }) {
           expiresAt: Date.now() + Math.min(tokenData.expires_in || 3600, 3600) * 1000
         });
         res.writeHead(302, {
-          location: "/", "set-cookie": "pp_session=" + session + "; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=3600",
+          location: "/", "set-cookie": ["pp_session=" + session + "; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=3600", "pp_oauth_state=; HttpOnly; Secure; SameSite=Lax; Path=/auth; Max-Age=0"],
           "cache-control": "no-store"
         }); return res.end();
       }
