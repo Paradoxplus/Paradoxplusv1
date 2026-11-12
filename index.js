@@ -180,7 +180,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (interaction.commandName === "rank-config") {
       if (!hasManagerPermission(interaction.member)) {
-        return replyError(interaction, "You need **Manage Server** or **Administrator** to configure ranks.");
+        return replyError(interaction, "You need **Manage Roles** or **Administrator** to configure ranks.");
       }
 
       const sub = interaction.options.getSubcommand();
