@@ -16,7 +16,7 @@ const DATA_DIR = path.resolve("data");
 const DATA_FILE = path.join(DATA_DIR, "guild-config.json");
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
   partials: [Partials.GuildMember]
 });
 
@@ -471,6 +471,85 @@ client.on(Events.InteractionCreate, async interaction => {
   } catch (error) {
     console.error("Command error:", error);
     return replyError(interaction, "Something went wrong. Check the bot logs and try again.");
+  }
+});
+
+const PREFIX = ".";
+const prefixEmbed = (title, description) => new EmbedBuilder()
+  .setColor(0x7c5cff)
+  .setAuthor({ name: "PARADOXPLUS • RANK SYSTEM", iconURL: client.user.displayAvatarURL() })
+  .setTitle(title).setDescription(description)
+  .setFooter({ text: "Manual progression • Staff-controlled" }).setTimestamp();
+const mentionedId = (value, role = false) => value?.match(role ? /^<@&(\d+)>$/ : /^<@!?(\d+)>$/)?.[1] || null;
+
+client.on(Events.MessageCreate, async message => {
+  if (!message.guild || message.author.bot || !message.content.startsWith(PREFIX)) return;
+  const args = message.content.slice(1).trim().split(/\s+/);
+  const command = (args.shift() || "").toLowerCase();
+  const config = getGuildConfig(message.guild.id);
+  const send = (title, description) => message.reply({
+    embeds: [prefixEmbed(title, description)],
+    allowedMentions: { repliedUser: false, parse: [] }
+  });
+  const fail = text => send("⚠️ Command error", text);
+  try {
+    if (command === "rankhelp" || command === "help") return send("✨ Paradoxplus command center", [
+      "**Member:** `.rank [@member]`, `.rankpanel`, `.rankhistory @member`, `.ranksearch name`, `.rankstats`, `.rankleaderboard`",
+      "**Staff:** `.promote @member [reason]`, `.demote @member [reason]`, `.setrank @member @rank [reason]`",
+      "**Configuration:** use `/rank-config` for setup, detection, logs, announcements and backups.",
+      "Prefix: `.` • All slash commands remain available."
+    ].join("\n"));
+    if (command === "rank") {
+      const id = mentionedId(args[0]) || message.author.id;
+      const target = await message.guild.members.fetch(id).catch(() => null);
+      if (!target) return fail("Member not found. Mention them or use their ID.");
+      const rank = config.ranks.filter(r => target.roles.cache.has(r.id)).sort((a,b)=>b.position-a.position)[0];
+      return send("🏅 Member rank", `**${target.user.tag}**\n${rank ? `<@&${rank.id}>` : "Unranked"}`);
+    }
+    if (command === "rankpanel") return send("🏆 Server rank hierarchy",
+      config.ranks.map((r,i)=>`**${i+1}.** <@&${r.id}>`).join("\n") || "No ranks configured.");
+    if (["promote","demote","setrank"].includes(command)) {
+      if (!hasManagerPermission(message.member)) return fail("You need Manage Roles or Administrator.");
+      const id = mentionedId(args[0]);
+      if (!id) return fail(`Usage: .${command} @member [reason]`);
+      const target = await message.guild.members.fetch(id).catch(()=>null);
+      if (!target) return fail("That member isn't in this server.");
+      const actor = message.member;
+      if (message.guild.ownerId !== actor.id && target.roles.highest.comparePositionTo(actor.roles.highest) >= 0)
+        return fail("You can't manage someone whose highest role is equal to or above yours.");
+      const bot = await message.guild.members.fetchMe();
+      if (target.roles.highest.comparePositionTo(bot.roles.highest) >= 0)
+        return fail("My highest role must be above the target member's highest role.");
+      const ranks = config.ranks;
+      const current = ranks.filter(r=>target.roles.cache.has(r.id)).sort((a,b)=>b.position-a.position)[0] || null;
+      let desired, action = command.toUpperCase(), reasonArgs = args.slice(1);
+      if (command === "setrank") {
+        desired = ranks.find(r=>r.id===mentionedId(args[1], true));
+        if (!desired) return fail("Usage: .setrank @member @configured-rank [reason]");
+        action = "SET"; reasonArgs = args.slice(2);
+      } else if (command === "promote") {
+        const i = current ? ranks.findIndex(r=>r.id===current.id) : -1;
+        if (i+1 >= ranks.length) return fail("Already at the highest configured rank.");
+        desired = ranks[i+1];
+      } else {
+        if (!current) return fail("That member has no configured rank.");
+        const i = ranks.findIndex(r=>r.id===current.id);
+        if (i <= 0) return fail("Already at the lowest configured rank.");
+        desired = ranks[i-1];
+      }
+      const adapter = {
+        guild: message.guild, guildId: message.guild.id, user: message.author, client,
+        editReply: payload => message.reply({
+          embeds: [prefixEmbed("✅ Rank updated", payload.content || "Rank updated.")],
+          allowedMentions: { repliedUser: false, parse: [] }
+        })
+      };
+      return applyRank(adapter, target, desired, action, reasonArgs.join(" ").slice(0,300) || null);
+    }
+    return fail(`Unknown command .${command}. Use .rankhelp. (Slash commands still work.)`);
+  } catch (error) {
+    console.error("Prefix command error:", error);
+    return fail("Something went wrong. Check the bot logs.");
   }
 });
 
