@@ -9,6 +9,27 @@ import {
 } from "discord.js";
 
 const commands = [
+  new SlashCommandBuilder().setName("kick").setDescription("Kick a member.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.KickMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true))
+    .addStringOption(o=>o.setName("reason").setDescription("Reason").setMaxLength(480)),
+  new SlashCommandBuilder().setName("ban").setDescription("Ban a member.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true))
+    .addStringOption(o=>o.setName("reason").setDescription("Reason").setMaxLength(480)),
+  new SlashCommandBuilder().setName("timeout").setDescription("Timeout a member.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true))
+    .addIntegerOption(o=>o.setName("minutes").setDescription("Duration in minutes (1–40320)").setMinValue(1).setMaxValue(40320).setRequired(true))
+    .addStringOption(o=>o.setName("reason").setDescription("Reason").setMaxLength(480)),
+  new SlashCommandBuilder().setName("untimeout").setDescription("Remove a member timeout.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true))
+    .addStringOption(o=>o.setName("reason").setDescription("Reason").setMaxLength(480)),
+  new SlashCommandBuilder().setName("purge").setDescription("Delete 1–100 recent messages.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addIntegerOption(o=>o.setName("amount").setDescription("Number of messages").setMinValue(1).setMaxValue(100).setRequired(true)),
+
   new SlashCommandBuilder()
     .setName("promote")
     .setDescription("Move a member up one rank in the configured hierarchy.")
