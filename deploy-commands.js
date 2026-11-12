@@ -59,6 +59,19 @@ const commands = [
       .addRoleOption(o =>
         o.setName("role").setDescription("Rank role to remove").setRequired(true)))
 
+    .addSubcommand(s => s.setName("ignore")
+      .setDescription("Exclude a role from future autodetection; remove it from ranks if already added.")
+      .addRoleOption(o =>
+        o.setName("role").setDescription("Role to exclude from detection").setRequired(true)))
+
+    .addSubcommand(s => s.setName("unignore")
+      .setDescription("Allow a role to appear in autodetection again.")
+      .addRoleOption(o =>
+        o.setName("role").setDescription("Role to allow again").setRequired(true)))
+
+    .addSubcommand(s => s.setName("ignored")
+      .setDescription("List roles excluded from autodetection."))
+
     .addSubcommand(s => s.setName("list")
       .setDescription("Display the configured rank hierarchy."))
 
