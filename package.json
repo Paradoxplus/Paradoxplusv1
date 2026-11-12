@@ -1,0 +1,20 @@
+{
+  "name": "premium-discord-rank-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A configurable Discord rank progression bot with promote, demote, setrank, and audit logs.",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "prestart": "node deploy-commands.js",
+    "start": "node index.js",
+    "deploy": "node deploy-commands.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "discord.js": "^14.19.3",
+    "dotenv": "^16.4.7"
+  }
+}
