@@ -1,0 +1,35 @@
+server:
+  port: ${SERVER_PORT:2333}
+  address: 0.0.0.0
+
+lavalink:
+  server:
+    password: ${LAVALINK_SERVER_PASSWORD}
+    sources:
+      soundcloud: true
+      bandcamp: false
+      twitch: false
+      vimeo: false
+      nico: false
+      http: false
+      local: false
+    filters:
+      volume: true
+      equalizer: true
+      karaoke: false
+      timescale: true
+      tremolo: false
+      vibrato: false
+      distortion: false
+      rotation: false
+      channelMix: false
+      lowPass: false
+    opusEncodingQuality: 10
+    resamplingQuality: HIGH
+    bufferDurationMs: 400
+    frameBufferDurationMs: 5000
+
+logging:
+  level:
+    root: INFO
+    lavalink: INFO
