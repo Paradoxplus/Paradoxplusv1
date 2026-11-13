@@ -1604,10 +1604,10 @@ client.on(Events.MessageCreate, async message => {
           .setAuthor({ name: "Paradoxplus", iconURL: client.user.displayAvatarURL() })
           .setTitle("✦ WELCOME TO PARADOXX")
           .setDescription(
-            "A new legend just entered the realm.\\n\\n" +
-            "Welcome aboard, " + message.member.toString() + "!\\n" +
-            "You're our **" + count.toLocaleString() + getOrdinalSuffix(count) + " member**.\\n\\n" +
-            "Make yourself at home, meet the community, and enjoy your stay.\\n\\n" +
+            "A new legend just entered the realm.\n\n" +
+            "Welcome aboard, " + message.member.toString() + "!\n" +
+            "You're our **" + count.toLocaleString() + getOrdinalSuffix(count) + " member**.\n\n" +
+            "Make yourself at home, meet the community, and enjoy your stay.\n\n" +
             "╰┈➤ **PARADOXX • WHERE LEGENDS CONNECT**"
           )
           .setThumbnail(message.author.displayAvatarURL({ extension: "png", size: 256 }))
@@ -1641,7 +1641,7 @@ client.on(Events.MessageCreate, async message => {
         await saveDatabase();
         return send("✦ Welcome messages disabled", "Removed the welcome channel <#" + previous + ">.");
       }
-      return fail("Usage: " + prefix + "welcome set #channel\\n" + prefix + "welcome remove");
+      return fail("Usage: " + prefix + "welcome set #channel\n" + prefix + "welcome remove");
     }
     if (command === "recruit") {
       const id = mentionedId(args[0]);
