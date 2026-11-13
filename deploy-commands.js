@@ -9,6 +9,8 @@ import {
 } from "discord.js";
 
 const commands = [
+  new SlashCommandBuilder().setName("recruit").setDescription("Record a new Paradoxplus recruit.")
+    .addUserOption(o=>o.setName("member").setDescription("Member being recruited").setRequired(true)),
   new SlashCommandBuilder().setName("dm-optin").setDescription("Opt in to Paradoxplus server direct messages."),
   new SlashCommandBuilder().setName("dm-optout").setDescription("Opt out of Paradoxplus server direct messages."),
   new SlashCommandBuilder().setName("dmall").setDescription("Send a direct message to members who opted in.")
