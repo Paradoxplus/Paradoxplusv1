@@ -191,12 +191,6 @@ const commands = [
     .addSubcommand(s => s.setName("backup")
       .setDescription("Download a backup of this server's rank configuration."))
 
-    .addSubcommand(s => s.setName("autodetect")
-      .setDescription("Detect server roles and preview or import them.")
-      .addBooleanOption(o =>
-        o.setName("confirm")
-          .setDescription("Set true to import the detected roles")
-          .setRequired(true))),
 
   new SlashCommandBuilder()
     .setName("rank-history")
