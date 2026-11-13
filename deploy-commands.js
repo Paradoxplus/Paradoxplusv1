@@ -9,6 +9,8 @@ import {
 } from "discord.js";
 
 const commands = [
+  new SlashCommandBuilder().setName("prefix").setDescription("Change this server’s text command prefix.")
+    .addStringOption(o=>o.setName("new_prefix").setDescription("New prefix (1–5 characters, no spaces)").setMinLength(1).setMaxLength(5).setRequired(true)),
   new SlashCommandBuilder().setName("recruit").setDescription("Record a new Paradoxplus recruit.")
     .addUserOption(o=>o.setName("member").setDescription("Member being recruited").setRequired(true)),
   new SlashCommandBuilder().setName("dm-optin").setDescription("Opt in to Paradoxplus server direct messages."),
