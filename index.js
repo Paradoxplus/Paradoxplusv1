@@ -98,6 +98,7 @@ function getGuildConfig(guildId) {
   if (!Array.isArray(config.ignoredRoleIds)) config.ignoredRoleIds = [];
   if (!Array.isArray(config.autoresponders)) config.autoresponders = [];
   if (!Array.isArray(config.dmOptIns)) config.dmOptIns = [];
+  if (!Number.isInteger(config.recruitCount) || config.recruitCount < 0) config.recruitCount = 0;
   if (!Array.isArray(config.inactiveAppeals)) config.inactiveAppeals = [];
   if (typeof config.announceChannelId !== "string") config.announceChannelId = null;
   config.ranks.sort((a, b) => a.position - b.position);
@@ -521,6 +522,25 @@ client.on(Events.InteractionCreate, async interaction => {
 
   try {
     const config = getGuildConfig(interaction.guildId);
+
+    if (interaction.commandName === "recruit") {
+      const user = interaction.options.getUser("member", true);
+      const target = interaction.guild.members.cache.get(user.id) ?? await interaction.guild.members.fetch(user.id).catch(() => null);
+      if (!target) return replyError(interaction, "That member isn't in this server.");
+      if (target.user.bot) return replyError(interaction, "Bots can't be recruited.");
+      if (target.id === interaction.user.id) return replyError(interaction, "You can't recruit yourself.");
+      config.recruitCount++;
+      await saveDatabase();
+      const embed = new EmbedBuilder()
+        .setColor(0x7c5cff)
+        .setAuthor({ name: "PARADOXPLUS • RECRUITMENT", iconURL: interaction.client.user.displayAvatarURL() })
+        .setTitle("✦ NEW RECRUIT")
+        .setDescription("**Recruit:** " + target + "\\n**Recruited by:** " + interaction.user + "\\n**Recruit no:** **#" + config.recruitCount + "**")
+        .setImage(process.env.RECRUIT_GIF_URL || interaction.client.user.displayAvatarURL({ extension: "gif", size: 1024 }))
+        .setFooter({ text: interaction.guild.name + " • Paradoxplus Recruitment" })
+        .setTimestamp();
+      return interaction.reply({ embeds: [embed], allowedMentions: { users: [target.id, interaction.user.id], parse: [] } });
+    }
 
     if (interaction.commandName === "dm-optin" || interaction.commandName === "dm-optout") {
       const enabled = interaction.commandName === "dm-optin";
@@ -1515,6 +1535,25 @@ client.on(Events.MessageCreate, async message => {
   });
   const fail = text => send("⚠️ Command error", text);
   try {
+    if (command === "recruit") {
+      const id = mentionedId(args[0]);
+      if (!id) return fail("Usage: .recruit @member");
+      const target = message.guild.members.cache.get(id) ?? await message.guild.members.fetch(id).catch(() => null);
+      if (!target) return fail("That member isn't in this server.");
+      if (target.user.bot) return fail("Bots can't be recruited.");
+      if (target.id === message.author.id) return fail("You can't recruit yourself.");
+      config.recruitCount++;
+      await saveDatabase();
+      const embed = new EmbedBuilder()
+        .setColor(0x7c5cff)
+        .setAuthor({ name: "PARADOXPLUS • RECRUITMENT", iconURL: client.user.displayAvatarURL() })
+        .setTitle("✦ NEW RECRUIT")
+        .setDescription("**Recruit:** " + target + "\\n**Recruited by:** " + message.author + "\\n**Recruit no:** **#" + config.recruitCount + "**")
+        .setImage(process.env.RECRUIT_GIF_URL || client.user.displayAvatarURL({ extension: "gif", size: 1024 }))
+        .setFooter({ text: message.guild.name + " • Paradoxplus Recruitment" })
+        .setTimestamp();
+      return message.reply({ embeds: [embed], allowedMentions: { users: [target.id, message.author.id], parse: [] } });
+    }
     if (command === "ping") {
       const roundTrip = Math.max(0, Date.now() - message.createdTimestamp);
       const gateway = Math.round(client.ws.ping);
