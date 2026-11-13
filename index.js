@@ -660,12 +660,19 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (["kick", "ban", "timeout", "untimeout", "purge"].includes(interaction.commandName)) {
       const cmd = interaction.commandName;
+      const logModCase = (action, targetId, reason) => {
+        const nextId = config.moderationCases.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
+        config.moderationCases.unshift({ id: nextId, action, targetId: targetId || null, moderatorId: interaction.user.id, reason: reason || null, timestamp: new Date().toISOString() });
+        config.moderationCases = config.moderationCases.slice(0, 500);
+      };
       const perm = {kick:PermissionFlagsBits.KickMembers,ban:PermissionFlagsBits.BanMembers,timeout:PermissionFlagsBits.ModerateMembers,untimeout:PermissionFlagsBits.ModerateMembers,purge:PermissionFlagsBits.ManageMessages}[cmd];
       if (!isBotOwner(interaction.user.id) && !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) && !interaction.memberPermissions?.has(perm))
         return replyError(interaction, "You don't have permission to use this moderation command.");
       if (cmd === "purge") {
         await interaction.deferReply({ephemeral:true});
         const deleted = await interaction.channel.bulkDelete(interaction.options.getInteger("amount",true), true);
+        logModCase("PURGE", null, "Deleted " + deleted.size + " messages in #" + interaction.channel.name);
+        await saveDatabase();
         return interaction.editReply(`🧹 Deleted **${deleted.size}** recent messages. Messages older than 14 days cannot be bulk-deleted.`);
       }
       const user = interaction.options.getUser("member",true);
@@ -681,22 +688,30 @@ client.on(Events.InteractionCreate, async interaction => {
       if (cmd === "kick") {
         if (!target.kickable) return replyError(interaction,"I can't kick that member. Check my Kick Members permission and role position.");
         await target.kick(reason);
+        logModCase("KICK", user.id, reason);
+        await saveDatabase();
         return interaction.editReply(`👢 **${user.tag}** was kicked. Reason: ${reason}`);
       }
       if (cmd === "ban") {
         if (!target.bannable) return replyError(interaction,"I can't ban that member. Check my Ban Members permission and role position.");
         await target.ban({reason});
+        logModCase("BAN", user.id, reason);
+        await saveDatabase();
         return interaction.editReply(`🔨 **${user.tag}** was banned. Reason: ${reason}`);
       }
       if (cmd === "timeout") {
         const mins=interaction.options.getInteger("minutes",true);
         if (!target.moderatable) return replyError(interaction,"I can't timeout that member.");
         await target.timeout(mins*60000,reason);
+        logModCase("TIMEOUT", user.id, reason);
+        await saveDatabase();
         return interaction.editReply(`⏳ **${user.tag}** was timed out for **${mins} minutes**. Reason: ${reason}`);
       }
       if (!target.moderatable) return replyError(interaction,"I can't remove that member's timeout.");
       if (!target.communicationDisabledUntilTimestamp) return replyError(interaction,"That member isn't timed out.");
       await target.timeout(null,reason);
+      logModCase("UNTIMEOUT", user.id, reason);
+      await saveDatabase();
       return interaction.editReply(`✅ Removed the timeout from **${user.tag}**.`);
     }
 
@@ -754,7 +769,7 @@ client.on(Events.InteractionCreate, async interaction => {
       const isAdmin=isBotOwner(interaction.user.id) || interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
       const has=(p)=>isAdmin||interaction.memberPermissions?.has(p);
       const addCase=(action,targetId,reason)=> {
-        const item={id:config.moderationCases.length+1,action,targetId,moderatorId:interaction.user.id,reason:reason||null,timestamp:new Date().toISOString()};
+        const item={id:config.moderationCases.reduce((max,row)=>Math.max(max,Number(row.id)||0),0)+1,action,targetId,moderatorId:interaction.user.id,reason:reason||null,timestamp:new Date().toISOString()};
         config.moderationCases.unshift(item); config.moderationCases=config.moderationCases.slice(0,500);
         void saveDatabase().catch(e=>console.error("Moderation case save failed:",e));
         return item;
