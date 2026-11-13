@@ -1572,10 +1572,15 @@ client.on(Events.MessageCreate, async message => {
         .setImage("https://www.image2url.com/r2/default/gifs/1794386711876-4bbf4f54-5448-4384-960d-4424655e01a2.gif")
         .setFooter({ text: message.guild.name })
         .setTimestamp();
-      return message.reply({
+      const recruitChannel = await message.guild.channels.fetch("1568943820509290518").catch(() => null);
+      if (!recruitChannel?.isTextBased() || !recruitChannel.permissionsFor(message.guild.members.me)?.has(PermissionFlagsBits.SendMessages)) {
+        return fail("I couldn't access the recruit announcement channel. Check that I can view and send messages there.");
+      }
+      await recruitChannel.send({
         embeds: [embed],
         allowedMentions: { users: [target.id, message.author.id], parse: [] }
       });
+      return message.react("✅");
     }
     if (command === "ping") {
       const roundTrip = Math.max(0, Date.now() - message.createdTimestamp);
