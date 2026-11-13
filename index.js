@@ -692,7 +692,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (!canActOnTarget(actor, target, interaction.guild)) return replyError(interaction, "That member has an equal or higher role than you.");
       await interaction.deferReply();
       const result = await removeStrikes(interaction.guild, config, target, interaction.user, amount, reason, async embed => {
-        const reviewChannel = await interaction.guild.channels.fetch("1570589159289126962").catch(() => null);
+        const reviewChannel = await interaction.guild.channels.fetch("1568943823361671244").catch(() => null);
         if (!reviewChannel?.isTextBased()) return interaction.editReply("⚠️ Strike removal recorded, but I couldn't access the staff review channel.");
         await reviewChannel.send({ embeds: [embed], allowedMentions: { parse: [], users: [] } });
         const remaining = config.strikes.filter(item => item.memberId === target.id).length;
@@ -712,7 +712,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (target.roles.highest.comparePositionTo(bot.roles.highest) >= 0) return replyError(interaction, "My highest role must be above the target member highest role.");
       await interaction.deferReply();
       return issueStrike(interaction.guild, config, target, interaction.user, reason, async embed => {
-        const reviewChannel = await interaction.guild.channels.fetch("1570589159289126962").catch(() => null);
+        const reviewChannel = await interaction.guild.channels.fetch("1568943823361671244").catch(() => null);
         if (!reviewChannel?.isTextBased()) return interaction.editReply("⚠️ Strike recorded, but I couldn't access the staff review channel.");
         await reviewChannel.send({ embeds: [embed], allowedMentions: { parse: [], users: [] } });
         return interaction.editReply("✅ Strike recorded and sent to the staff review channel.");
@@ -1201,7 +1201,7 @@ client.on(Events.MessageCreate, async message => {
       if (!target) return fail("Member not found.");
       if (!canActOnTarget(message.member, target, message.guild)) return fail("That member has an equal or higher role than you.");
       return removeStrikes(message.guild, config, target, message.author, amount, reason, async embed => {
-        const reviewChannel = await message.guild.channels.fetch("1570589159289126962").catch(() => null);
+        const reviewChannel = await message.guild.channels.fetch("1568943823361671244").catch(() => null);
         if (!reviewChannel?.isTextBased()) return message.reply("⚠️ Strike removal recorded, but I couldn't access the staff review channel.");
         await reviewChannel.send({ embeds: [embed], allowedMentions: { parse: [], users: [] } });
         const remaining = config.strikes.filter(item => item.memberId === target.id).length;
@@ -1221,7 +1221,7 @@ client.on(Events.MessageCreate, async message => {
       const reason = args.slice(1).join(" ").trim().slice(0, 800);
       if (!reason) return fail("Usage: .strike @member reason");
       return issueStrike(message.guild, config, target, message.author, reason, async embed => {
-        const reviewChannel = await message.guild.channels.fetch("1570589159289126962").catch(() => null);
+        const reviewChannel = await message.guild.channels.fetch("1568943823361671244").catch(() => null);
         if (!reviewChannel?.isTextBased()) return message.reply("⚠️ Strike recorded, but I couldn't access the staff review channel.");
         await reviewChannel.send({ embeds: [embed], allowedMentions: { parse: [], users: [] } });
         return message.reply("✅ Strike recorded and sent to the staff review channel.");
