@@ -535,7 +535,7 @@ client.on(Events.InteractionCreate, async interaction => {
         .setColor(0x7c5cff)
         .setAuthor({ name: "PARADOXPLUS • RECRUITMENT", iconURL: interaction.client.user.displayAvatarURL() })
         .setTitle("✦ NEW RECRUIT")
-        .setDescription("**Recruit:** " + target + "\\n**Recruited by:** " + interaction.user + "\\n**Recruit no:** **#" + config.recruitCount + "**")
+        .setDescription("**Recruit:** " + target + "\n**Recruited by:** " + interaction.user + "\n**Recruit no:** **#" + config.recruitCount + "**")
         .setImage(process.env.RECRUIT_GIF_URL || interaction.client.user.displayAvatarURL({ extension: "gif", size: 1024 }))
         .setFooter({ text: interaction.guild.name + " • Paradoxplus Recruitment" })
         .setTimestamp();
@@ -1548,7 +1548,7 @@ client.on(Events.MessageCreate, async message => {
         .setColor(0x7c5cff)
         .setAuthor({ name: "PARADOXPLUS • RECRUITMENT", iconURL: client.user.displayAvatarURL() })
         .setTitle("✦ NEW RECRUIT")
-        .setDescription("**Recruit:** " + target + "\\n**Recruited by:** " + message.author + "\\n**Recruit no:** **#" + config.recruitCount + "**")
+        .setDescription("**Recruit:** " + target + "\n**Recruited by:** " + message.author + "\n**Recruit no:** **#" + config.recruitCount + "**")
         .setImage(process.env.RECRUIT_GIF_URL || client.user.displayAvatarURL({ extension: "gif", size: 1024 }))
         .setFooter({ text: message.guild.name + " • Paradoxplus Recruitment" })
         .setTimestamp();
