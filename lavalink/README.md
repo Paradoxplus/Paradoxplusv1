@@ -19,4 +19,4 @@ Keep Lavalink private; do not expose port 2333 publicly. Never put credentials i
 
 ## Playback
 
-The bot is configured for SoundCloud-only search and playback. YouTube search and the YouTube Lavalink plugin are removed. Search results and playback depend on SoundCloud availability.
+The bot is configured for Bandcamp-only search and playback using Lavalink's built-in Bandcamp source (`bcsearch:`). No personal Bandcamp login or music-account token is configured. Search results and playback depend on Bandcamp availability.
