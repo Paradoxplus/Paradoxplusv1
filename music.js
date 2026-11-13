@@ -221,7 +221,7 @@ function requirePlayer(client, guildId, member) {
 export async function handleMusicInteraction(interaction, client) {
   if (!interaction.isChatInputCommand()) return false;
   const command = interaction.commandName;
-  const names = ["play","playnext","pause","resume","skip","previous","stop","queue","nowplaying","volume","seek","autoplay","loop","shuffle","remove","clear"];
+  const names = ["play","playnext","pause","resume","skip","previous","stop","queue","nowplaying","volume","seek","autoplay","filter","loop","shuffle","remove","clear"];
   if (!names.includes(command)) return false;
   try {
     if (command === "playnext") {
@@ -294,6 +294,26 @@ export async function handleMusicInteraction(interaction, client) {
       const enabled = interaction.options.getBoolean("enabled", true);
       if (enabled) autoplayGuilds.add(interaction.guildId); else autoplayGuilds.delete(interaction.guildId);
       await interaction.reply({ content: enabled ? "🔁 Autoplay enabled. I'll find a related track when the queue ends." : "⏹️ Autoplay disabled.", ephemeral: true });
+    } else if (command === "filter") {
+      const preset = interaction.options.getString("preset", true);
+      const fm = player.filterManager;
+      if (preset === "off") await fm.resetFilters();
+      else if (preset === "nightcore") { await fm.resetFilters(); await fm.toggleNightcore(); }
+      else if (preset === "vaporwave") { await fm.resetFilters(); await fm.toggleVaporwave(); }
+      else if (preset === "karaoke") { await fm.resetFilters(); await fm.toggleKaraoke(); }
+      else {
+        const presets = {
+          "bassboost-low":"BassboostLow", "bassboost-medium":"BassboostMedium",
+          "bassboost-high":"BassboostHigh", "better-music":"BetterMusic",
+          "pop":"Pop", "rock":"Rock", "classic":"Classic",
+          "electronic":"Electronic", "full-sound":"FullSound", "gaming":"Gaming"
+        };
+        const selected = presets[preset];
+        if (!selected) throw new Error("Unknown filter preset.");
+        await fm.resetFilters();
+        await fm.setEQPreset(selected);
+      }
+      await interaction.reply({ content: preset === "off" ? "🎚️ All audio effects cleared." : "🎚️ Audio preset applied: **" + preset + "**.", ephemeral: true });
     } else if (command === "previous") {
       const previous = await player.queue.shiftPrevious();
       if (!previous) throw new Error("There isn't a previous track in history.");
@@ -334,7 +354,7 @@ export async function handleMusicInteraction(interaction, client) {
 }
 
 export async function handleMusicPrefix(message, command, args, client) {
-  const names = ["play","playnext","pause","resume","skip","previous","stop","queue","nowplaying","volume","seek","autoplay","loop","shuffle","remove","clear"];
+  const names = ["play","playnext","pause","resume","skip","previous","stop","queue","nowplaying","volume","seek","autoplay","filter","loop","shuffle","remove","clear"];
   if (!names.includes(command)) return false;
   const send = text => message.reply({ content: text, allowedMentions: { repliedUser: false, parse: [] } });
   try {
@@ -378,6 +398,27 @@ export async function handleMusicPrefix(message, command, args, client) {
       if (!["on","off"].includes(mode)) throw new Error("Usage: .autoplay on|off");
       if (mode === "on") autoplayGuilds.add(message.guild.id); else autoplayGuilds.delete(message.guild.id);
       return send(mode === "on" ? "🔁 Autoplay enabled." : "⏹️ Autoplay disabled.");
+    }
+    if (command === "filter") {
+      const preset = (args[0] || "").toLowerCase();
+      if (!preset) throw new Error("Usage: .filter off|nightcore|vaporwave|karaoke|bassboost-low|bassboost-medium|bassboost-high|better-music|pop|rock|classic|electronic|full-sound|gaming");
+      const fm = player.filterManager;
+      if (preset === "off") await fm.resetFilters();
+      else if (preset === "nightcore") { await fm.resetFilters(); await fm.toggleNightcore(); }
+      else if (preset === "vaporwave") { await fm.resetFilters(); await fm.toggleVaporwave(); }
+      else if (preset === "karaoke") { await fm.resetFilters(); await fm.toggleKaraoke(); }
+      else {
+        const presets = {
+          "bassboost-low":"BassboostLow", "bassboost-medium":"BassboostMedium",
+          "bassboost-high":"BassboostHigh", "better-music":"BetterMusic",
+          "pop":"Pop", "rock":"Rock", "classic":"Classic",
+          "electronic":"Electronic", "full-sound":"FullSound", "gaming":"Gaming"
+        };
+        if (!presets[preset]) throw new Error("Unknown filter preset.");
+        await fm.resetFilters();
+        await fm.setEQPreset(presets[preset]);
+      }
+      return send(preset === "off" ? "🎚️ All audio effects cleared." : "🎚️ Applied **" + preset + "**.");
     }
     if (command === "previous") {
       const previous = await player.queue.shiftPrevious();
