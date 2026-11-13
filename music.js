@@ -75,7 +75,7 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
     const embed = new EmbedBuilder().setColor(COLOR).setAuthor({ name: "PARADOXPLUS • NOW PLAYING" })
       .setTitle(clean(info.title, 240))
       .setDescription("**Artist:** " + clean(info.author, 160) + "\n**Duration:** " + fmt(info.duration))
-      .setFooter({ text: "YouTube Music first • YouTube and SoundCloud fallback" }).setTimestamp();
+      .setFooter({ text: "SoundCloud only" }).setTimestamp();
     if (info.artworkUrl) embed.setThumbnail(info.artworkUrl);
     void channel.send({ embeds: [embed] }).catch(() => {});
   });
@@ -83,60 +83,22 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
     const channel = client.channels.cache.get(player.textChannelId);
     if (channel?.isTextBased()) void channel.send("🎵 The queue has finished.").catch(() => {});
   });
-  const fallbackInProgress = new Set();
-  const recoverTrack = async (player, track, payload, eventName) => {
-    const guildId = player.guildId;
-    if (fallbackInProgress.has(guildId)) return;
-    fallbackInProgress.add(guildId);
-    const info = track?.info || player.queue.current?.info || {};
-    const sourceName = String(info.sourceName || "").toLowerCase();
+  const reportPlaybackFailure = (player, track, payload, eventName) => {
+    const info = track?.info || {};
     const reason = payload?.exception?.message || payload?.exception?.cause || payload?.error || eventName;
     console.warn("[Music] " + eventName + ":", JSON.stringify({
       title: clean(info.title, 120),
-      source: sourceName || "unknown",
+      source: clean(info.sourceName || "soundcloud", 40),
       reason: clean(reason, 300)
     }));
     const channel = client.channels.cache.get(player.textChannelId);
-    try {
-      if ((sourceName === "youtube" || sourceName === "youtubemusic") && info.title) {
-        const query = [info.title, info.author].filter(Boolean).join(" ");
-        const result = await player.search({ query, source: "soundcloud" }, track?.requester);
-        const alternatives = Array.isArray(result?.tracks) ? result.tracks : [];
-        const duration = Number(info.duration || info.length || 0);
-        const durationMatch = alternatives.find(candidate => {
-          const candidateDuration = Number(candidate?.info?.duration || candidate?.info?.length || 0);
-          return !duration || !candidateDuration || Math.abs(candidateDuration - duration) <= Math.max(30000, duration * 0.2);
-        });
-        // The search was explicitly sent to SoundCloud, so do not reject a valid
-        // result just because a plugin omits or labels sourceName differently.
-        const fallback = durationMatch || alternatives[0];
-        console.log("[Music] SoundCloud fallback search:", JSON.stringify({
-          resultCount: alternatives.length,
-          durationMatch: Boolean(durationMatch),
-          selected: clean(fallback?.info?.title, 120)
-        }));
-        if (fallback) {
-          await player.queue.add(fallback, 0);
-          console.log("[Music] Added SoundCloud playback fallback:", clean(fallback.info?.title, 120));
-          if (channel?.isTextBased()) await channel.send("🔁 YouTube couldn't play that track. Added a SoundCloud alternative to the front of the queue.").catch(() => {});
-          // Lavalink-client autoSkip advances the failed track. If it has already
-          // cleared the current slot, start the newly queued fallback directly.
-          if (!player.queue.current) await player.play();
-          return;
-        }
-      }
-      if (channel?.isTextBased()) await channel.send("⚠️ That track failed" + (sourceName ? " on " + sourceName : "") + ". Skipping to the next queued track.").catch(() => {});
-      // autoSkip owns failed-track advancement; never manually skip an empty queue.
-    } catch (error) {
-      console.warn("[Music] Playback recovery failed:", error?.message || error);
-      if (channel?.isTextBased()) await channel.send("⚠️ Playback failed and automatic fallback was unavailable. Moving on to the next track.").catch(() => {});
-    } finally {
-      // TrackError and TrackStuck may both fire for one failure; suppress duplicates briefly.
-      setTimeout(() => fallbackInProgress.delete(guildId), 4000);
+    if (channel?.isTextBased()) {
+      void channel.send("⚠️ SoundCloud couldn't play that track. I'll move to the next queued track.").catch(() => {});
     }
+    // Lavalink-client autoSkip handles failed-track advancement.
   };
-  manager.on("trackError", (player, track, payload) => { void recoverTrack(player, track, payload, "Track error"); });
-  manager.on("trackStuck", (player, track, payload) => { void recoverTrack(player, track, payload, "Track stuck"); });
+  manager.on("trackError", (player, track, payload) => reportPlaybackFailure(player, track, payload, "Track error"));
+  manager.on("trackStuck", (player, track, payload) => reportPlaybackFailure(player, track, payload, "Track stuck"));
   manager.on("playerDestroy", () => setTimeout(() => { void Promise.resolve(onPlayerDestroy()).catch(() => {}); }, 1500));
   return manager;
 }
@@ -156,11 +118,7 @@ async function getPlayer(client, source) {
 }
 
 async function searchMusic(player, query, requester) {
-  const sources = [
-    { name: "SoundCloud", source: "soundcloud" },
-    { name: "YouTube Music", source: "youtube music" },
-    { name: "YouTube", source: "youtube" }
-  ];
+  const sources = [{ name: "SoundCloud", source: "soundcloud" }];
   for (const candidate of sources) {
     try {
       const found = await player.search({ query, source: candidate.source }, requester);
@@ -178,7 +136,7 @@ async function searchMusic(player, query, requester) {
       console.warn("[Music] " + candidate.name + " search failed:", error?.message || error);
     }
   }
-  throw new Error("No playable results found on YouTube Music, YouTube, or SoundCloud.");
+  throw new Error("No playable results found on SoundCloud.");
 }
 
 async function queueTrack(player, track) {
@@ -256,7 +214,7 @@ export async function handleMusicInteraction(interaction, client) {
         })));
       const embed = new EmbedBuilder().setColor(COLOR).setTitle("🎵 Music search results")
         .setDescription(results.slice(0, 25).map((t,i) => "**" + (i+1) + ". " + clean(t.info?.title, 120) + "**\n" + clean(t.info?.author, 140)).join("\n\n"))
-        .setFooter({ text: "YouTube Music first • YouTube and SoundCloud fallback" });
+        .setFooter({ text: "SoundCloud only" });
       const reply = await interaction.editReply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
       try {
         const selected = await reply.awaitMessageComponent({
@@ -269,7 +227,7 @@ export async function handleMusicInteraction(interaction, client) {
         await queueTrack(player, chosen);
         const resultEmbed = new EmbedBuilder().setColor(COLOR).setTitle("🎵 Added to queue")
           .setDescription("**" + clean(chosen.info?.title, 200) + "**\n" + clean(chosen.info?.author, 160))
-          .setFooter({ text: "YouTube Music first • YouTube and SoundCloud fallback" });
+          .setFooter({ text: "SoundCloud only" });
         await interaction.editReply({ embeds: [resultEmbed], components: [] });
       } catch (error) {
         if (error?.code === "InteractionCollectorError" || /time/i.test(error?.message || "")) {
@@ -352,7 +310,7 @@ export async function handleMusicPrefix(message, command, args, client) {
       const query = args.join(" ").trim();
       if (!query) throw new Error("Usage: .play song name");
       if (!message.member.voice?.channel) throw new Error("Join a voice channel first.");
-      const status = await message.reply("🔎 Searching YouTube Music, then YouTube and SoundCloud…");
+      const status = await message.reply("🔎 Searching SoundCloud…");
       const player = await getPlayer(client, message);
       const results = await searchMusic(player, query, message.author);
       if (!results.length) throw new Error("No playable results found.");
