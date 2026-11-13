@@ -7,6 +7,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { startDashboard } from "./dashboard.js";
 import { joinVoiceChannel, VoiceConnectionStatus, entersState, getVoiceConnection } from "@discordjs/voice";
+import { setupMusic, handleMusicInteraction, handleMusicPrefix } from "./music.js";
 
  
 // Discord does not support loading custom fonts, so use Unicode sans-serif bold
@@ -459,6 +460,7 @@ let ownerVoiceRetryTimer = null;
 let ownerVoiceConnecting = false;
 
 async function connectOwnerVoice(readyClient) {
+  if (readyClient.lavalink?.getPlayer(OWNER_VOICE_GUILD_ID)) return;
   if (ownerVoiceConnecting) return;
   ownerVoiceConnecting = true;
   try {
@@ -516,7 +518,10 @@ client.once(Events.ClientReady, async readyClient => {
   void connectOwnerVoice(readyClient);
 });
 
+setupMusic(client, () => connectOwnerVoice(client));
+
 client.on(Events.InteractionCreate, async interaction => {
+  if (await handleMusicInteraction(interaction, client)) return;
   if (!interaction.isChatInputCommand()) return;
   if (!interaction.inGuild()) return replyError(interaction, "This command only works inside a server.");
 
@@ -1549,6 +1554,7 @@ client.on(Events.MessageCreate, async message => {
   });
   const fail = text => send("⚠️ Command error", text);
   try {
+    if (await handleMusicPrefix(message, command, args, client)) return;
     if (command === "recruit") {
       const id = mentionedId(args[0]);
       if (!id) return fail("Usage: .recruit @member");
