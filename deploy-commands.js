@@ -9,6 +9,11 @@ import {
 } from "discord.js";
 
 const commands = [
+  new SlashCommandBuilder().setName("dm-optin").setDescription("Opt in to Paradoxplus server direct messages."),
+  new SlashCommandBuilder().setName("dm-optout").setDescription("Opt out of Paradoxplus server direct messages."),
+  new SlashCommandBuilder().setName("dmall").setDescription("Send a direct message to members who opted in.")
+    .addStringOption(o=>o.setName("message").setDescription("Message to send").setMaxLength(1800).setRequired(true))
+    .addBooleanOption(o=>o.setName("confirm").setDescription("Confirm sending to opted-in members").setRequired(true)),
   new SlashCommandBuilder().setName("autoresponder").setDescription("Manage custom automatic replies.")
     .addSubcommand(sc=>sc.setName("add").setDescription("Add an automatic reply.")
       .addStringOption(o=>o.setName("trigger").setDescription("Text that activates the reply").setMinLength(2).setMaxLength(100).setRequired(true))
