@@ -62,6 +62,8 @@ function getGuildConfig(guildId) {
   if (!Array.isArray(config.ranks)) config.ranks = [];
   if (!Array.isArray(config.history)) config.history = [];
   if (!Array.isArray(config.warnings)) config.warnings = [];
+  if (!Array.isArray(config.strikes)) config.strikes = [];
+  if (!Array.isArray(config.strikeHistory)) config.strikeHistory = [];
   if (!Array.isArray(config.moderationCases)) config.moderationCases = [];
   if (!config.pulse || typeof config.pulse !== "object") config.pulse = { days: {} };
   if (!config.pulse.days || typeof config.pulse.days !== "object") config.pulse.days = {};
@@ -234,6 +236,40 @@ async function applyRank(interaction, target, desiredRank, action, reason) {
   return response;
 }
 
+
+async function issueStrike(guild, config, target, moderator, reason, sendEmbed) {
+  if (!Array.isArray(config.strikes)) config.strikes = [];
+  if (!Array.isArray(config.strikeHistory)) config.strikeHistory = [];
+  const record = { id: config.strikeHistory.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1, memberId: target.id, moderatorId: moderator.id, reason, timestamp: new Date().toISOString() };
+  config.strikes.push(record); config.strikeHistory.unshift(record); config.strikeHistory = config.strikeHistory.slice(0, 1000);
+  let total = config.strikes.filter(item => item.memberId === target.id).length;
+  let demotionText = 'No demotion yet. A demotion is triggered at 3 strikes.';
+  if (total >= 3) {
+    const current = getHighestConfiguredRank(target, config.ranks);
+    const currentIndex = current ? config.ranks.findIndex(rank => rank.id === current.id) : -1;
+    const desired = currentIndex >= 2 ? config.ranks[currentIndex - 2] : null;
+    if (!desired) demotionText = '3 strikes reached, but the member does not have two lower configured ranks. Strikes remain recorded.';
+    else {
+      const adapter = { guild, guildId: guild.id, user: moderator, client, editReply: async () => null };
+      await applyRank(adapter, target, desired, 'DEMOTED', 'Automatic demotion after 3 strikes');
+      if (target.roles.cache.has(desired.id)) {
+        config.strikes = config.strikes.filter(item => item.memberId !== target.id);
+        total = 3;
+        demotionText = '✅ **3 strikes = demotion by 2 roles**\nAutomatic demotion applied. Strike count reset to **0**.';
+      } else demotionText = '3 strikes reached, but automatic demotion failed. Strikes remain recorded; check the bot role position and permissions.';
+    }
+  }
+  await saveDatabase();
+  const embed = new EmbedBuilder().setColor(0xf0a33a).setTitle('⚠️ Strike issued').addFields(
+    { name: 'Member', value: '<@' + target.id + '> ' + target.user.tag, inline: false },
+    { name: 'Moderator', value: '<@' + moderator.id + '> ' + (moderator.tag || moderator.user?.tag || 'Moderator'), inline: false },
+    { name: 'Total strikes', value: String(total), inline: true },
+    { name: 'Reason', value: reason.slice(0, 1000), inline: false },
+    { name: '3 strikes = demotion by 2 roles', value: demotionText, inline: false }
+  ).setTimestamp(new Date(record.timestamp));
+  await sendEmbed(embed);
+  return { total, demotionText };
+}
 
 // Paradox Pulse: privacy-light aggregate community activity, never message contents.
 function pulseDay(config) {
@@ -600,6 +636,18 @@ client.on(Events.InteractionCreate, async interaction => {
       return interaction.editReply(`✅ Removed the timeout from **${user.tag}**.`);
     }
 
+    if (interaction.commandName === "strike") {
+      if (!(isBotOwner(interaction.user.id) || interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers) || interaction.memberPermissions?.has(PermissionFlagsBits.Administrator))) return replyError(interaction, "You need Moderate Members or Administrator to issue strikes.");
+      const user = interaction.options.getUser("member", true), reason = interaction.options.getString("reason", true).trim();
+      const target = await interaction.guild.members.fetch(user.id).catch(() => null);
+      if (!target) return replyError(interaction, "Member not found.");
+      const actor = await interaction.guild.members.fetch(interaction.user.id);
+      if (!canActOnTarget(actor, target, interaction.guild)) return replyError(interaction, "That member has an equal or higher role than you.");
+      const bot = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
+      if (target.roles.highest.comparePositionTo(bot.roles.highest) >= 0) return replyError(interaction, "My highest role must be above the target member highest role.");
+      await interaction.deferReply();
+      return issueStrike(interaction.guild, config, target, interaction.user, reason, embed => interaction.editReply({ embeds: [embed], allowedMentions: { parse: [], users: [] } }));
+    }
     if (["warn","warnings","clear-warnings","lock","unlock","slowmode","nickname","role-add","role-remove","userinfo","serverinfo","modstats","unban","voice-mute","voice-unmute","disconnect"].includes(interaction.commandName)) {
       const cmd=interaction.commandName;
       const isAdmin=isBotOwner(interaction.user.id) || interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
@@ -1054,10 +1102,24 @@ client.on(Events.MessageCreate, async message => {
     if (command === "rankhelp" || command === "help") return send("✨ Paradoxplus command center", [
       "**Member:** `.rank [@member]`, `.rankpanel`, `.rankhistory @member`, `.ranksearch name`, `.rankstats`, `.rankleaderboard`",
       "**Staff:** `.promote @member [reason]`, `.demote @member [reason]`, `.setrank @member @rank [reason]`",
-      "**Moderation:** `.kick @member`, `.ban @member`, `.timeout @member minutes`, `.untimeout @member`, `.purge 1-100`, `.lock`, `.unlock`, `.slowmode seconds`",
+      "**Moderation:** `.strike @member reason`, `.kick @member`, `.ban @member`, `.timeout @member minutes`, `.untimeout @member`, `.purge 1-100`, `.lock`, `.unlock`, `.slowmode seconds`",
       "**Configuration:** use `/rank-config` for setup, detection, logs, announcements and backups.",
       "Prefix: `.` • All slash commands remain available."
     ].join("\n"));
+    if (command === "strike") {
+      if (!isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.ModerateMembers) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) return fail("You need Moderate Members or Administrator to issue strikes.");
+      const id = mentionedId(args[0]);
+      if (!id) return fail("Usage: .strike @member reason");
+      const target = await message.guild.members.fetch(id).catch(() => null);
+      if (!target) return fail("Member not found.");
+      if (target.id === message.author.id || target.id === client.user.id) return fail("You cannot strike yourself or the bot.");
+      if (!canActOnTarget(message.member, target, message.guild)) return fail("That member has an equal or higher role than you.");
+      const bot = message.guild.members.me ?? await message.guild.members.fetchMe();
+      if (target.roles.highest.comparePositionTo(bot.roles.highest) >= 0) return fail("My highest role must be above the target member highest role.");
+      const reason = args.slice(1).join(" ").trim().slice(0, 800);
+      if (!reason) return fail("Usage: .strike @member reason");
+      return issueStrike(message.guild, config, target, message.author, reason, embed => message.reply({ embeds: [embed], allowedMentions: { parse: [], repliedUser: false } }));
+    }
     if (["kick","ban","timeout","untimeout","purge"].includes(command)) {
       const perm={kick:PermissionFlagsBits.KickMembers,ban:PermissionFlagsBits.BanMembers,timeout:PermissionFlagsBits.ModerateMembers,untimeout:PermissionFlagsBits.ModerateMembers,purge:PermissionFlagsBits.ManageMessages}[command];
       if (!isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.Administrator) && !message.member.permissions.has(perm)) return fail("You don't have permission to use that moderation command.");
