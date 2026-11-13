@@ -144,9 +144,17 @@ async function syncRankRoles(guild) {
   console.log(`[Paradoxplus] Auto-synced ${eligible.length} assignable roles for ${guild.name}.`);
 }
 
-function getHighestConfiguredRank(member, ranks) {
-  for (let i = ranks.length - 1; i >= 0; i--) {
-    if (member.roles.cache.has(ranks[i].id)) return ranks[i];
+function getHighestConfiguredRank(member, ranks, roleCache = null) {
+  // Use Discord's live role hierarchy when available. Config order can become
+  // stale after roles are moved in Server Settings → Roles.
+  const ordered = [...ranks].sort((a, b) => {
+    const roleA = roleCache?.get(a.id);
+    const roleB = roleCache?.get(b.id);
+    if (roleA && roleB) return roleA.position - roleB.position;
+    return (a.position || 0) - (b.position || 0);
+  });
+  for (let i = ordered.length - 1; i >= 0; i--) {
+    if (member.roles.cache.has(ordered[i].id)) return ordered[i];
   }
   return null;
 }
@@ -235,7 +243,7 @@ async function applyRank(interaction, target, desiredRank, action, reason) {
     return replyError(interaction, "The rank hierarchy needs at least two ranks. Ask an administrator to configure it with `/rank-config add`.");
   }
 
-  const oldRank = getHighestConfiguredRank(target, config.ranks);
+  const oldRank = getHighestConfiguredRank(target, config.ranks, interaction.guild.roles.cache);
   const newRole = interaction.guild.roles.cache.get(desiredRank.id) ?? await interaction.guild.roles.fetch(desiredRank.id).catch(() => null);
   const oldRole = oldRank && oldRank.id !== desiredRank.id
     ? interaction.guild.roles.cache.get(oldRank.id)
@@ -321,7 +329,7 @@ async function issueStrike(guild, config, target, moderator, reason, sendEmbed) 
   let total = config.strikes.filter(item => item.memberId === target.id).length;
   let demotionText = 'No demotion yet. A demotion is triggered at 3 strikes.';
   if (total >= 3) {
-    const current = getHighestConfiguredRank(target, config.ranks);
+    const current = getHighestConfiguredRank(target, config.ranks, guild.roles.cache);
     const currentIndex = current ? config.ranks.findIndex(rank => rank.id === current.id) : -1;
     const desired = currentIndex >= 2 ? config.ranks[currentIndex - 2] : null;
     if (!desired) demotionText = '3 strikes reached, but the member does not have two lower configured ranks. Strikes remain recorded.';
@@ -1714,8 +1722,8 @@ client.on(Events.MessageCreate, async message => {
       if (target.roles.highest.comparePositionTo(bot.roles.highest) >= 0)
         return fail("My highest role must be above the target member's highest role.");
       const ranks = config.ranks;
-      const current = ranks.filter(r=>target.roles.cache.has(r.id)).sort((a,b)=>b.position-a.position)[0] || null;
-      let desired, action = command.toUpperCase(), reasonArgs = args.slice(1);
+      const current = getHighestConfiguredRank(target, ranks, message.guild.roles.cache);
+      let desired, action = command === "promote" ? "PROMOTED" : command === "demote" ? "DEMOTED" : "SET", reasonArgs = args.slice(1);
       if (command === "setrank") {
         desired = ranks.find(r=>r.id===mentionedId(args[1], true));
         if (!desired) return fail("Usage: .setrank @member @configured-rank [reason]");
