@@ -1804,39 +1804,6 @@ client.on(Events.MessageCreate, async message => {
 
       return fail("Use " + prefix + "triggerlist, " + prefix + "trigger add trigger phrase | reply, or " + prefix + 'trigger remove "trigger name".');
     }
-    if (command === "ar" || command === "autoresponder") {
-      const sub = (args.shift() || "").toLowerCase();
-      const allowed = isBotOwner(message.author.id) || message.member.permissions.has(PermissionFlagsBits.Administrator) || message.member.permissions.has(PermissionFlagsBits.ManageMessages) || message.member.permissions.has(PermissionFlagsBits.ManageGuild);
-      if (sub === "list") {
-        if (!config.autoresponders.length) return send("💬 Autoresponders", "No custom autoresponders are configured.");
-        return send("💬 Custom autoresponders", config.autoresponders.map((item, i) => (i + 1) + ". **Trigger:** " + item.trigger + "\n   **Reply:** " + item.response).join("\n"));
-      }
-      if (!allowed) return fail("You need Manage Messages, Manage Server, or Administrator to manage autoresponders.");
-      if (sub === "add") {
-        const raw = args.join(" ");
-        const split = raw.indexOf("|");
-        if (split < 1 || split === raw.length - 1) return fail("Usage: .ar add trigger | response");
-        const trigger = raw.slice(0, split).trim();
-        const response = raw.slice(split + 1).trim();
-        if (trigger.length < 2 || trigger.length > 100) return fail("Triggers must be 2–100 characters.");
-        if (!response || response.length > 1800) return fail("Replies must be 1–1800 characters.");
-        if (config.autoresponders.some(item => item.trigger.toLowerCase() === trigger.toLowerCase())) return fail("That trigger already exists. Remove it first if you want to replace it.");
-        if (config.autoresponders.length >= 25) return fail("This server has reached the 25 custom autoresponder limit.");
-        config.autoresponders.push({ trigger, response });
-        await saveDatabase();
-        return send("✅ Autoresponder added", "**Trigger:** " + trigger + "\n**Reply:** " + response);
-      }
-      if (sub === "remove" || sub === "delete") {
-        const trigger = args.join(" ").trim();
-        if (!trigger) return fail("Usage: .ar remove trigger");
-        const before = config.autoresponders.length;
-        config.autoresponders = config.autoresponders.filter(item => item.trigger.toLowerCase() !== trigger.toLowerCase());
-        if (config.autoresponders.length === before) return fail("I couldn't find that exact trigger.");
-        await saveDatabase();
-        return send("🗑️ Autoresponder removed", "Removed trigger: **" + trigger + "**");
-      }
-      return fail("Use .ar add trigger | response, .ar remove trigger, or .ar list.");
-    }
     if (command === "rankhelp" || command === "help") return send("✦ PARADOXPLUS COMMAND CENTER", [
       "**WELCOME:** `.welcome set #channel`, `.welcome remove`",
       "**RECRUITMENT:** `.recruit @member`, `.recruits [@member]`, `.recruitleaderboard [daily|weekly|monthly|all]`",
@@ -1847,7 +1814,7 @@ client.on(Events.MessageCreate, async message => {
       "**MODERATION (slash):** `/kick`, `/ban`, `/softban`, `/timeout`, `/untimeout`, `/warn`, `/warnings`, `/unwarn`, `/clear-warnings`, `/strike`, `/strikes`, `/remove-strike`, `/modlog`, `/case`, `/case-reason`, `/note`, `/notes`, `/clear-notes`, `/banlist`",
       "**CLEANUP (slash):** `/purge`, `/purge-user`, `/purge-bots`, `/purge-links`, `/purge-invites`, `/purge-attachments`, `/purge-embeds`, `/purge-mentions`, `/purge-stickers`, `/purge-contains`, `/clear-reactions`",
       "**CHANNEL / VOICE (slash):** `/lock`, `/unlock`, `/hide`, `/show`, `/slowmode`, `/slowmode-off`, `/set-topic`, `/nickname`, `/nick-reset`, `/role-add`, `/role-remove`, `/voice-mute`, `/voice-unmute`, `/voice-deafen`, `/voice-undeafen`, `/disconnect`, `/move-member`",
-      "**AUTORESPONDERS:** `.ar add trigger | response`, `.ar remove trigger`, `.ar list`",
+      `**TRIGGERS:** `${prefix}trigger add trigger phrase | reply`, `${prefix}trigger remove "trigger name"`, `${prefix}triggerlist``,
       "**SLASH COMMANDS:** `/warn`, `/warnings`, `/clear-warnings`, `/nickname`, `/role-add`, `/role-remove`, `/userinfo`, `/serverinfo`, `/modstats`, `/unban`, `/voice-mute`, `/voice-unmute`, `/disconnect`, `/inactive-reason`, `/serverpulse`, `/rankpredict`, `/staffactivity`, `/memberjourney`, `/spotlight`",
       "**SETUP:** `/rank-config` controls rank roles, ignored roles, logs, announcements, autodetection and backups.",
       "Prefix commands use `.` • Slash commands are available from Discord's command picker."
