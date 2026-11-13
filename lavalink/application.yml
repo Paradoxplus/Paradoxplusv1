@@ -7,8 +7,8 @@ lavalink:
     password: ${LAVALINK_SERVER_PASSWORD}
     sources:
       youtube: false
-      soundcloud: true # Use Lavalink built-in SoundCloud source.
-      bandcamp: false
+      soundcloud: false
+      bandcamp: true # Use Lavalink built-in Bandcamp source.
       twitch: false
       vimeo: false
       nico: false
