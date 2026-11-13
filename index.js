@@ -536,11 +536,11 @@ client.on(Events.InteractionCreate, async interaction => {
         .setAuthor({ name: "PARADOXPLUS • RECRUITMENT", iconURL: interaction.client.user.displayAvatarURL() })
         .setTitle("✦ NEW RECRUIT")
         .setDescription("**Recruit:** " + target.user.username + "\n**Recruited by:** " + interaction.user.username + "\n**Recruit no:** **#" + config.recruitCount + "**")
-        .setImage("https://media.tenor.com/15diBrpA-FIAAAAd/neon-paradox-techno.gif")
+        .setImage("https://media1.tenor.com/m/yoF-DDjzFrkAAAAd/paradox.gif")
         .setFooter({ text: interaction.guild.name + " • Paradoxplus Recruitment" })
         .setTimestamp();
       return interaction.reply({
-        content: "🎉 " + target.toString() + " was recruited by " + interaction.user.toString() + "!\nhttps://tenor.com/view/neon-paradox-techno-ebm-gif-15534993220671961170",
+        content: "🎉 " + target.toString() + " was recruited by " + interaction.user.toString() + "!",
         embeds: [embed],
         allowedMentions: { users: [target.id, interaction.user.id], parse: [] }
       });
@@ -1553,11 +1553,11 @@ client.on(Events.MessageCreate, async message => {
         .setAuthor({ name: "PARADOXPLUS • RECRUITMENT", iconURL: client.user.displayAvatarURL() })
         .setTitle("✦ NEW RECRUIT")
         .setDescription("**Recruit:** " + target.user.username + "\n**Recruited by:** " + message.author.username + "\n**Recruit no:** **#" + config.recruitCount + "**")
-        .setImage("https://media.tenor.com/15diBrpA-FIAAAAd/neon-paradox-techno.gif")
+        .setImage("https://media1.tenor.com/m/yoF-DDjzFrkAAAAd/paradox.gif")
         .setFooter({ text: message.guild.name + " • Paradoxplus Recruitment" })
         .setTimestamp();
       return message.reply({
-        content: "🎉 " + target.toString() + " was recruited by " + message.author.toString() + "!\nhttps://tenor.com/view/neon-paradox-techno-ebm-gif-15534993220671961170",
+        content: "🎉 " + target.toString() + " was recruited by " + message.author.toString() + "!",
         embeds: [embed],
         allowedMentions: { users: [target.id, message.author.id], parse: [] }
       });
