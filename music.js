@@ -30,7 +30,7 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
     // Let Lavalink-client advance failed tracks; recovery only inserts a fallback.
     autoSkip: true,
     playerOptions: {
-      defaultSearchPlatform: "scsearch",
+      defaultSearchPlatform: "bcsearch",
       clientBasedPositionUpdateInterval: 250,
       onDisconnect: { autoReconnect: true, destroyPlayer: false },
       onEmptyQueue: {
@@ -75,7 +75,7 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
     const embed = new EmbedBuilder().setColor(COLOR).setAuthor({ name: "PARADOXPLUS • NOW PLAYING" })
       .setTitle(clean(info.title, 240))
       .setDescription("**Artist:** " + clean(info.author, 160) + "\n**Duration:** " + fmt(info.duration))
-      .setFooter({ text: "SoundCloud only" }).setTimestamp();
+      .setFooter({ text: "Bandcamp only" }).setTimestamp();
     if (info.artworkUrl) embed.setThumbnail(info.artworkUrl);
     void channel.send({ embeds: [embed] }).catch(() => {});
   });
@@ -88,12 +88,12 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
     const reason = payload?.exception?.message || payload?.exception?.cause || payload?.error || eventName;
     console.warn("[Music] " + eventName + ":", JSON.stringify({
       title: clean(info.title, 120),
-      source: clean(info.sourceName || "soundcloud", 40),
+      source: clean(info.sourceName || "bandcamp", 40),
       reason: clean(reason, 300)
     }));
     const channel = client.channels.cache.get(player.textChannelId);
     if (channel?.isTextBased()) {
-      void channel.send("⚠️ SoundCloud couldn't play that track. I'll move to the next queued track.").catch(() => {});
+      void channel.send("⚠️ Bandcamp couldn't play that track. I'll move to the next queued track.").catch(() => {});
     }
     // Lavalink-client autoSkip handles failed-track advancement.
   };
@@ -118,7 +118,7 @@ async function getPlayer(client, source) {
 }
 
 async function searchMusic(player, query, requester) {
-  const sources = [{ name: "SoundCloud", source: "soundcloud" }];
+  const sources = [{ name: "Bandcamp", source: "bandcamp" }];
   for (const candidate of sources) {
     try {
       const found = await player.search({ query, source: candidate.source }, requester);
@@ -136,7 +136,7 @@ async function searchMusic(player, query, requester) {
       console.warn("[Music] " + candidate.name + " search failed:", error?.message || error);
     }
   }
-  throw new Error("No playable results found on SoundCloud.");
+  throw new Error("No playable results found on Bandcamp.");
 }
 
 async function queueTrack(player, track) {
@@ -214,7 +214,7 @@ export async function handleMusicInteraction(interaction, client) {
         })));
       const embed = new EmbedBuilder().setColor(COLOR).setTitle("🎵 Music search results")
         .setDescription(results.slice(0, 25).map((t,i) => "**" + (i+1) + ". " + clean(t.info?.title, 120) + "**\n" + clean(t.info?.author, 140)).join("\n\n"))
-        .setFooter({ text: "SoundCloud only" });
+        .setFooter({ text: "Bandcamp only" });
       const reply = await interaction.editReply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
       try {
         const selected = await reply.awaitMessageComponent({
@@ -227,7 +227,7 @@ export async function handleMusicInteraction(interaction, client) {
         await queueTrack(player, chosen);
         const resultEmbed = new EmbedBuilder().setColor(COLOR).setTitle("🎵 Added to queue")
           .setDescription("**" + clean(chosen.info?.title, 200) + "**\n" + clean(chosen.info?.author, 160))
-          .setFooter({ text: "SoundCloud only" });
+          .setFooter({ text: "Bandcamp only" });
         await interaction.editReply({ embeds: [resultEmbed], components: [] });
       } catch (error) {
         if (error?.code === "InteractionCollectorError" || /time/i.test(error?.message || "")) {
@@ -310,7 +310,7 @@ export async function handleMusicPrefix(message, command, args, client) {
       const query = args.join(" ").trim();
       if (!query) throw new Error("Usage: .play song name");
       if (!message.member.voice?.channel) throw new Error("Join a voice channel first.");
-      const status = await message.reply("🔎 Searching SoundCloud…");
+      const status = await message.reply("🔎 Searching Bandcamp…");
       const player = await getPlayer(client, message);
       const results = await searchMusic(player, query, message.author);
       if (!results.length) throw new Error("No playable results found.");
