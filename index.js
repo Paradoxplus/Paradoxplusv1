@@ -671,6 +671,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (interaction.commandName === "strikes") {
       const user = interaction.options.getUser("member") || interaction.user;
+      if (user.id !== interaction.user.id && !isBotOwner(interaction.user.id) && !interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers) && !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return replyError(interaction, "Only staff can inspect another member's strike record.");
       const active = config.strikes.filter(item => item.memberId === user.id);
       const history = config.strikeHistory.filter(item => item.memberId === user.id).slice(0, 8);
       const lines = history.map(item => "• **#" + item.id + "** " + item.reason.slice(0, 140) + " — <t:" + Math.floor(new Date(item.timestamp).getTime()/1000) + ":R>" + (item.removedAt ? " • Revoked" : ""));
@@ -1182,6 +1183,7 @@ client.on(Events.MessageCreate, async message => {
     ].join("\n"));
     if (command === "strikes") {
       const id = mentionedId(args[0]) || message.author.id;
+      if (id !== message.author.id && !isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.ModerateMembers) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) return fail("Only staff can inspect another member's strike record.");
       const user = await client.users.fetch(id).catch(() => null);
       if (!user) return fail("Member not found.");
       const active = config.strikes.filter(item => item.memberId === id);
