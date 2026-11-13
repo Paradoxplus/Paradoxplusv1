@@ -58,6 +58,13 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
       console.log("[Music] Lavalink manager initialized.");
     } catch (error) { console.error("[Music] Lavalink initialization failed:", error); }
   });
+  // A Lavalink outage must never crash the Discord bot. The node error object can
+  // contain connection options (including credentials), so log only safe fields.
+  manager.nodeManager.on("error", error => {
+    const code = error?.code;
+    const message = typeof error?.message === "string" ? error.message : "";
+    console.error("[Music] Lavalink node error:", code || message || "Connection failed; check Lavalink service health and matching credentials.");
+  });
   manager.nodeManager.on("connect", node => console.log("[Music] Lavalink node connected:", node.id));
   manager.nodeManager.on("disconnect", (node, reason) => console.warn("[Music] Lavalink disconnected:", reason || node.id));
   manager.on("trackStart", (player, track) => {
