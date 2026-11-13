@@ -14,7 +14,8 @@ plugins:
       - WEBEMBEDDED
       - MUSIC
     oauth:
-      enabled: false
+      enabled: true
+      refreshToken: ${YOUTUBE_OAUTH_TOKEN}
 
 lavalink:
   plugins:
