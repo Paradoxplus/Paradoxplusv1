@@ -669,6 +669,17 @@ client.on(Events.InteractionCreate, async interaction => {
       return interaction.editReply(`✅ Removed the timeout from **${user.tag}**.`);
     }
 
+    if (interaction.commandName === "strikes") {
+      const user = interaction.options.getUser("member") || interaction.user;
+      const active = config.strikes.filter(item => item.memberId === user.id);
+      const history = config.strikeHistory.filter(item => item.memberId === user.id).slice(0, 8);
+      const lines = history.map(item => "• **#" + item.id + "** " + item.reason.slice(0, 140) + " — <t:" + Math.floor(new Date(item.timestamp).getTime()/1000) + ":R>" + (item.removedAt ? " • Revoked" : ""));
+      const embed = new EmbedBuilder().setColor(0x7c5cff).setAuthor({name:"PARADOXPLUS • MODERATION",iconURL:client.user.displayAvatarURL()})
+        .setTitle("📋 Strike record")
+        .setDescription("**Member:** <@" + user.id + ">\n**Active strikes:** **" + active.length + "**\n\n**Recent strike history**\n" + (lines.join("\n") || "No strike history found."))
+        .setFooter({text:"Revoked strikes remain visible in the audit history."}).setTimestamp();
+      return interaction.reply({embeds:[embed],ephemeral:true,allowedMentions:{parse:[]}});
+    }
     if (interaction.commandName === "remove-strike") {
       if (!(isBotOwner(interaction.user.id) || interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers) || interaction.memberPermissions?.has(PermissionFlagsBits.Administrator))) return replyError(interaction, "You need Moderate Members or Administrator to remove strikes.");
       const user = interaction.options.getUser("member", true);
@@ -1160,10 +1171,19 @@ client.on(Events.MessageCreate, async message => {
     if (command === "rankhelp" || command === "help") return send("✨ Paradoxplus command center", [
       "**Member:** `.rank [@member]`, `.rankpanel`, `.rankhistory @member`, `.ranksearch name`, `.rankstats`, `.rankleaderboard`",
       "**Staff:** `.promote @member [reason]`, `.demote @member [reason]`, `.setrank @member @rank [reason]`",
-      "**Moderation:** `.strike @member reason`, `.remove-strike @member amount reason`, `.kick @member`, `.ban @member`, `.timeout @member minutes`, `.untimeout @member`, `.purge 1-100`, `.lock`, `.unlock`, `.slowmode seconds`",
+      "**Moderation:** `.strike @member reason`, `.strikes [@member]`, `.remove-strike @member amount reason`, `.kick @member`, `.ban @member`, `.timeout @member minutes`, `.untimeout @member`, `.purge 1-100`, `.lock`, `.unlock`, `.slowmode seconds`",
       "**Configuration:** use `/rank-config` for setup, detection, logs, announcements and backups.",
       "Prefix: `.` • All slash commands remain available."
     ].join("\n"));
+    if (command === "strikes") {
+      const id = mentionedId(args[0]) || message.author.id;
+      const user = await client.users.fetch(id).catch(() => null);
+      if (!user) return fail("Member not found.");
+      const active = config.strikes.filter(item => item.memberId === id);
+      const history = config.strikeHistory.filter(item => item.memberId === id).slice(0, 8);
+      const lines = history.map(item => "• **#" + item.id + "** " + item.reason.slice(0, 140) + " — <t:" + Math.floor(new Date(item.timestamp).getTime()/1000) + ":R>" + (item.removedAt ? " • Revoked" : ""));
+      return send("📋 Strike record", "**Member:** <@" + id + ">\n**Active strikes:** **" + active.length + "**\n\n**Recent strike history**\n" + (lines.join("\n") || "No strike history found.") + "\n\nRevoked strikes remain visible in the audit history.");
+    }
     if (command === "remove-strike") {
       if (!isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.ModerateMembers) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) return fail("You need Moderate Members or Administrator to remove strikes.");
       const id = mentionedId(args[0]);
