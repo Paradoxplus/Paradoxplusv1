@@ -7,6 +7,31 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { startDashboard } from "./dashboard.js";
 
+ 
+// Discord does not support loading custom fonts, so use Unicode sans-serif bold
+// for embed headings and labels. Apply this consistently to every embed.
+function premiumTypography(value) {
+  return String(value).replace(/[A-Za-z0-9]/g, char => {
+    const code = char.charCodeAt(0);
+    if (code >= 65 && code <= 90) return String.fromCodePoint(0x1D5D4 + code - 65);
+    if (code >= 97 && code <= 122) return String.fromCodePoint(0x1D5EE + code - 97);
+    if (code >= 48 && code <= 57) return String.fromCodePoint(0x1D7EC + code - 48);
+    return char;
+  });
+}
+const originalSetTitle = EmbedBuilder.prototype.setTitle;
+EmbedBuilder.prototype.setTitle = function(title) {
+  return originalSetTitle.call(this, title == null ? title : premiumTypography(title));
+};
+const originalSetAuthor = EmbedBuilder.prototype.setAuthor;
+EmbedBuilder.prototype.setAuthor = function(author) {
+  return originalSetAuthor.call(this, author ? { ...author, name: premiumTypography(author.name) } : author);
+};
+const originalSetFooter = EmbedBuilder.prototype.setFooter;
+EmbedBuilder.prototype.setFooter = function(footer) {
+  return originalSetFooter.call(this, footer ? { ...footer, text: premiumTypography(footer.text) } : footer);
+};
+
 const TOKEN = process.env.DISCORD_TOKEN;
 const BOT_OWNER_ID = "1367968697884606524";
 const isBotOwner = userId => userId === BOT_OWNER_ID;
