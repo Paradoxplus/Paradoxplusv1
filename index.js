@@ -1507,6 +1507,11 @@ client.on(Events.MessageCreate, async message => {
   });
   const fail = text => send("⚠️ Command error", text);
   try {
+    if (command === "ping") {
+      const roundTrip = Math.max(0, Date.now() - message.createdTimestamp);
+      const gateway = Math.round(client.ws.ping);
+      return send("🏓 Pong!", "**Bot latency:** " + roundTrip + " ms\n**Gateway latency:** " + gateway + " ms");
+    }
     if (command === "dm-optin" || command === "dmoptin" || command === "dm-optout" || command === "dmoptout") {
       const enabled = command === "dm-optin" || command === "dmoptin";
       config.dmOptIns = config.dmOptIns.filter(id => id !== message.author.id);
