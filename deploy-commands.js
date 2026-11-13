@@ -9,6 +9,24 @@ import {
 } from "discord.js";
 
 const commands = [
+  new SlashCommandBuilder().setName("play").setDescription("Search Spotify and play a matching SoundCloud track.")
+    .addStringOption(o=>o.setName("query").setDescription("Song title or artist").setMinLength(2).setMaxLength(100).setRequired(true)),
+  new SlashCommandBuilder().setName("pause").setDescription("Pause music playback."),
+  new SlashCommandBuilder().setName("resume").setDescription("Resume music playback."),
+  new SlashCommandBuilder().setName("skip").setDescription("Skip the current track."),
+  new SlashCommandBuilder().setName("stop").setDescription("Stop playback and leave voice."),
+  new SlashCommandBuilder().setName("queue").setDescription("Show the music queue."),
+  new SlashCommandBuilder().setName("nowplaying").setDescription("Show the currently playing track."),
+  new SlashCommandBuilder().setName("volume").setDescription("Set music volume (1–100%).")
+    .addIntegerOption(o=>o.setName("amount").setDescription("Volume percentage").setMinValue(1).setMaxValue(100).setRequired(true)),
+  new SlashCommandBuilder().setName("loop").setDescription("Set the repeat mode.")
+    .addStringOption(o=>o.setName("mode").setDescription("Repeat mode").setRequired(true)
+      .addChoices({name:"Off",value:"off"},{name:"Track",value:"track"},{name:"Queue",value:"queue"})),
+  new SlashCommandBuilder().setName("shuffle").setDescription("Shuffle upcoming tracks."),
+  new SlashCommandBuilder().setName("remove").setDescription("Remove a track from the queue.")
+    .addIntegerOption(o=>o.setName("position").setDescription("Queue position, starting at 1").setMinValue(1).setRequired(true)),
+  new SlashCommandBuilder().setName("clear").setDescription("Clear upcoming tracks."),
+
   new SlashCommandBuilder().setName("prefix").setDescription("Change this server’s text command prefix.")
     .addStringOption(o=>o.setName("new_prefix").setDescription("New prefix (1–5 characters, no spaces)").setMinLength(1).setMaxLength(5).setRequired(true)),
   new SlashCommandBuilder().setName("recruit").setDescription("Record a new Paradoxplus recruit.")
