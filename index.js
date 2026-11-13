@@ -446,11 +446,54 @@ client.on(Events.GuildRoleDelete, role => {
   if (role.guild.id === "1568943817762017400") void syncRankRoles(role.guild).catch(error => console.error("Role-delete auto-sync failed:", error));
 });
 
+
+// Paradoxplus live member counter: a locked text channel placed above categories.
+const MEMBER_COUNTER_GUILD_ID = "1568943817762017400";
+let memberCounterSync = Promise.resolve();
+
+async function syncMemberCounter(guild) {
+  if (guild.id !== MEMBER_COUNTER_GUILD_ID) return;
+  memberCounterSync = memberCounterSync.catch(() => {}).then(async () => {
+    const config = getGuildConfig(guild.id);
+    let channel = config.memberCounterChannelId
+      ? guild.channels.cache.get(config.memberCounterChannelId) ?? await guild.channels.fetch(config.memberCounterChannelId).catch(() => null)
+      : null;
+
+    if (channel && channel.type !== ChannelType.GuildText) {
+      console.warn("[MemberCounter] Saved counter channel is no longer a text channel; creating a replacement.");
+      channel = null;
+      config.memberCounterChannelId = null;
+    }
+
+    if (!channel) {
+      channel = await guild.channels.create({
+        name: "✦・members・" + guild.memberCount.toLocaleString(),
+        type: ChannelType.GuildText,
+        topic: "✦ PARADOXPLUS LIVE COMMUNITY COUNT • Updates automatically",
+        permissionOverwrites: [
+          { id: guild.roles.everyone.id, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.CreatePublicThreads, PermissionFlagsBits.CreatePrivateThreads] }
+        ],
+        reason: "Create the Paradoxplus live member counter"
+      });
+      config.memberCounterChannelId = channel.id;
+      await saveDatabase();
+      console.log("[MemberCounter] Created " + channel.name);
+    }
+
+    const desiredName = "✦・members・" + guild.memberCount.toLocaleString();
+    if (channel.name !== desiredName) await channel.setName(desiredName, "Update live Paradoxplus member count");
+    if (channel.parentId) await channel.setParent(null, { lockPermissions: false, reason: "Keep member counter above all categories" });
+    await channel.setPosition(0, { reason: "Keep Paradoxplus member counter at the top" });
+  });
+  return memberCounterSync;
+}
+
 client.on(Events.GuildMemberAdd, async member => {
   const config = getGuildConfig(member.guild.id);
   pulseDay(config).joins++;
   trimPulse(config);
   void saveDatabase().catch(error => console.error("Pulse join save failed:", error));
+  void syncMemberCounter(member.guild).catch(error => console.error("[MemberCounter] Join sync failed:", error));
   if (!config.welcomeChannelId) return;
   const channel = member.guild.channels.cache.get(config.welcomeChannelId)
     ?? await member.guild.channels.fetch(config.welcomeChannelId).catch(() => null);
@@ -490,6 +533,7 @@ function getOrdinalSuffix(number) {
 client.on(Events.GuildMemberRemove, member => {
   const config=getGuildConfig(member.guild.id); pulseDay(config).leaves++; trimPulse(config);
   void saveDatabase().catch(error=>console.error("Pulse leave save failed:",error));
+  void syncMemberCounter(member.guild).catch(error => console.error("[MemberCounter] Leave sync failed:", error));
 });
 
 const OWNER_VOICE_GUILD_ID = "1568943817762017400";
@@ -549,6 +593,8 @@ async function connectOwnerVoice(readyClient) {
 }
 
 client.once(Events.ClientReady, async readyClient => {
+  const counterGuild = await readyClient.guilds.fetch(MEMBER_COUNTER_GUILD_ID).catch(() => null);
+  if (counterGuild) await syncMemberCounter(counterGuild).catch(error => console.error("[MemberCounter] Startup sync failed:", error));
   const rankGuild = await readyClient.guilds.fetch("1568943817762017400").catch(() => null);
   if (rankGuild) await syncRankRoles(rankGuild).catch(error => console.error("Initial rank-role auto-sync failed:", error));
   console.log(`Online as ${readyClient.user.tag}`);
