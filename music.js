@@ -1,4 +1,4 @@
-import { getVoiceConnection } from "discord.js";
+import { getVoiceConnection } from "@discordjs/voice";
 import { LavalinkManager } from "lavalink-client";
 import { ActionRowBuilder, EmbedBuilder, StringSelectMenuBuilder } from "discord.js";
 
