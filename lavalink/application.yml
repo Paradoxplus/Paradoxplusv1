@@ -37,10 +37,10 @@ lavalink:
     filters:
       volume: true
       equalizer: true
-      karaoke: false
+      karaoke: true
       timescale: true
-      tremolo: false
-      vibrato: false
+      tremolo: true
+      vibrato: true
       distortion: false
       rotation: false
       channelMix: false
