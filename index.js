@@ -1596,6 +1596,31 @@ client.on(Events.MessageCreate, async message => {
         message.member.permissions.has(PermissionFlagsBits.Administrator) ||
         message.member.permissions.has(PermissionFlagsBits.ManageGuild);
       if (!canConfigure) return fail("You need Manage Server or Administrator to configure welcome messages.");
+      if (sub === "test") {
+        const bannerUrl = "https://www.image2url.com/r2/default/gifs/1794386711876-4bbf4f54-5448-4384-960d-4424655e01a2.gif";
+        const count = message.guild.memberCount;
+        const embed = new EmbedBuilder()
+          .setColor(0x7c5cff)
+          .setAuthor({ name: "Paradoxplus", iconURL: client.user.displayAvatarURL() })
+          .setTitle("✦ WELCOME TO PARADOXX")
+          .setDescription(
+            "A new legend just entered the realm.\\n\\n" +
+            "Welcome aboard, " + message.member.toString() + "!\\n" +
+            "You're our **" + count.toLocaleString() + getOrdinalSuffix(count) + " member**.\\n\\n" +
+            "Make yourself at home, meet the community, and enjoy your stay.\\n\\n" +
+            "╰┈➤ **PARADOXX • WHERE LEGENDS CONNECT**"
+          )
+          .setThumbnail(message.author.displayAvatarURL({ extension: "png", size: 256 }))
+          .setImage(bannerUrl)
+          .setFooter({ text: "ParadoxManagerV1  •  Member #" + count })
+          .setTimestamp();
+        try {
+          await message.author.send({ embeds: [embed], allowedMentions: { parse: [] } });
+          return send("✦ Welcome test sent", "I've sent the welcome preview to your DMs.");
+        } catch {
+          return fail("I couldn't DM you. Enable direct messages from server members, then try again.");
+        }
+      }
       if (sub === "set") {
         const channelId = args[0]?.match(/^<#(\d+)>$/)?.[1] || null;
         if (!channelId) return fail("Usage: " + prefix + "welcome set #channel");
