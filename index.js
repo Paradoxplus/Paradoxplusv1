@@ -8,6 +8,7 @@ import path from "node:path";
 import { startDashboard } from "./dashboard.js";
 import { joinVoiceChannel, VoiceConnectionStatus, entersState, getVoiceConnection } from "@discordjs/voice";
 import { setupMusic, handleMusicInteraction, handleMusicPrefix } from "./music.js";
+import { initRecruitmentDatabase, recordRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady } from "./recruitment.js";
 
  
 // Discord does not support loading custom fonts, so use Unicode sans-serif bold
@@ -540,25 +541,22 @@ client.on(Events.InteractionCreate, async interaction => {
     if (interaction.commandName === "recruit") {
       const user = interaction.options.getUser("member", true);
       const target = interaction.guild.members.cache.get(user.id) ?? await interaction.guild.members.fetch(user.id).catch(() => null);
-      if (!target) return replyError(interaction, "That member isn't in this server.");
-      if (target.user.bot) return replyError(interaction, "Bots can't be recruited.");
-      if (target.id === interaction.user.id) return replyError(interaction, "You can't recruit yourself.");
-      config.recruitCount++;
-      await saveDatabase();
+      if (!target) return replyError(interaction, "Member not found in this server.");
+      if (target.user.bot) return replyError(interaction, "Bots cannot be recruited.");
+      if (target.id === interaction.user.id) return replyError(interaction, "You cannot recruit yourself.");
+      if (!isRecruitmentDatabaseReady()) return replyError(interaction, "Recruitment storage is unavailable. Check the PostgreSQL connection.");
+      const result = await recordRecruit({ guildId: interaction.guildId, recruitId: target.id, recruiterId: interaction.user.id, source: "slash" });
+      if (result.duplicate) return replyError(interaction, "That member has already been recorded as a recruit in this server.");
       const embed = new EmbedBuilder()
         .setColor(0x7c5cff)
         .setAuthor({ name: "APP", iconURL: interaction.client.user.displayAvatarURL() })
         .setTitle("New recruit")
-        .setDescription("**.GG/PX**\n\n**Recruit:** " + target.toString() + "\n\n**Recruited by:** " + interaction.user.toString() + "\n\n**Recruit no.:** #" + config.recruitCount + "\n\n**PARADOXX**")
+        .setDescription("**.GG/PX**\n\n**Recruit:** " + target.toString() + "\n\n**Recruited by:** " + interaction.user.toString() + "\n\n**Recruit no.:** #" + (config.recruitCount + result.total) + "\n\n**PARADOXX**")
         .setImage("https://www.image2url.com/r2/default/gifs/1794386711876-4bbf4f54-5448-4384-960d-4424655e01a2.gif")
         .setFooter({ text: interaction.guild.name })
         .setTimestamp();
-      return interaction.reply({
-        embeds: [embed],
-        allowedMentions: { users: [target.id, interaction.user.id], parse: [] }
-      });
+      return interaction.reply({ embeds: [embed], allowedMentions: { users: [target.id, interaction.user.id], parse: [] } });
     }
-
     if (interaction.commandName === "dm-optin" || interaction.commandName === "dm-optout") {
       const enabled = interaction.commandName === "dm-optin";
       config.dmOptIns = config.dmOptIns.filter(id => id !== interaction.user.id);
@@ -1557,32 +1555,45 @@ client.on(Events.MessageCreate, async message => {
     if (await handleMusicPrefix(message, command, args, client)) return;
     if (command === "recruit") {
       const id = mentionedId(args[0]);
-      if (!id) return fail("Usage: .recruit @member");
+      if (!id) return fail("Usage: " + prefix + "recruit @member");
       const target = message.guild.members.cache.get(id) ?? await message.guild.members.fetch(id).catch(() => null);
-      if (!target) return fail("That member isn't in this server.");
-      if (target.user.bot) return fail("Bots can't be recruited.");
-      if (target.id === message.author.id) return fail("You can't recruit yourself.");
-      config.recruitCount++;
-      await saveDatabase();
+      if (!target) return fail("Member not found in this server.");
+      if (target.user.bot) return fail("Bots cannot be recruited.");
+      if (target.id === message.author.id) return fail("You cannot recruit yourself.");
+      if (!isRecruitmentDatabaseReady()) return fail("Recruitment storage is unavailable. Check the PostgreSQL connection.");
+      const result = await recordRecruit({ guildId: message.guild.id, recruitId: target.id, recruiterId: message.author.id, source: "prefix" });
+      if (result.duplicate) return fail("That member has already been recorded as a recruit in this server.");
       const embed = new EmbedBuilder()
         .setColor(0x7c5cff)
         .setAuthor({ name: "APP", iconURL: client.user.displayAvatarURL() })
         .setTitle("New recruit")
-        .setDescription("**.GG/PX**\n\n**Recruit:** " + target.toString() + "\n\n**Recruited by:** " + message.author.toString() + "\n\n**Recruit no.:** #" + config.recruitCount + "\n\n**PARADOXX**")
+        .setDescription("**.GG/PX**\n\n**Recruit:** " + target.toString() + "\n\n**Recruited by:** " + message.author.toString() + "\n\n**Recruit no.:** #" + (config.recruitCount + result.total) + "\n\n**PARADOXX**")
         .setImage("https://www.image2url.com/r2/default/gifs/1794386711876-4bbf4f54-5448-4384-960d-4424655e01a2.gif")
         .setFooter({ text: message.guild.name })
         .setTimestamp();
       const recruitChannel = await message.guild.channels.fetch("1568943820509290518").catch(() => null);
       if (!recruitChannel?.isTextBased() || !recruitChannel.permissionsFor(message.guild.members.me)?.has(PermissionFlagsBits.SendMessages)) {
-        return fail("I couldn't access the recruit announcement channel. Check that I can view and send messages there.");
+        return fail("I cannot access the recruit announcement channel. Check View Channel and Send Messages permissions.");
       }
-      await recruitChannel.send({
-        embeds: [embed],
-        allowedMentions: { users: [target.id, message.author.id], parse: [] }
-      });
+      await recruitChannel.send({ embeds: [embed], allowedMentions: { users: [target.id, message.author.id], parse: [] } });
       return message.react("✅");
     }
-    if (command === "ping") {
+    if (command === "recruits") {
+      const id = mentionedId(args[0]) || message.author.id;
+      if (id !== message.author.id && !isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.ManageGuild) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) return fail("You can only view your own profile unless you have Manage Server.");
+      if (!isRecruitmentDatabaseReady()) return fail("Recruitment storage is unavailable. Check the PostgreSQL connection.");
+      const stats = await getRecruitStats(message.guild.id, id);
+      const latest = stats.latest ? "\n**Latest recruit:** <t:" + Math.floor(new Date(stats.latest).getTime() / 1000) + ":R>" : "";
+      return send("Recruiter profile", "**Recruiter:** <@" + id + ">\n**All-time recruits:** **" + stats.total + "**\n**Last 7 days:** " + stats.last_7_days + "\n**Last 30 days:** " + stats.last_30_days + latest);
+    }
+    if (command === "recruitleaderboard") {
+      const period = (args[0] || "all").toLowerCase();
+      if (!["daily", "weekly", "monthly", "all"].includes(period)) return fail("Usage: " + prefix + "recruitleaderboard [daily|weekly|monthly|all]");
+      if (!isRecruitmentDatabaseReady()) return fail("Recruitment storage is unavailable. Check the PostgreSQL connection.");
+      const rows = await getRecruitLeaderboard(message.guild.id, period);
+      const lines = rows.map((row, index) => "**" + (index + 1) + ".** <@" + row.recruiter_id + "> — **" + row.total + "**");
+      return send("Recruit leaderboard • " + period, lines.join("\n") || "No recruits have been recorded for this period yet.");
+    }    if (command === "ping") {
       const roundTrip = Math.max(0, Date.now() - message.createdTimestamp);
       const gateway = Math.round(client.ws.ping);
       return send("🏓 Pong!", "**Bot latency:** " + roundTrip + " ms\n**Gateway latency:** " + gateway + " ms");
@@ -1638,6 +1649,7 @@ client.on(Events.MessageCreate, async message => {
       return fail("Use .ar add trigger | response, .ar remove trigger, or .ar list.");
     }
     if (command === "rankhelp" || command === "help") return send("✦ PARADOXPLUS COMMAND CENTER", [
+      "**RECRUITMENT:** `.recruit @member`, `.recruits [@member]`, `.recruitleaderboard [daily|weekly|monthly|all]`",
       "**MEMBER:** `.rank [@member]`, `.rankpanel`, `.rankhistory @member`, `.ranksearch name`, `.rankstats`, `.rankleaderboard`",
       "**MUSIC:** `.play song`, `.pause`, `.resume`, `.skip`, `.stop`, `.queue`, `.nowplaying`, `.volume 1-100`, `.loop off|track|queue`, `.shuffle`, `.remove position`, `.clear`",
       "**RANK STAFF:** `.promote @member [reason]`, `.demote @member [reason]`, `.setrank @member @rank [reason]`",
@@ -1823,5 +1835,6 @@ client.on(Events.MessageCreate, async message => {
 });
 
 await loadDatabase();
+await initRecruitmentDatabase();
 startDashboard({ client, getGuildConfig, saveDatabase });
 client.login(TOKEN);
