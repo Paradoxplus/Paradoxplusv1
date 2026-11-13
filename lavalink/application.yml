@@ -18,7 +18,7 @@ plugins:
       - MUSIC
       - TV
     oauth:
-      enabled: true
+      enabled: false
 
 lavalink:
   plugins:
@@ -28,7 +28,7 @@ lavalink:
     password: ${LAVALINK_SERVER_PASSWORD}
     sources:
       youtube: false # Use the maintained youtube-source plugin.
-      soundcloud: false # Replaced by Paradoxplus SoundCloud source plugin.
+      soundcloud: true # Use Lavalink built-in SoundCloud source.
       bandcamp: false
       twitch: false
       vimeo: false
