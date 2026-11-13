@@ -97,6 +97,7 @@ function getGuildConfig(guildId) {
   if (!config.pulse.days || typeof config.pulse.days !== "object") config.pulse.days = {};
   if (!Array.isArray(config.ignoredRoleIds)) config.ignoredRoleIds = [];
   if (!Array.isArray(config.autoresponders)) config.autoresponders = [];
+  if (!Array.isArray(config.dmOptIns)) config.dmOptIns = [];
   if (!Array.isArray(config.inactiveAppeals)) config.inactiveAppeals = [];
   if (typeof config.announceChannelId !== "string") config.announceChannelId = null;
   config.ranks.sort((a, b) => a.position - b.position);
@@ -153,6 +154,30 @@ function getHighestConfiguredRank(member, ranks) {
 async function getGuildMembers(guild) {
   if (guild.members.cache.size >= guild.memberCount) return guild.members.cache;
   return guild.members.fetch();
+}
+
+async function sendOptInDmall(guild, config, content) {
+  const optedIn = new Set(config.dmOptIns);
+  const members = await guild.members.fetch();
+  const recipients = [...members.values()].filter(member => !member.user.bot && optedIn.has(member.id)).slice(0, 100);
+  let sent = 0, failed = 0;
+  for (const member of recipients) {
+    try {
+      await member.send({
+        embeds: [new EmbedBuilder()
+          .setColor(0x7c5cff)
+          .setAuthor({ name: "PARADOXPLUS • SERVER MESSAGE", iconURL: guild.iconURL() || undefined })
+          .setDescription(content.slice(0, 3900))
+          .setFooter({ text: guild.name + " • You opted in to server DMs" })
+          .setTimestamp()]
+      });
+      sent++;
+    } catch {
+      failed++;
+    }
+    await new Promise(resolve => setTimeout(resolve, 1100));
+  }
+  return { total: recipients.length, sent, failed, capped: [...members.values()].filter(m => !m.user.bot && optedIn.has(m.id)).length > 100 };
 }
 
 async function replyError(interaction, message) {
@@ -488,6 +513,26 @@ client.on(Events.InteractionCreate, async interaction => {
 
   try {
     const config = getGuildConfig(interaction.guildId);
+
+    if (interaction.commandName === "dm-optin" || interaction.commandName === "dm-optout") {
+      const enabled = interaction.commandName === "dm-optin";
+      config.dmOptIns = config.dmOptIns.filter(id => id !== interaction.user.id);
+      if (enabled) config.dmOptIns.push(interaction.user.id);
+      await saveDatabase();
+      return interaction.reply({ content: enabled ? "✅ You opted in to Paradoxplus server DMs. Use /dm-optout any time to stop." : "✅ You opted out. Paradoxplus will no longer send you server DMs.", ephemeral: true });
+    }
+
+    if (interaction.commandName === "dmall") {
+      if (!isBotOwner(interaction.user.id) && !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+        return interaction.reply({ content: "Only the bot owner or a server administrator can use /dmall.", ephemeral: true });
+      }
+      const content = interaction.options.getString("message", true).trim();
+      const confirm = interaction.options.getBoolean("confirm", true);
+      if (!confirm) return interaction.reply({ content: "Set confirm to True after reviewing your message. Only opted-in members will receive it.", ephemeral: true });
+      await interaction.deferReply({ ephemeral: true });
+      const result = await sendOptInDmall(interaction.guild, config, content);
+      return interaction.editReply("**DMall finished**\nOpted-in recipients processed: **" + result.total + "**\nSent: **" + result.sent + "**\nFailed: **" + result.failed + "**" + (result.capped ? "\nSafety cap: first 100 opted-in members only." : ""));
+    }
 
     if (interaction.commandName === "autoresponder") {
       const sub = interaction.options.getSubcommand();
@@ -1462,6 +1507,23 @@ client.on(Events.MessageCreate, async message => {
   });
   const fail = text => send("⚠️ Command error", text);
   try {
+    if (command === "dm-optin" || command === "dmoptin" || command === "dm-optout" || command === "dmoptout") {
+      const enabled = command === "dm-optin" || command === "dmoptin";
+      config.dmOptIns = config.dmOptIns.filter(id => id !== message.author.id);
+      if (enabled) config.dmOptIns.push(message.author.id);
+      await saveDatabase();
+      return send(enabled ? "✅ DM opt-in enabled" : "✅ DM opt-out complete", enabled ? "You can receive Paradoxplus server DMs. Use .dmoptout any time to stop." : "You will no longer receive Paradoxplus server DMs.");
+    }
+    if (command === "dmall") {
+      if (!isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) return fail("Only the bot owner or a server administrator can use .dmall.");
+      const raw = args.join(" ");
+      const split = raw.indexOf("|");
+      if (split < 1 || raw.slice(0, split).trim().toLowerCase() !== "confirm" || !raw.slice(split + 1).trim()) return fail("Preview first, then use: .dmall confirm | your message");
+      const content = raw.slice(split + 1).trim();
+      const status = await message.reply("⏳ Sending only to members who opted in. This can take a while...");
+      const result = await sendOptInDmall(message.guild, config, content);
+      return status.edit("**DMall finished**\nOpted-in recipients processed: **" + result.total + "**\nSent: **" + result.sent + "**\nFailed: **" + result.failed + "**" + (result.capped ? "\nSafety cap: first 100 opted-in members only." : ""));
+    }
     if (command === "ar" || command === "autoresponder") {
       const sub = (args.shift() || "").toLowerCase();
       const allowed = isBotOwner(message.author.id) || message.member.permissions.has(PermissionFlagsBits.Administrator) || message.member.permissions.has(PermissionFlagsBits.ManageMessages) || message.member.permissions.has(PermissionFlagsBits.ManageGuild);
