@@ -1920,7 +1920,7 @@ client.on(Events.MessageCreate, async message => {
       };
       return applyRank(adapter, target, desired, action, reasonArgs.join(" ").slice(0,300) || null);
     }
-    return; // Ignore unknown prefixed text; only registered commands receive replies.
+    return fail(`Unknown command ${prefix}${command}. Use ${prefix}help.`);
   } catch (error) {
     console.error("Prefix command error:", error);
     return fail("Something went wrong. Check the bot logs.");
