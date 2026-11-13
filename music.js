@@ -189,7 +189,9 @@ export async function handleMusicInteraction(interaction, client) {
   if (!names.includes(command)) return false;
   try {
     if (command === "play") {
-      if (!interaction.member?.voice?.channel) throw new Error("Join a voice channel first.");
+      const guildMember = await interaction.guild.members.fetch(interaction.user.id);
+      if (!guildMember.voice?.channel) throw new Error("Join a voice channel first.");
+      const musicSource = { guild: interaction.guild, member: guildMember, channel: interaction.channel, user: interaction.user };
       await interaction.deferReply({ ephemeral: true });
       const results = await spotifySearch(interaction.options.getString("query", true).trim());
       if (!results.length) throw new Error("Spotify didn't find any matching tracks.");
@@ -211,7 +213,7 @@ export async function handleMusicInteraction(interaction, client) {
         await selected.deferUpdate();
         const chosen = results[Number(selected.values[0])];
         if (!chosen) throw new Error("That selection expired. Run /play again.");
-        const queued = await addSpotifyTrack(client, interaction, chosen);
+        const queued = await addSpotifyTrack(client, musicSource, chosen);
         const resultEmbed = new EmbedBuilder().setColor(COLOR).setTitle("🎵 Added to queue")
           .setDescription("**" + clean(queued.track.info?.title, 200) + "**\n" + clean(queued.track.info?.author, 160))
           .setFooter({ text: "Spotify discovery • SoundCloud playback" });
@@ -226,7 +228,8 @@ export async function handleMusicInteraction(interaction, client) {
       return true;
     }
 
-    const player = requirePlayer(client, interaction.guildId, interaction.member);
+    const guildMember = await interaction.guild.members.fetch(interaction.user.id);
+    const player = requirePlayer(client, interaction.guildId, guildMember);
     if (command === "pause") { await player.pause(true); await interaction.reply({ content: "⏸️ Paused.", ephemeral: true }); }
     else if (command === "resume") { await player.pause(false); await interaction.reply({ content: "▶️ Resumed.", ephemeral: true }); }
     else if (command === "skip") { await player.skip(); await interaction.reply({ content: "⏭️ Skipped.", ephemeral: true }); }
