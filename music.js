@@ -27,7 +27,8 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
     nodes: [{ id: "paradoxplus-main", host, port, secure, authorization: password, retryAmount: 10, retryDelay: 5000, requestTimeout: 15000 }],
     sendToShard: (guildId, payload) => client.guilds.cache.get(guildId)?.shard?.send(payload),
     client: { id: process.env.CLIENT_ID, username: "Paradoxplus" },
-    autoSkip: true,
+    // Recovery handler owns failed-track transitions to avoid racing auto-skip.
+    autoSkip: false,
     playerOptions: {
       defaultSearchPlatform: "ytmsearch",
       clientBasedPositionUpdateInterval: 250,
@@ -118,16 +119,20 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
           await player.queue.add(fallback, 0);
           console.log("[Music] Added SoundCloud playback fallback:", clean(fallback.info?.title, 120));
           if (channel?.isTextBased()) await channel.send("🔁 YouTube couldn't play that track. Added a SoundCloud alternative to the front of the queue.").catch(() => {});
-          if (!player.playing && !player.paused) await player.play();
+          // Advance explicitly because autoSkip is disabled during recovery.
+          await player.skip(0, false);
           return;
         }
       }
       if (channel?.isTextBased()) await channel.send("⚠️ That track failed" + (sourceName ? " on " + sourceName : "") + ". Skipping to the next queued track.").catch(() => {});
+      // Safely advance after non-YouTube failures too; no-op when queue is empty.
+      await player.skip(0, false);
     } catch (error) {
       console.warn("[Music] Playback recovery failed:", error?.message || error);
       if (channel?.isTextBased()) await channel.send("⚠️ Playback failed and automatic fallback was unavailable. Moving on to the next track.").catch(() => {});
     } finally {
-      fallbackInProgress.delete(guildId);
+      // TrackError and TrackStuck may both fire for one failure; suppress duplicates briefly.
+      setTimeout(() => fallbackInProgress.delete(guildId), 4000);
     }
   };
   manager.on("trackError", (player, track, payload) => { void recoverTrack(player, track, payload, "Track error"); });
