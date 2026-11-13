@@ -13,6 +13,9 @@ plugins:
       - ANDROID_VR
       - WEB
       - WEBEMBEDDED
+      - TV
+    oauth:
+      enabled: true
 
 lavalink:
   plugins:
@@ -52,3 +55,4 @@ logging:
     root: INFO
     lavalink: DEBUG
     com.sedmelluq.discord.lavaplayer.tools.ExceptionTools: DEBUG
+    dev.lavalink.youtube.http.YoutubeOauth2Handler: INFO
