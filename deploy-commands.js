@@ -9,6 +9,13 @@ import {
 } from "discord.js";
 
 const commands = [
+  new SlashCommandBuilder().setName("autoresponder").setDescription("Manage custom automatic replies.")
+    .addSubcommand(sc=>sc.setName("add").setDescription("Add an automatic reply.")
+      .addStringOption(o=>o.setName("trigger").setDescription("Text that activates the reply").setMinLength(2).setMaxLength(100).setRequired(true))
+      .addStringOption(o=>o.setName("response").setDescription("Reply the bot should send").setMaxLength(1800).setRequired(true)))
+    .addSubcommand(sc=>sc.setName("remove").setDescription("Remove an automatic reply.")
+      .addStringOption(o=>o.setName("trigger").setDescription("Exact trigger to remove").setMinLength(2).setMaxLength(100).setRequired(true)))
+    .addSubcommand(sc=>sc.setName("list").setDescription("List configured automatic replies.")),
   new SlashCommandBuilder().setName("strikes").setDescription("View active strikes and recent strike history.")
     .addUserOption(o=>o.setName("member").setDescription("Member to inspect; defaults to yourself")),
   new SlashCommandBuilder().setName("remove-strike").setDescription("Remove active strikes while preserving strike history.")
