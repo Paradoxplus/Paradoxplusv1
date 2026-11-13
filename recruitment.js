@@ -14,7 +14,6 @@ export async function initRecruitmentDatabase() {
     max: 5,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
-    ssl: process.env.PGSSLMODE === "disable" ? false : { rejectUnauthorized: false }
   });
   try {
     await pool.query("SELECT 1");
