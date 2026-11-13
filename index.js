@@ -1597,7 +1597,7 @@ client.on(Events.MessageCreate, async message => {
         message.member.permissions.has(PermissionFlagsBits.ManageGuild);
       if (!canConfigure) return fail("You need Manage Server or Administrator to configure welcome messages.");
       if (sub === "set") {
-        const channelId = mentionedId(args[0]);
+        const channelId = args[0]?.match(/^<#(\d+)>$/)?.[1] || null;
         if (!channelId) return fail("Usage: " + prefix + "welcome set #channel");
         const channel = await message.guild.channels.fetch(channelId).catch(() => null);
         if (!channel?.isTextBased()) return fail("Please select a text channel.");
