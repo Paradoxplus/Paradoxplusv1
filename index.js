@@ -271,6 +271,39 @@ async function issueStrike(guild, config, target, moderator, reason, sendEmbed) 
   return { total, demotionText };
 }
 
+async function removeStrikes(guild, config, target, moderator, amount, reason, sendEmbed) {
+  if (!Array.isArray(config.strikes)) config.strikes = [];
+  if (!Array.isArray(config.strikeHistory)) config.strikeHistory = [];
+  const active = config.strikes
+    .filter(item => item.memberId === target.id)
+    .sort((x, y) => new Date(y.timestamp).getTime() - new Date(x.timestamp).getTime());
+  if (!active.length) return { error: "That member has no active strikes." };
+  if (amount > active.length) return { error: "That member only has " + active.length + " active strike(s)." };
+  const removed = active.slice(0, amount);
+  const removedIds = new Set(removed.map(item => item.id));
+  config.strikes = config.strikes.filter(item => !removedIds.has(item.id));
+  const removedAt = new Date().toISOString();
+  for (const item of config.strikeHistory) {
+    if (removedIds.has(item.id)) {
+      item.removedAt = removedAt;
+      item.removedBy = moderator.id;
+      item.removalReason = reason;
+    }
+  }
+  const total = config.strikes.filter(item => item.memberId === target.id).length;
+  await saveDatabase();
+  const embed = new EmbedBuilder().setColor(0x35d07f).setTitle("➖ Strike removed").addFields(
+    { name: "Member", value: "<@" + target.id + "> " + target.user.tag, inline: false },
+    { name: "Moderator", value: "<@" + moderator.id + "> " + (moderator.tag || moderator.user?.tag || "Moderator"), inline: false },
+    { name: "Strikes removed", value: String(amount), inline: true },
+    { name: "Remaining strikes", value: String(total), inline: true },
+    { name: "Reason", value: reason.slice(0, 1000), inline: false },
+    { name: "Strike history", value: "Removed strikes remain in the history and are marked as revoked.", inline: false }
+  ).setTimestamp(new Date(removedAt));
+  await sendEmbed(embed);
+  return { total };
+}
+
 // Paradox Pulse: privacy-light aggregate community activity, never message contents.
 function pulseDay(config) {
   const key = new Date().toISOString().slice(0,10);
@@ -636,6 +669,25 @@ client.on(Events.InteractionCreate, async interaction => {
       return interaction.editReply(`✅ Removed the timeout from **${user.tag}**.`);
     }
 
+    if (interaction.commandName === "remove-strike") {
+      if (!(isBotOwner(interaction.user.id) || interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers) || interaction.memberPermissions?.has(PermissionFlagsBits.Administrator))) return replyError(interaction, "You need Moderate Members or Administrator to remove strikes.");
+      const user = interaction.options.getUser("member", true);
+      const amount = interaction.options.getInteger("amount", true);
+      const reason = interaction.options.getString("reason", true).trim();
+      const target = await interaction.guild.members.fetch(user.id).catch(() => null);
+      if (!target) return replyError(interaction, "Member not found.");
+      const actor = await interaction.guild.members.fetch(interaction.user.id);
+      if (!canActOnTarget(actor, target, interaction.guild)) return replyError(interaction, "That member has an equal or higher role than you.");
+      await interaction.deferReply();
+      const result = await removeStrikes(interaction.guild, config, target, interaction.user, amount, reason, async embed => {
+        const reviewChannel = await interaction.guild.channels.fetch("1570589159289126962").catch(() => null);
+        if (!reviewChannel?.isTextBased()) return interaction.editReply("⚠️ Strike removal recorded, but I couldn't access the staff review channel.");
+        await reviewChannel.send({ embeds: [embed], allowedMentions: { parse: [], users: [] } });
+        return interaction.editReply("✅ Removed " + amount + " strike(s). Remaining active strikes: **" + result.total + "**. Logged in the staff review channel.");
+      });
+      if (result.error) return interaction.editReply("⚠️ " + result.error);
+      return;
+    }
     if (interaction.commandName === "strike") {
       if (!(isBotOwner(interaction.user.id) || interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers) || interaction.memberPermissions?.has(PermissionFlagsBits.Administrator))) return replyError(interaction, "You need Moderate Members or Administrator to issue strikes.");
       const user = interaction.options.getUser("member", true), reason = interaction.options.getString("reason", true).trim();
@@ -1107,10 +1159,27 @@ client.on(Events.MessageCreate, async message => {
     if (command === "rankhelp" || command === "help") return send("✨ Paradoxplus command center", [
       "**Member:** `.rank [@member]`, `.rankpanel`, `.rankhistory @member`, `.ranksearch name`, `.rankstats`, `.rankleaderboard`",
       "**Staff:** `.promote @member [reason]`, `.demote @member [reason]`, `.setrank @member @rank [reason]`",
-      "**Moderation:** `.strike @member reason`, `.kick @member`, `.ban @member`, `.timeout @member minutes`, `.untimeout @member`, `.purge 1-100`, `.lock`, `.unlock`, `.slowmode seconds`",
+      "**Moderation:** `.strike @member reason`, `.remove-strike @member amount reason`, `.kick @member`, `.ban @member`, `.timeout @member minutes`, `.untimeout @member`, `.purge 1-100`, `.lock`, `.unlock`, `.slowmode seconds`",
       "**Configuration:** use `/rank-config` for setup, detection, logs, announcements and backups.",
       "Prefix: `.` • All slash commands remain available."
     ].join("\n"));
+    if (command === "remove-strike") {
+      if (!isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.ModerateMembers) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) return fail("You need Moderate Members or Administrator to remove strikes.");
+      const id = mentionedId(args[0]);
+      const amount = Number(args[1]);
+      const reason = args.slice(2).join(" ").trim().slice(0, 800);
+      if (!id || !Number.isInteger(amount) || amount < 1 || !reason) return fail("Usage: .remove-strike @member amount reason");
+      const target = await message.guild.members.fetch(id).catch(() => null);
+      if (!target) return fail("Member not found.");
+      if (!canActOnTarget(message.member, target, message.guild)) return fail("That member has an equal or higher role than you.");
+      return removeStrikes(message.guild, config, target, message.author, amount, reason, async embed => {
+        const reviewChannel = await message.guild.channels.fetch("1570589159289126962").catch(() => null);
+        if (!reviewChannel?.isTextBased()) return message.reply("⚠️ Strike removal recorded, but I couldn't access the staff review channel.");
+        await reviewChannel.send({ embeds: [embed], allowedMentions: { parse: [], users: [] } });
+        const remaining = config.strikes.filter(item => item.memberId === target.id).length;
+        return message.reply("✅ Removed " + amount + " strike(s). Remaining active strikes: **" + remaining + "**.");
+      }).then(result => result?.error ? fail(result.error) : result);
+    }
     if (command === "strike") {
       if (!isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.ModerateMembers) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) return fail("You need Moderate Members or Administrator to issue strikes.");
       const id = mentionedId(args[0]);
