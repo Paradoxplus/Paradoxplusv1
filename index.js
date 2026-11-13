@@ -533,14 +533,14 @@ client.on(Events.InteractionCreate, async interaction => {
       await saveDatabase();
       const embed = new EmbedBuilder()
         .setColor(0x7c5cff)
-        .setAuthor({ name: "PARADOXPLUS • RECRUITMENT", iconURL: interaction.client.user.displayAvatarURL() })
-        .setTitle("✦ NEW RECRUIT")
-        .setDescription("**Recruit:** " + target.user.username + "\n**Recruited by:** " + interaction.user.username + "\n**Recruit no:** **#" + config.recruitCount + "**")
+        .setAuthor({ name: "ＰＡＲＡＤＯＸＰＬＵＳ  ✦  R E C R U I T M E N T", iconURL: interaction.client.user.displayAvatarURL() })
+        .setTitle("✦ 𝗡𝗘𝗪 𝗥𝗘𝗖𝗥𝗨𝗜𝗧")
+        .setDescription("╭・𝗥𝗘𝗖𝗥𝗨𝗜𝗧\n╰➤ " + target.user.username + "\n\n╭・𝗥𝗘𝗖𝗥𝗨𝗜𝗧𝗘𝗗 𝗕𝗬\n╰➤ " + interaction.user.username + "\n\n╭・𝗥𝗘𝗖𝗥𝗨𝗜𝗧 𝗡𝗢.\n╰➤ **#" + config.recruitCount + "**")
         .setImage("https://media1.tenor.com/m/yoF-DDjzFrkAAAAd/paradox.gif")
-        .setFooter({ text: interaction.guild.name + " • Paradoxplus Recruitment" })
+        .setFooter({ text: "ＰＡＲＡＤＯＸＰＬＵＳ  •  " + interaction.guild.name.toUpperCase() })
         .setTimestamp();
       return interaction.reply({
-        content: "🎉 " + target.toString() + " was recruited by " + interaction.user.toString() + "!",
+        content: "✦ 𝗣𝗔𝗥𝗔𝗗𝗢𝗫 𝗥𝗘𝗖𝗥𝗨𝗜𝗧𝗠𝗘𝗡𝗧 ✦\n" + target.toString() + " 𝗷𝗼𝗶𝗻𝗲𝗱 𝘁𝗵𝗲 𝗿𝗼𝘀𝘁𝗲𝗿 — recruited by " + interaction.user.toString(),
         embeds: [embed],
         allowedMentions: { users: [target.id, interaction.user.id], parse: [] }
       });
@@ -1550,14 +1550,14 @@ client.on(Events.MessageCreate, async message => {
       await saveDatabase();
       const embed = new EmbedBuilder()
         .setColor(0x7c5cff)
-        .setAuthor({ name: "PARADOXPLUS • RECRUITMENT", iconURL: client.user.displayAvatarURL() })
+        .setAuthor({ name: "ＰＡＲＡＤＯＸＰＬＵＳ  ✦  R E C R U I T M E N T", iconURL: client.user.displayAvatarURL() })
         .setTitle("✦ NEW RECRUIT")
-        .setDescription("**Recruit:** " + target.user.username + "\n**Recruited by:** " + message.author.username + "\n**Recruit no:** **#" + config.recruitCount + "**")
+        .setDescription("╭・𝗥𝗘𝗖𝗥𝗨𝗜𝗧\n╰➤ " + target.user.username + "\n\n╭・𝗥𝗘𝗖𝗥𝗨𝗜𝗧𝗘𝗗 𝗕𝗬\n╰➤ " + message.author.username + "\n\n╭・𝗥𝗘𝗖𝗥𝗨𝗜𝗧 𝗡𝗢.\n╰➤ **#" + config.recruitCount + "**")
         .setImage("https://media1.tenor.com/m/yoF-DDjzFrkAAAAd/paradox.gif")
-        .setFooter({ text: message.guild.name + " • Paradoxplus Recruitment" })
+        .setFooter({ text: "ＰＡＲＡＤＯＸＰＬＵＳ  •  " + message.guild.name.toUpperCase() })
         .setTimestamp();
       return message.reply({
-        content: "🎉 " + target.toString() + " was recruited by " + message.author.toString() + "!",
+        content: "✦ 𝗣𝗔𝗥𝗔𝗗𝗢𝗫 𝗥𝗘𝗖𝗥𝗨𝗜𝗧𝗠𝗘𝗡𝗧 ✦\n" + target.toString() + " 𝗷𝗼𝗶𝗻𝗲𝗱 𝘁𝗵𝗲 𝗿𝗼𝘀𝘁𝗲𝗿 — recruited by " + message.author.toString(),
         embeds: [embed],
         allowedMentions: { users: [target.id, message.author.id], parse: [] }
       });
