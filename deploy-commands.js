@@ -9,6 +9,8 @@ import {
 } from "discord.js";
 
 const commands = [
+  new SlashCommandBuilder().setName("strikes").setDescription("View active strikes and recent strike history.")
+    .addUserOption(o=>o.setName("member").setDescription("Member to inspect; defaults to yourself")),
   new SlashCommandBuilder().setName("remove-strike").setDescription("Remove active strikes while preserving strike history.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
     .addUserOption(o=>o.setName("member").setDescription("Member whose strikes to remove").setRequired(true))
