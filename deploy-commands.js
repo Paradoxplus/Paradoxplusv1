@@ -9,6 +9,11 @@ import {
 } from "discord.js";
 
 const commands = [
+  new SlashCommandBuilder().setName("remove-strike").setDescription("Remove active strikes while preserving strike history.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Member whose strikes to remove").setRequired(true))
+    .addIntegerOption(o=>o.setName("amount").setDescription("Number of most recent active strikes to remove").setMinValue(1).setMaxValue(100).setRequired(true))
+    .addStringOption(o=>o.setName("reason").setDescription("Reason for removing the strikes").setMaxLength(800).setRequired(true)),
   new SlashCommandBuilder().setName("strike").setDescription("Issue a strike; 3 strikes trigger an automatic two-rank demotion.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
     .addUserOption(o=>o.setName("member").setDescription("Member to strike").setRequired(true))
