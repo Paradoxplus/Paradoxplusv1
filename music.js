@@ -29,7 +29,7 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
     client: { id: process.env.CLIENT_ID, username: "Paradoxplus" },
     autoSkip: true,
     playerOptions: {
-      defaultSearchPlatform: "ytsearch",
+      defaultSearchPlatform: "ytmsearch",
       clientBasedPositionUpdateInterval: 250,
       onDisconnect: { autoReconnect: true, destroyPlayer: false },
       onEmptyQueue: {
@@ -40,9 +40,7 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
           if (!seed?.info?.title) return;
           const query = [seed.info.title, seed.info.author].filter(Boolean).join(" ");
           const candidates = await searchMusic(player, query, seed.requester || null);
-          const next = candidates.find(candidate =>
-            candidate?.info?.identifier !== seed.info?.identifier
-          );
+          const next = candidates.find(candidate => candidate?.info?.identifier !== seed.info?.identifier);
           if (next) {
             await player.queue.add(next);
             console.log("[Music] Autoplay queued:", clean(next.info?.title, 120));
@@ -69,7 +67,7 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
     const embed = new EmbedBuilder().setColor(COLOR).setAuthor({ name: "PARADOXPLUS • NOW PLAYING" })
       .setTitle(clean(info.title, 240))
       .setDescription("**Artist:** " + clean(info.author, 160) + "\n**Duration:** " + fmt(info.duration))
-      .setFooter({ text: "YouTube first • SoundCloud fallback" }).setTimestamp();
+      .setFooter({ text: "YouTube Music first • YouTube and SoundCloud fallback" }).setTimestamp();
     if (info.artworkUrl) embed.setThumbnail(info.artworkUrl);
     void channel.send({ embeds: [embed] }).catch(() => {});
   });
@@ -92,7 +90,7 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
     }));
     const channel = client.channels.cache.get(player.textChannelId);
     try {
-      if (sourceName === "youtube" && info.title) {
+      if ((sourceName === "youtube" || sourceName === "youtubemusic") && info.title) {
         const query = [info.title, info.author].filter(Boolean).join(" ");
         const result = await player.search({ query, source: "soundcloud" }, track?.requester);
         const alternatives = Array.isArray(result?.tracks) ? result.tracks : [];
@@ -106,18 +104,12 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
         if (fallback) {
           await player.queue.add(fallback, 0);
           console.log("[Music] Added SoundCloud playback fallback:", clean(fallback.info?.title, 120));
-          if (channel?.isTextBased()) {
-            await channel.send("🔁 YouTube couldn't play that track. Added a SoundCloud alternative to the front of the queue.").catch(() => {});
-          }
-          // autoSkip advances the failed track; if the queue had already gone idle,
-          // explicitly start the newly added fallback.
+          if (channel?.isTextBased()) await channel.send("🔁 YouTube couldn't play that track. Added a SoundCloud alternative to the front of the queue.").catch(() => {});
           if (!player.playing && !player.paused) await player.play();
           return;
         }
       }
-      if (channel?.isTextBased()) {
-        await channel.send("⚠️ That track failed" + (sourceName ? " on " + sourceName : "") + ". Skipping to the next queued track.").catch(() => {});
-      }
+      if (channel?.isTextBased()) await channel.send("⚠️ That track failed" + (sourceName ? " on " + sourceName : "") + ". Skipping to the next queued track.").catch(() => {});
     } catch (error) {
       console.warn("[Music] Playback recovery failed:", error?.message || error);
       if (channel?.isTextBased()) await channel.send("⚠️ Playback failed and automatic fallback was unavailable. Moving on to the next track.").catch(() => {});
@@ -125,12 +117,8 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
       fallbackInProgress.delete(guildId);
     }
   };
-  manager.on("trackError", (player, track, payload) => {
-    void recoverTrack(player, track, payload, "Track error");
-  });
-  manager.on("trackStuck", (player, track, payload) => {
-    void recoverTrack(player, track, payload, "Track stuck");
-  });
+  manager.on("trackError", (player, track, payload) => { void recoverTrack(player, track, payload, "Track error"); });
+  manager.on("trackStuck", (player, track, payload) => { void recoverTrack(player, track, payload, "Track stuck"); });
   manager.on("playerDestroy", () => setTimeout(() => { void Promise.resolve(onPlayerDestroy()).catch(() => {}); }, 1500));
   return manager;
 }
@@ -143,10 +131,7 @@ async function getPlayer(client, source) {
   if (player?.voiceChannelId && player.voiceChannelId !== voice.id) throw new Error("I'm already playing in another voice channel.");
   if (!player) {
     getVoiceConnection(guild.id)?.destroy();
-    player = client.lavalink.createPlayer({
-      guildId: guild.id, voiceChannelId: voice.id, textChannelId: source.channel.id,
-      selfDeaf: true, selfMute: false, volume: 80
-    });
+    player = client.lavalink.createPlayer({ guildId: guild.id, voiceChannelId: voice.id, textChannelId: source.channel.id, selfDeaf: true, selfMute: false, volume: 80 });
   }
   if (!player.connected) await player.connect();
   return player;
@@ -154,6 +139,7 @@ async function getPlayer(client, source) {
 
 async function searchMusic(player, query, requester) {
   const sources = [
+    { name: "YouTube Music", source: "youtube music" },
     { name: "YouTube", source: "youtube" },
     { name: "SoundCloud", source: "soundcloud" }
   ];
@@ -162,10 +148,8 @@ async function searchMusic(player, query, requester) {
       const found = await player.search({ query, source: candidate.source }, requester);
       const tracks = Array.isArray(found?.tracks) ? found.tracks : [];
       console.log("[Music] " + candidate.name + " search:", JSON.stringify({
-        query: clean(query, 120),
-        loadType: found?.loadType ?? null,
-        trackCount: tracks.length,
-        exception: found?.exception?.message ?? null
+        query: clean(query, 120), loadType: found?.loadType ?? null,
+        trackCount: tracks.length, exception: found?.exception?.message ?? null
       }));
       if (tracks.length) {
         console.log("[Music] Search selected source:", candidate.name);
@@ -176,7 +160,7 @@ async function searchMusic(player, query, requester) {
       console.warn("[Music] " + candidate.name + " search failed:", error?.message || error);
     }
   }
-  throw new Error("No playable results found on YouTube or SoundCloud.");
+  throw new Error("No playable results found on YouTube Music, YouTube, or SoundCloud.");
 }
 
 async function queueTrack(player, track) {
@@ -245,7 +229,7 @@ export async function handleMusicInteraction(interaction, client) {
       await interaction.deferReply({ ephemeral: true });
       const player = await getPlayer(client, musicSource);
       const results = await searchMusic(player, interaction.options.getString("query", true).trim(), interaction.user);
-      if (!results.length) throw new Error("Neither YouTube nor SoundCloud found playable tracks.");
+      if (!results.length) throw new Error("No playable results found.");
       const menu = new StringSelectMenuBuilder().setCustomId("paradoxplus_music_choice").setPlaceholder("Choose a song")
         .addOptions(results.map((t,i) => ({
           label: clean(t.info?.title || "Unknown title", 95),
@@ -254,7 +238,7 @@ export async function handleMusicInteraction(interaction, client) {
         })));
       const embed = new EmbedBuilder().setColor(COLOR).setTitle("🎵 Music search results")
         .setDescription(results.slice(0, 25).map((t,i) => "**" + (i+1) + ". " + clean(t.info?.title, 120) + "**\n" + clean(t.info?.author, 140)).join("\n\n"))
-        .setFooter({ text: "YouTube first • SoundCloud fallback" });
+        .setFooter({ text: "YouTube Music first • YouTube and SoundCloud fallback" });
       const reply = await interaction.editReply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
       try {
         const selected = await reply.awaitMessageComponent({
@@ -265,10 +249,9 @@ export async function handleMusicInteraction(interaction, client) {
         const chosen = results[Number(selected.values[0])];
         if (!chosen) throw new Error("That selection expired. Run /play again.");
         await queueTrack(player, chosen);
-        const queued = { track: chosen };
         const resultEmbed = new EmbedBuilder().setColor(COLOR).setTitle("🎵 Added to queue")
-          .setDescription("**" + clean(queued.track.info?.title, 200) + "**\n" + clean(queued.track.info?.author, 160))
-          .setFooter({ text: "YouTube first • SoundCloud fallback" });
+          .setDescription("**" + clean(chosen.info?.title, 200) + "**\n" + clean(chosen.info?.author, 160))
+          .setFooter({ text: "YouTube Music first • YouTube and SoundCloud fallback" });
         await interaction.editReply({ embeds: [resultEmbed], components: [] });
       } catch (error) {
         if (error?.code === "InteractionCollectorError" || /time/i.test(error?.message || "")) {
@@ -283,8 +266,7 @@ export async function handleMusicInteraction(interaction, client) {
     const guildMember = await interaction.guild.members.fetch(interaction.user.id);
     const player = requirePlayer(client, interaction.guildId, guildMember);
     if (command === "seek") {
-      const seconds = interaction.options.getInteger("seconds", true);
-      const current = player.queue.current;
+      const seconds = interaction.options.getInteger("seconds", true), current = player.queue.current;
       if (!current || !current.info?.isSeekable || current.info?.isStream) throw new Error("This track cannot be seeked.");
       const duration = Number(current.info.duration || current.info.length || 0);
       if (duration && seconds * 1000 >= duration) throw new Error("Choose a position before the end of the track.");
@@ -295,23 +277,16 @@ export async function handleMusicInteraction(interaction, client) {
       if (enabled) autoplayGuilds.add(interaction.guildId); else autoplayGuilds.delete(interaction.guildId);
       await interaction.reply({ content: enabled ? "🔁 Autoplay enabled. I'll find a related track when the queue ends." : "⏹️ Autoplay disabled.", ephemeral: true });
     } else if (command === "filter") {
-      const preset = interaction.options.getString("preset", true);
-      const fm = player.filterManager;
+      const preset = interaction.options.getString("preset", true), fm = player.filterManager;
       if (preset === "off") await fm.resetFilters();
       else if (preset === "nightcore") { await fm.resetFilters(); await fm.toggleNightcore(); }
       else if (preset === "vaporwave") { await fm.resetFilters(); await fm.toggleVaporwave(); }
       else if (preset === "karaoke") { await fm.resetFilters(); await fm.toggleKaraoke(); }
       else {
-        const presets = {
-          "bassboost-low":"BassboostLow", "bassboost-medium":"BassboostMedium",
-          "bassboost-high":"BassboostHigh", "better-music":"BetterMusic",
-          "pop":"Pop", "rock":"Rock", "classic":"Classic",
-          "electronic":"Electronic", "full-sound":"FullSound", "gaming":"Gaming"
-        };
+        const presets = { "bassboost-low":"BassboostLow", "bassboost-medium":"BassboostMedium", "bassboost-high":"BassboostHigh", "better-music":"BetterMusic", "pop":"Pop", "rock":"Rock", "classic":"Classic", "electronic":"Electronic", "full-sound":"FullSound", "gaming":"Gaming" };
         const selected = presets[preset];
         if (!selected) throw new Error("Unknown filter preset.");
-        await fm.resetFilters();
-        await fm.setEQPreset(selected);
+        await fm.resetFilters(); await fm.setEQPreset(selected);
       }
       await interaction.reply({ content: preset === "off" ? "🎚️ All audio effects cleared." : "🎚️ Audio preset applied: **" + preset + "**.", ephemeral: true });
     } else if (command === "previous") {
@@ -322,28 +297,14 @@ export async function handleMusicInteraction(interaction, client) {
     } else if (command === "pause") { await player.pause(); await interaction.reply({ content: "⏸️ Paused.", ephemeral: true }); }
     else if (command === "resume") { await player.resume(); await interaction.reply({ content: "▶️ Resumed.", ephemeral: true }); }
     else if (command === "skip") { await player.skip(); await interaction.reply({ content: "⏭️ Skipped.", ephemeral: true }); }
-    else if (command === "stop") {
-      await player.stopPlaying(true, false); await player.destroy();
-      await interaction.reply({ content: "⏹️ Stopped playback and left voice.", ephemeral: true });
-    } else if (command === "queue") {
-      await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLOR).setTitle("📜 PARADOXPLUS QUEUE").setDescription(queueText(player))], ephemeral: true });
-    } else if (command === "nowplaying") {
-      await interaction.reply({ embeds: [nowPlayingEmbed(player)], ephemeral: true });
-    } else if (command === "volume") {
-      const amount = interaction.options.getInteger("amount", true); await player.setVolume(amount);
-      await interaction.reply({ content: "🔊 Volume set to " + amount + "%.", ephemeral: true });
-    } else if (command === "loop") {
-      const mode = interaction.options.getString("mode", true); await player.setRepeatMode(mode);
-      await interaction.reply({ content: "🔁 Repeat mode: " + mode + ".", ephemeral: true });
-    } else if (command === "shuffle") {
-      player.queue.shuffle(); await interaction.reply({ content: "🔀 Queue shuffled.", ephemeral: true });
-    } else if (command === "remove") {
-      const pos = interaction.options.getInteger("position", true);
-      if (pos < 1 || pos > player.queue.tracks.length) throw new Error("That queue position doesn't exist.");
-      await player.queue.remove(pos - 1); await interaction.reply({ content: "🗑️ Removed queue position " + pos + ".", ephemeral: true });
-    } else if (command === "clear") {
-      await player.queue.splice(0, player.queue.tracks.length); await interaction.reply({ content: "🧹 Cleared upcoming tracks. The current song will finish.", ephemeral: true });
-    }
+    else if (command === "stop") { await player.stopPlaying(true, false); await player.destroy(); await interaction.reply({ content: "⏹️ Stopped playback and left voice.", ephemeral: true }); }
+    else if (command === "queue") await interaction.reply({ embeds: [new EmbedBuilder().setColor(COLOR).setTitle("📜 PARADOXPLUS QUEUE").setDescription(queueText(player))], ephemeral: true });
+    else if (command === "nowplaying") await interaction.reply({ embeds: [nowPlayingEmbed(player)], ephemeral: true });
+    else if (command === "volume") { const amount = interaction.options.getInteger("amount", true); await player.setVolume(amount); await interaction.reply({ content: "🔊 Volume set to " + amount + "%.", ephemeral: true }); }
+    else if (command === "loop") { const mode = interaction.options.getString("mode", true); await player.setRepeatMode(mode); await interaction.reply({ content: "🔁 Repeat mode: " + mode + ".", ephemeral: true }); }
+    else if (command === "shuffle") { player.queue.shuffle(); await interaction.reply({ content: "🔀 Queue shuffled.", ephemeral: true }); }
+    else if (command === "remove") { const pos = interaction.options.getInteger("position", true); if (pos < 1 || pos > player.queue.tracks.length) throw new Error("That queue position doesn't exist."); await player.queue.remove(pos - 1); await interaction.reply({ content: "🗑️ Removed queue position " + pos + ".", ephemeral: true }); }
+    else if (command === "clear") { await player.queue.splice(0, player.queue.tracks.length); await interaction.reply({ content: "🧹 Cleared upcoming tracks. The current song will finish.", ephemeral: true }); }
     return true;
   } catch (error) {
     const message = "⚠️ " + (error?.message || "Music command failed.");
@@ -373,19 +334,17 @@ export async function handleMusicPrefix(message, command, args, client) {
       const query = args.join(" ").trim();
       if (!query) throw new Error("Usage: .play song name");
       if (!message.member.voice?.channel) throw new Error("Join a voice channel first.");
-      const status = await message.reply("🔎 Searching YouTube, then SoundCloud…");
+      const status = await message.reply("🔎 Searching YouTube Music, then YouTube and SoundCloud…");
       const player = await getPlayer(client, message);
       const results = await searchMusic(player, query, message.author);
-      if (!results.length) throw new Error("Neither YouTube nor SoundCloud found playable tracks.");
+      if (!results.length) throw new Error("No playable results found.");
       await queueTrack(player, results[0]);
-      const queued = { track: results[0] };
-      await status.edit("🎵 Added **" + clean(queued.track.info?.title, 160) + "** to the queue.");
+      await status.edit("🎵 Added **" + clean(results[0].info?.title, 160) + "** to the queue.");
       return true;
     }
     const player = requirePlayer(client, message.guild.id, message.member);
     if (command === "seek") {
-      const seconds = Number(args[0]);
-      const current = player.queue.current;
+      const seconds = Number(args[0]), current = player.queue.current;
       if (!Number.isInteger(seconds) || seconds < 0) throw new Error("Usage: .seek seconds");
       if (!current || !current.info?.isSeekable || current.info?.isStream) throw new Error("This track cannot be seeked.");
       const duration = Number(current.info.duration || current.info.length || 0);
@@ -408,15 +367,9 @@ export async function handleMusicPrefix(message, command, args, client) {
       else if (preset === "vaporwave") { await fm.resetFilters(); await fm.toggleVaporwave(); }
       else if (preset === "karaoke") { await fm.resetFilters(); await fm.toggleKaraoke(); }
       else {
-        const presets = {
-          "bassboost-low":"BassboostLow", "bassboost-medium":"BassboostMedium",
-          "bassboost-high":"BassboostHigh", "better-music":"BetterMusic",
-          "pop":"Pop", "rock":"Rock", "classic":"Classic",
-          "electronic":"Electronic", "full-sound":"FullSound", "gaming":"Gaming"
-        };
+        const presets = { "bassboost-low":"BassboostLow", "bassboost-medium":"BassboostMedium", "bassboost-high":"BassboostHigh", "better-music":"BetterMusic", "pop":"Pop", "rock":"Rock", "classic":"Classic", "electronic":"Electronic", "full-sound":"FullSound", "gaming":"Gaming" };
         if (!presets[preset]) throw new Error("Unknown filter preset.");
-        await fm.resetFilters();
-        await fm.setEQPreset(presets[preset]);
+        await fm.resetFilters(); await fm.setEQPreset(presets[preset]);
       }
       return send(preset === "off" ? "🎚️ All audio effects cleared." : "🎚️ Applied **" + preset + "**.");
     }
@@ -432,26 +385,12 @@ export async function handleMusicPrefix(message, command, args, client) {
     else if (command === "stop") { await player.stopPlaying(true, false); await player.destroy(); }
     else if (command === "queue") return send(queueText(player));
     else if (command === "nowplaying") return message.reply({ embeds: [nowPlayingEmbed(player)] });
-    else if (command === "volume") {
-      const amount = Number(args[0]);
-      if (!Number.isInteger(amount) || amount < 1 || amount > 100) throw new Error("Usage: .volume 1-100");
-      await player.setVolume(amount);
-    } else if (command === "loop") {
-      const mode = (args[0] || "off").toLowerCase();
-      if (!["off","track","queue"].includes(mode)) throw new Error("Usage: .loop off|track|queue");
-      await player.setRepeatMode(mode);
-    } else if (command === "shuffle") player.queue.shuffle();
-    else if (command === "remove") {
-      const pos = Number(args[0]);
-      if (!Number.isInteger(pos) || pos < 1 || pos > player.queue.tracks.length) throw new Error("Usage: .remove queue_position");
-      await player.queue.remove(pos - 1);
-    } else if (command === "clear") await player.queue.splice(0, player.queue.tracks.length);
-    const replies = {
-      pause:"⏸️ Paused.", resume:"▶️ Resumed.", skip:"⏭️ Skipped.",
-      stop:"⏹️ Stopped playback and left voice.", volume:"🔊 Volume updated.",
-      loop:"🔁 Repeat mode updated.", shuffle:"🔀 Queue shuffled.",
-      remove:"🗑️ Removed that queued track.", clear:"🧹 Cleared upcoming tracks."
-    };
+    else if (command === "volume") { const amount = Number(args[0]); if (!Number.isInteger(amount) || amount < 1 || amount > 100) throw new Error("Usage: .volume 1-100"); await player.setVolume(amount); }
+    else if (command === "loop") { const mode = (args[0] || "off").toLowerCase(); if (!["off","track","queue"].includes(mode)) throw new Error("Usage: .loop off|track|queue"); await player.setRepeatMode(mode); }
+    else if (command === "shuffle") player.queue.shuffle();
+    else if (command === "remove") { const pos = Number(args[0]); if (!Number.isInteger(pos) || pos < 1 || pos > player.queue.tracks.length) throw new Error("Usage: .remove queue_position"); await player.queue.remove(pos - 1); }
+    else if (command === "clear") await player.queue.splice(0, player.queue.tracks.length);
+    const replies = { pause:"⏸️ Paused.", resume:"▶️ Resumed.", skip:"⏭️ Skipped.", stop:"⏹️ Stopped playback and left voice.", volume:"🔊 Volume updated.", loop:"🔁 Repeat mode updated.", shuffle:"🔀 Queue shuffled.", remove:"🗑️ Removed that queued track.", clear:"🧹 Cleared upcoming tracks." };
     return send(replies[command] || "Done.");
   } catch (error) { return send("⚠️ " + (error?.message || "Music command failed.")); }
 }
