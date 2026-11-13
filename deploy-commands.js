@@ -9,6 +9,10 @@ import {
 } from "discord.js";
 
 const commands = [
+  new SlashCommandBuilder().setName("strike").setDescription("Issue a strike; 3 strikes trigger an automatic two-rank demotion.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Member to strike").setRequired(true))
+    .addStringOption(o=>o.setName("reason").setDescription("Reason for the strike").setMaxLength(800).setRequired(true)),
   new SlashCommandBuilder().setName("warn").setDescription("Record a formal member warning.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
     .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true))
