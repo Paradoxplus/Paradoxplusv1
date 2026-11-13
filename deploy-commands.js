@@ -9,8 +9,15 @@ import {
 } from "discord.js";
 
 const commands = [
-  new SlashCommandBuilder().setName("play").setDescription("Search Spotify and play a matching SoundCloud track.")
+  new SlashCommandBuilder().setName("play").setDescription("Search and play a song.")
+    .addStringOption(o=>o.setName("query").setDescription("Song title, artist, or supported link").setMinLength(2).setMaxLength(100).setRequired(true)),
+  new SlashCommandBuilder().setName("playnext").setDescription("Add a song to play immediately after the current track.")
     .addStringOption(o=>o.setName("query").setDescription("Song title or artist").setMinLength(2).setMaxLength(100).setRequired(true)),
+  new SlashCommandBuilder().setName("seek").setDescription("Jump to a position in the current track.")
+    .addIntegerOption(o=>o.setName("seconds").setDescription("Position in seconds").setMinValue(0).setMaxValue(7200).setRequired(true)),
+  new SlashCommandBuilder().setName("autoplay").setDescription("Automatically find related tracks when the queue ends.")
+    .addBooleanOption(o=>o.setName("enabled").setDescription("Turn autoplay on or off").setRequired(true)),
+  new SlashCommandBuilder().setName("previous").setDescription("Replay the previous track."),
   new SlashCommandBuilder().setName("pause").setDescription("Pause music playback."),
   new SlashCommandBuilder().setName("resume").setDescription("Resume music playback."),
   new SlashCommandBuilder().setName("skip").setDescription("Skip the current track."),
