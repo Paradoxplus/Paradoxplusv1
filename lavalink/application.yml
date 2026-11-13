@@ -20,6 +20,7 @@ plugins:
 lavalink:
   plugins:
     - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.2"
+      repository: "https://maven.lavalink.dev/releases"
       snapshot: false
   server:
     password: ${LAVALINK_SERVER_PASSWORD}
@@ -54,5 +55,6 @@ logging:
   level:
     root: INFO
     lavalink: DEBUG
-    com.sedmelluq.discord.lavaplayer.tools.ExceptionTools: DEBUG
+    dev.lavalink.youtube: DEBUG
     dev.lavalink.youtube.http.YoutubeOauth2Handler: INFO
+    com.sedmelluq.discord.lavaplayer.tools.ExceptionTools: DEBUG
