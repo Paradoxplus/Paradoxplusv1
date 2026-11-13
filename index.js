@@ -422,6 +422,8 @@ client.on(Events.MessageCreate, message => {
 client.on(Events.MessageCreate, async message => {
   if (!message.guild || message.author.bot) return;
   const config = getGuildConfig(message.guild.id);
+  const configuredPrefix = typeof config.prefix === "string" && config.prefix.length >= 1 && config.prefix.length <= 5 ? config.prefix : DEFAULT_PREFIX;
+  if (message.content.startsWith(configuredPrefix)) return;
   const text = message.content.toLowerCase();
   const botMentioned = message.mentions.has(client.user.id) || text.includes("paradox#7975");
   const ownerQuestion = /\bwho(?:'|’)s your owner\b|\bwho is your owner\b|\bwhos your owner\b/.test(text);
@@ -1755,7 +1757,7 @@ client.on(Events.MessageCreate, async message => {
     }
     if (command === "triggerlist" || command === "trigger") {
       const rawCommand = message.content.slice(prefix.length).trim();
-      const rawArgs = rawCommand.replace(/^\\S+\\s*/, "").trim();
+      const rawArgs = rawCommand.replace(/^\S+\s*/, "").trim();
       const sub = command === "triggerlist" ? "list" : (args[0] || "list").toLowerCase();
       const allowed = isBotOwner(message.author.id) ||
         message.member.permissions.has(PermissionFlagsBits.Administrator) ||
@@ -1767,12 +1769,12 @@ client.on(Events.MessageCreate, async message => {
         const lines = config.autoresponders.map((item, index) =>
           "**" + (index + 1) + ".** \`" + item.trigger + "\` → " + item.response
         );
-        return send("✦ PARADOXPLUS TRIGGERS", lines.join("\\n"));
+        return send("✦ PARADOXPLUS TRIGGERS", lines.join("\n"));
       }
       if (!allowed) return fail("You need Manage Messages, Manage Server, or Administrator to manage triggers.");
 
       if (sub === "add") {
-        const payload = rawArgs.replace(/^add\\s+/i, "");
+        const payload = rawArgs.replace(/^add\s+/i, "");
         const split = payload.indexOf("|");
         if (split < 1 || split === payload.length - 1) {
           return fail("Usage: " + prefix + "trigger add trigger phrase | reply message");
@@ -1791,7 +1793,7 @@ client.on(Events.MessageCreate, async message => {
       }
 
       if (sub === "remove" || sub === "delete") {
-        const trigger = rawArgs.replace(/^(remove|delete)\\s+/i, "").trim().replace(/^["'](.*)["']$/, "$1");
+        const trigger = rawArgs.replace(/^(remove|delete)\s+/i, "").trim().replace(/^["'](.*)["']$/, "$1");
         if (!trigger) return fail("Usage: " + prefix + 'trigger remove "trigger name"');
         const before = config.autoresponders.length;
         config.autoresponders = config.autoresponders.filter(item => item.trigger.toLowerCase() !== trigger.toLowerCase());
