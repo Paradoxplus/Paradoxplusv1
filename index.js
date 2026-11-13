@@ -1593,7 +1593,8 @@ client.on(Events.MessageCreate, async message => {
       const rows = await getRecruitLeaderboard(message.guild.id, period);
       const lines = rows.map((row, index) => "**" + (index + 1) + ".** <@" + row.recruiter_id + "> — **" + row.total + "**");
       return send("Recruit leaderboard • " + period, lines.join("\n") || "No recruits have been recorded for this period yet.");
-    }    if (command === "ping") {
+    }
+    if (command === "ping") {
       const roundTrip = Math.max(0, Date.now() - message.createdTimestamp);
       const gateway = Math.round(client.ws.ping);
       return send("🏓 Pong!", "**Bot latency:** " + roundTrip + " ms\n**Gateway latency:** " + gateway + " ms");
