@@ -1789,7 +1789,7 @@ client.on(Events.MessageCreate, async message => {
         if (config.autoresponders.length >= 25) return fail("This server has reached the 25-trigger limit.");
         config.autoresponders.push({ trigger, response });
         await saveDatabase();
-        return send("✦ TRIGGER CREATED", "**Trigger:** \`" + trigger + "\`\\n**Reply:** " + response);
+        return send("✦ TRIGGER CREATED", "**Trigger:** \`" + trigger + "\`\n**Reply:** " + response);
       }
 
       if (sub === "remove" || sub === "delete") {
