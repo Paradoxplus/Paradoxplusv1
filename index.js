@@ -536,7 +536,7 @@ client.on(Events.InteractionCreate, async interaction => {
         .setAuthor({ name: "ＰＡＲＡＤＯＸＰＬＵＳ  ✦  R E C R U I T M E N T", iconURL: interaction.client.user.displayAvatarURL() })
         .setTitle("✦ 𝗡𝗘𝗪 𝗥𝗘𝗖𝗥𝗨𝗜𝗧")
         .setDescription("╭・𝗥𝗘𝗖𝗥𝗨𝗜𝗧\n╰➤ " + target.user.username + "\n\n╭・𝗥𝗘𝗖𝗥𝗨𝗜𝗧𝗘𝗗 𝗕𝗬\n╰➤ " + interaction.user.username + "\n\n╭・𝗥𝗘𝗖𝗥𝗨𝗜𝗧 𝗡𝗢.\n╰➤ **#" + config.recruitCount + "**")
-        .setImage("https://media1.tenor.com/m/yoF-DDjzFrkAAAAd/paradox.gif")
+        .setImage("https://www.image2url.com/r2/default/gifs/1794386711876-4bbf4f54-5448-4384-960d-4424655e01a2.gif")
         .setFooter({ text: "ＰＡＲＡＤＯＸＰＬＵＳ  •  " + interaction.guild.name.toUpperCase() })
         .setTimestamp();
       return interaction.reply({
@@ -1553,7 +1553,7 @@ client.on(Events.MessageCreate, async message => {
         .setAuthor({ name: "ＰＡＲＡＤＯＸＰＬＵＳ  ✦  R E C R U I T M E N T", iconURL: client.user.displayAvatarURL() })
         .setTitle("✦ NEW RECRUIT")
         .setDescription("╭・𝗥𝗘𝗖𝗥𝗨𝗜𝗧\n╰➤ " + target.user.username + "\n\n╭・𝗥𝗘𝗖𝗥𝗨𝗜𝗧𝗘𝗗 𝗕𝗬\n╰➤ " + message.author.username + "\n\n╭・𝗥𝗘𝗖𝗥𝗨𝗜𝗧 𝗡𝗢.\n╰➤ **#" + config.recruitCount + "**")
-        .setImage("https://media1.tenor.com/m/yoF-DDjzFrkAAAAd/paradox.gif")
+        .setImage("https://www.image2url.com/r2/default/gifs/1794386711876-4bbf4f54-5448-4384-960d-4424655e01a2.gif")
         .setFooter({ text: "ＰＡＲＡＤＯＸＰＬＵＳ  •  " + message.guild.name.toUpperCase() })
         .setTimestamp();
       return message.reply({
