@@ -1,11 +1,12 @@
 import "dotenv/config";
 import {
   Client, GatewayIntentBits, Partials, Events, PermissionFlagsBits,
-  EmbedBuilder
+  EmbedBuilder, ChannelType
 } from "discord.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { startDashboard } from "./dashboard.js";
+import { joinVoiceChannel, VoiceConnectionStatus, entersState, getVoiceConnection } from "@discordjs/voice";
 
  
 // Discord does not support loading custom fonts, so use Unicode sans-serif bold
@@ -44,7 +45,7 @@ const DATA_DIR = path.resolve("data");
 const DATA_FILE = path.join(DATA_DIR, "guild-config.json");
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates],
   partials: [Partials.GuildMember]
 });
 
@@ -385,9 +386,65 @@ client.on(Events.GuildMemberRemove, member => {
   void saveDatabase().catch(error=>console.error("Pulse leave save failed:",error));
 });
 
+const OWNER_VOICE_GUILD_ID = "1568943817762017400";
+const OWNER_VOICE_CHANNEL_ID = "1568943822883528710";
+let ownerVoiceRetryTimer = null;
+let ownerVoiceConnecting = false;
+
+async function connectOwnerVoice(readyClient) {
+  if (ownerVoiceConnecting) return;
+  ownerVoiceConnecting = true;
+  try {
+    const guild = await readyClient.guilds.fetch(OWNER_VOICE_GUILD_ID);
+    const channel = await guild.channels.fetch(OWNER_VOICE_CHANNEL_ID);
+    if (!channel || ![ChannelType.GuildVoice, ChannelType.GuildStageVoice].includes(channel.type)) {
+      throw new Error("Configured owner voice channel was not found or is not a voice channel.");
+    }
+    const existing = getVoiceConnection(guild.id);
+    if (existing && existing.state.status !== VoiceConnectionStatus.Destroyed) {
+      if (existing.joinConfig.channelId === channel.id) return;
+      existing.destroy();
+    }
+    const connection = joinVoiceChannel({
+      channelId: channel.id,
+      guildId: guild.id,
+      adapterCreator: guild.voiceAdapterCreator,
+      selfDeaf: true,
+      selfMute: false
+    });
+    connection.on(VoiceConnectionStatus.Disconnected, async () => {
+      try {
+        await Promise.race([
+          entersState(connection, VoiceConnectionStatus.Signalling, 7000),
+          entersState(connection, VoiceConnectionStatus.Connecting, 7000)
+        ]);
+      } catch {
+        connection.destroy();
+        if (ownerVoiceRetryTimer) clearTimeout(ownerVoiceRetryTimer);
+        ownerVoiceRetryTimer = setTimeout(() => {
+          ownerVoiceRetryTimer = null;
+          void connectOwnerVoice(readyClient);
+        }, 5000);
+      }
+    });
+    connection.on("error", error => console.error("Owner VC connection error:", error));
+    console.log("Joined owner voice channel: " + channel.name);
+  } catch (error) {
+    console.error("Could not join owner voice channel:", error);
+    if (ownerVoiceRetryTimer) clearTimeout(ownerVoiceRetryTimer);
+    ownerVoiceRetryTimer = setTimeout(() => {
+      ownerVoiceRetryTimer = null;
+      void connectOwnerVoice(readyClient);
+    }, 15000);
+  } finally {
+    ownerVoiceConnecting = false;
+  }
+}
+
 client.once(Events.ClientReady, readyClient => {
   console.log(`Online as ${readyClient.user.tag}`);
   console.log(`Serving ${readyClient.guilds.cache.size} server(s).`);
+  void connectOwnerVoice(readyClient);
 });
 
 client.on(Events.InteractionCreate, async interaction => {
