@@ -19,4 +19,4 @@ Keep Lavalink private; do not expose port 2333 publicly. Never put credentials i
 
 ## Playback
 
-The bot searches Lavalink's built-in SoundCloud source first, then YouTube Music and YouTube as secondary search sources. YouTube tracks may not always be playable without account authorization, so SoundCloud is the preferred playback source. Search results depend on what each provider makes available.
+The bot is configured for SoundCloud-only search and playback. YouTube search and the YouTube Lavalink plugin are removed. Search results and playback depend on SoundCloud availability.
