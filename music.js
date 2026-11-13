@@ -28,9 +28,9 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
     sendToShard: (guildId, payload) => client.guilds.cache.get(guildId)?.shard?.send(payload),
     client: { id: process.env.CLIENT_ID, username: "Paradoxplus" },
     // Recovery handler owns failed-track transitions to avoid racing auto-skip.
-    autoSkip: false,
+    autoSkip: true,
     playerOptions: {
-      defaultSearchPlatform: "ytmsearch",
+      defaultSearchPlatform: "scsearch",
       clientBasedPositionUpdateInterval: 250,
       onDisconnect: { autoReconnect: true, destroyPlayer: false },
       onEmptyQueue: {
@@ -83,12 +83,6 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
     const channel = client.channels.cache.get(player.textChannelId);
     if (channel?.isTextBased()) void channel.send("🎵 The queue has finished.").catch(() => {});
   });
-  const advanceAfterFailure = async player => {
-    // skip() requires a current track; after a failed load the current slot may be empty.
-    if (player.queue.current) return player.skip(0, false);
-    // With no current track, start the next queued item directly.
-    if (player.queue.tracks?.length) return player.play();
-  };
   const fallbackInProgress = new Set();
   const recoverTrack = async (player, track, payload, eventName) => {
     const guildId = player.guildId;
@@ -125,14 +119,14 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
           await player.queue.add(fallback, 0);
           console.log("[Music] Added SoundCloud playback fallback:", clean(fallback.info?.title, 120));
           if (channel?.isTextBased()) await channel.send("🔁 YouTube couldn't play that track. Added a SoundCloud alternative to the front of the queue.").catch(() => {});
-          // Advance safely whether a current track still exists or not.
-          await advanceAfterFailure(player);
+          // Lavalink-client autoSkip advances the failed track. If it has already
+          // cleared the current slot, start the newly queued fallback directly.
+          if (!player.queue.current) await player.play();
           return;
         }
       }
       if (channel?.isTextBased()) await channel.send("⚠️ That track failed" + (sourceName ? " on " + sourceName : "") + ". Skipping to the next queued track.").catch(() => {});
-      // Advance safely; an empty current slot must never make recovery throw.
-      await advanceAfterFailure(player);
+      // autoSkip owns failed-track advancement; never manually skip an empty queue.
     } catch (error) {
       console.warn("[Music] Playback recovery failed:", error?.message || error);
       if (channel?.isTextBased()) await channel.send("⚠️ Playback failed and automatic fallback was unavailable. Moving on to the next track.").catch(() => {});
@@ -163,9 +157,9 @@ async function getPlayer(client, source) {
 
 async function searchMusic(player, query, requester) {
   const sources = [
+    { name: "SoundCloud", source: "soundcloud" },
     { name: "YouTube Music", source: "youtube music" },
-    { name: "YouTube", source: "youtube" },
-    { name: "SoundCloud", source: "soundcloud" }
+    { name: "YouTube", source: "youtube" }
   ];
   for (const candidate of sources) {
     try {
