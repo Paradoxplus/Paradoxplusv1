@@ -523,6 +523,15 @@ client.on(Events.InteractionCreate, async interaction => {
   try {
     const config = getGuildConfig(interaction.guildId);
 
+    if (interaction.commandName === "prefix") {
+      if (!isBotOwner(interaction.user.id) && !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) && !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) return replyError(interaction, "You need Manage Server or Administrator to change the prefix.");
+      const nextPrefix = interaction.options.getString("new_prefix", true).trim();
+      if (!/^[^\\s]{1,5}$/.test(nextPrefix)) return replyError(interaction, "Prefix must be 1–5 characters with no spaces.");
+      config.prefix = nextPrefix;
+      await saveDatabase();
+      return interaction.reply({ content: `✅ Server prefix changed to `${nextPrefix}``, ephemeral: true });
+    }
+
     if (interaction.commandName === "recruit") {
       const user = interaction.options.getUser("member", true);
       const target = interaction.guild.members.cache.get(user.id) ?? await interaction.guild.members.fetch(user.id).catch(() => null);
@@ -533,14 +542,13 @@ client.on(Events.InteractionCreate, async interaction => {
       await saveDatabase();
       const embed = new EmbedBuilder()
         .setColor(0x7c5cff)
-        .setAuthor({ name: "ＰＡＲＡＤＯＸＰＬＵＳ  ✦  R E C R U I T M E N T", iconURL: interaction.client.user.displayAvatarURL() })
-        .setTitle("✦ 𝗡𝗘𝗪 𝗥𝗘𝗖𝗥𝗨𝗜𝗧")
-        .setDescription("╭・𝗥𝗘𝗖𝗥𝗨𝗜𝗧\n╰➤ " + target.user.username + "\n\n╭・𝗥𝗘𝗖𝗥𝗨𝗜𝗧𝗘𝗗 𝗕𝗬\n╰➤ " + interaction.user.username + "\n\n╭・𝗥𝗘𝗖𝗥𝗨𝗜𝗧 𝗡𝗢.\n╰➤ **#" + config.recruitCount + "**")
+        .setAuthor({ name: "APP", iconURL: interaction.client.user.displayAvatarURL() })
+        .setTitle("New recruit")
+        .setDescription("**.GG/PX**\n\n**Recruit:** " + target.toString() + "\n\n**Recruited by:** " + interaction.user.toString() + "\n\n**Recruit no.:** #" + config.recruitCount + "\n\n**PARADOXX**")
         .setImage("https://www.image2url.com/r2/default/gifs/1794386711876-4bbf4f54-5448-4384-960d-4424655e01a2.gif")
-        .setFooter({ text: "ＰＡＲＡＤＯＸＰＬＵＳ  •  " + interaction.guild.name.toUpperCase() })
+        .setFooter({ text: interaction.guild.name })
         .setTimestamp();
       return interaction.reply({
-        content: "✦ 𝗣𝗔𝗥𝗔𝗗𝗢𝗫 𝗥𝗘𝗖𝗥𝗨𝗜𝗧𝗠𝗘𝗡𝗧 ✦\n" + target.toString() + " 𝗷𝗼𝗶𝗻𝗲𝗱 𝘁𝗵𝗲 𝗿𝗼𝘀𝘁𝗲𝗿 — recruited by " + interaction.user.toString(),
         embeds: [embed],
         allowedMentions: { users: [target.id, interaction.user.id], parse: [] }
       });
@@ -1518,7 +1526,7 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 });
 
-const PREFIX = ".";
+const DEFAULT_PREFIX = ".";
 const prefixEmbed = (title, description) => new EmbedBuilder()
   .setColor(0x7c5cff)
   .setAuthor({ name: "ＰＡＲＡＤＯＸＰＬＵＳ  •  SYSTEM", iconURL: client.user.displayAvatarURL() })
@@ -1529,10 +1537,12 @@ const prefixEmbed = (title, description) => new EmbedBuilder()
 const mentionedId = (value, role = false) => value?.match(role ? /^<@&(\d+)>$/ : /^<@!?(\d+)>$/)?.[1] || null;
 
 client.on(Events.MessageCreate, async message => {
-  if (!message.guild || message.author.bot || !message.content.startsWith(PREFIX)) return;
-  const args = message.content.slice(1).trim().split(/\s+/);
-  const command = (args.shift() || "").toLowerCase();
+  if (!message.guild || message.author.bot) return;
   const config = getGuildConfig(message.guild.id);
+  const prefix = typeof config.prefix === "string" && config.prefix.length >= 1 && config.prefix.length <= 5 ? config.prefix : DEFAULT_PREFIX;
+  if (!message.content.startsWith(prefix)) return;
+  const args = message.content.slice(prefix.length).trim().split(/\s+/);
+  const command = (args.shift() || "").toLowerCase();
   const send = (title, description) => message.reply({
     embeds: [prefixEmbed(title, description)],
     allowedMentions: { repliedUser: false, parse: [] }
@@ -1550,14 +1560,13 @@ client.on(Events.MessageCreate, async message => {
       await saveDatabase();
       const embed = new EmbedBuilder()
         .setColor(0x7c5cff)
-        .setAuthor({ name: "ＰＡＲＡＤＯＸＰＬＵＳ  ✦  R E C R U I T M E N T", iconURL: client.user.displayAvatarURL() })
-        .setTitle("✦ NEW RECRUIT")
-        .setDescription("╭・𝗥𝗘𝗖𝗥𝗨𝗜𝗧\n╰➤ " + target.user.username + "\n\n╭・𝗥𝗘𝗖𝗥𝗨𝗜𝗧𝗘𝗗 𝗕𝗬\n╰➤ " + message.author.username + "\n\n╭・𝗥𝗘𝗖𝗥𝗨𝗜𝗧 𝗡𝗢.\n╰➤ **#" + config.recruitCount + "**")
+        .setAuthor({ name: "APP", iconURL: client.user.displayAvatarURL() })
+        .setTitle("New recruit")
+        .setDescription("**.GG/PX**\n\n**Recruit:** " + target.toString() + "\n\n**Recruited by:** " + message.author.toString() + "\n\n**Recruit no.:** #" + config.recruitCount + "\n\n**PARADOXX**")
         .setImage("https://www.image2url.com/r2/default/gifs/1794386711876-4bbf4f54-5448-4384-960d-4424655e01a2.gif")
-        .setFooter({ text: "ＰＡＲＡＤＯＸＰＬＵＳ  •  " + message.guild.name.toUpperCase() })
+        .setFooter({ text: message.guild.name })
         .setTimestamp();
       return message.reply({
-        content: "✦ 𝗣𝗔𝗥𝗔𝗗𝗢𝗫 𝗥𝗘𝗖𝗥𝗨𝗜𝗧𝗠𝗘𝗡𝗧 ✦\n" + target.toString() + " 𝗷𝗼𝗶𝗻𝗲𝗱 𝘁𝗵𝗲 𝗿𝗼𝘀𝘁𝗲𝗿 — recruited by " + message.author.toString(),
         embeds: [embed],
         allowedMentions: { users: [target.id, message.author.id], parse: [] }
       });
