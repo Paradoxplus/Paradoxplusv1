@@ -3,6 +3,7 @@ import { LavalinkManager } from "lavalink-client";
 import { ActionRowBuilder, EmbedBuilder, StringSelectMenuBuilder } from "discord.js";
 
 const COLOR = 0x7c5cff;
+const autoplayGuilds = new Set();
 
 const clean = (v, n = 120) => String(v ?? "").replace(/[\r\n]/g, " ").slice(0, n);
 const fmt = ms => {
@@ -31,7 +32,23 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
       defaultSearchPlatform: "ytsearch",
       clientBasedPositionUpdateInterval: 250,
       onDisconnect: { autoReconnect: true, destroyPlayer: false },
-      onEmptyQueue: { destroyAfterMs: 30000 }
+      onEmptyQueue: {
+        destroyAfterMs: 30000,
+        autoPlayFunction: async player => {
+          if (!autoplayGuilds.has(player.guildId)) return;
+          const seed = player.queue.previous?.[0] || player.queue.current;
+          if (!seed?.info?.title) return;
+          const query = [seed.info.title, seed.info.author].filter(Boolean).join(" ");
+          const candidates = await searchMusic(player, query, seed.requester || null);
+          const next = candidates.find(candidate =>
+            candidate?.info?.identifier !== seed.info?.identifier
+          );
+          if (next) {
+            await player.queue.add(next);
+            console.log("[Music] Autoplay queued:", clean(next.info?.title, 120));
+          }
+        }
+      }
     },
     queueOptions: { maxPreviousTracks: 20 }
   });
@@ -204,9 +221,23 @@ function requirePlayer(client, guildId, member) {
 export async function handleMusicInteraction(interaction, client) {
   if (!interaction.isChatInputCommand()) return false;
   const command = interaction.commandName;
-  const names = ["play","pause","resume","skip","stop","queue","nowplaying","volume","loop","shuffle","remove","clear"];
+  const names = ["play","playnext","pause","resume","skip","previous","stop","queue","nowplaying","volume","seek","autoplay","loop","shuffle","remove","clear"];
   if (!names.includes(command)) return false;
   try {
+    if (command === "playnext") {
+      const guildMember = await interaction.guild.members.fetch(interaction.user.id);
+      if (!guildMember.voice?.channel) throw new Error("Join a voice channel first.");
+      await interaction.deferReply({ ephemeral: true });
+      const player = await getPlayer(client, { guild: interaction.guild, member: guildMember, channel: interaction.channel });
+      const query = interaction.options.getString("query", true).trim();
+      const results = await searchMusic(player, query, interaction.user);
+      const chosen = results[0];
+      if (!chosen) throw new Error("No playable results found.");
+      await player.queue.add(chosen, 0);
+      if (!player.playing) await player.play();
+      await interaction.editReply({ content: "⏭️ Added **" + clean(chosen.info?.title, 180) + "** to play next." });
+      return true;
+    }
     if (command === "play") {
       const guildMember = await interaction.guild.members.fetch(interaction.user.id);
       if (!guildMember.voice?.channel) throw new Error("Join a voice channel first.");
@@ -251,7 +282,24 @@ export async function handleMusicInteraction(interaction, client) {
 
     const guildMember = await interaction.guild.members.fetch(interaction.user.id);
     const player = requirePlayer(client, interaction.guildId, guildMember);
-    if (command === "pause") { await player.pause(); await interaction.reply({ content: "⏸️ Paused.", ephemeral: true }); }
+    if (command === "seek") {
+      const seconds = interaction.options.getInteger("seconds", true);
+      const current = player.queue.current;
+      if (!current || !current.info?.isSeekable || current.info?.isStream) throw new Error("This track cannot be seeked.");
+      const duration = Number(current.info.duration || current.info.length || 0);
+      if (duration && seconds * 1000 >= duration) throw new Error("Choose a position before the end of the track.");
+      await player.seek(seconds * 1000);
+      await interaction.reply({ content: "⏩ Seeked to " + fmt(seconds * 1000) + ".", ephemeral: true });
+    } else if (command === "autoplay") {
+      const enabled = interaction.options.getBoolean("enabled", true);
+      if (enabled) autoplayGuilds.add(interaction.guildId); else autoplayGuilds.delete(interaction.guildId);
+      await interaction.reply({ content: enabled ? "🔁 Autoplay enabled. I'll find a related track when the queue ends." : "⏹️ Autoplay disabled.", ephemeral: true });
+    } else if (command === "previous") {
+      const previous = await player.queue.shiftPrevious();
+      if (!previous) throw new Error("There isn't a previous track in history.");
+      await player.play({ clientTrack: previous });
+      await interaction.reply({ content: "⏮️ Playing the previous track: **" + clean(previous.info?.title, 160) + "**.", ephemeral: true });
+    } else if (command === "pause") { await player.pause(); await interaction.reply({ content: "⏸️ Paused.", ephemeral: true }); }
     else if (command === "resume") { await player.resume(); await interaction.reply({ content: "▶️ Resumed.", ephemeral: true }); }
     else if (command === "skip") { await player.skip(); await interaction.reply({ content: "⏭️ Skipped.", ephemeral: true }); }
     else if (command === "stop") {
@@ -290,6 +338,17 @@ export async function handleMusicPrefix(message, command, args, client) {
   if (!names.includes(command)) return false;
   const send = text => message.reply({ content: text, allowedMentions: { repliedUser: false, parse: [] } });
   try {
+    if (command === "playnext") {
+      const query = args.join(" ").trim();
+      if (!query) throw new Error("Usage: .playnext song name");
+      if (!message.member.voice?.channel) throw new Error("Join a voice channel first.");
+      const player = await getPlayer(client, message);
+      const results = await searchMusic(player, query, message.author);
+      if (!results[0]) throw new Error("No playable results found.");
+      await player.queue.add(results[0], 0);
+      if (!player.playing) await player.play();
+      return send("⏭️ Added **" + clean(results[0].info?.title, 160) + "** to play next.");
+    }
     if (command === "play") {
       const query = args.join(" ").trim();
       if (!query) throw new Error("Usage: .play song name");
@@ -304,6 +363,28 @@ export async function handleMusicPrefix(message, command, args, client) {
       return true;
     }
     const player = requirePlayer(client, message.guild.id, message.member);
+    if (command === "seek") {
+      const seconds = Number(args[0]);
+      const current = player.queue.current;
+      if (!Number.isInteger(seconds) || seconds < 0) throw new Error("Usage: .seek seconds");
+      if (!current || !current.info?.isSeekable || current.info?.isStream) throw new Error("This track cannot be seeked.");
+      const duration = Number(current.info.duration || current.info.length || 0);
+      if (duration && seconds * 1000 >= duration) throw new Error("Choose a position before the end of the track.");
+      await player.seek(seconds * 1000);
+      return send("⏩ Seeked to " + fmt(seconds * 1000) + ".");
+    }
+    if (command === "autoplay") {
+      const mode = (args[0] || "").toLowerCase();
+      if (!["on","off"].includes(mode)) throw new Error("Usage: .autoplay on|off");
+      if (mode === "on") autoplayGuilds.add(message.guild.id); else autoplayGuilds.delete(message.guild.id);
+      return send(mode === "on" ? "🔁 Autoplay enabled." : "⏹️ Autoplay disabled.");
+    }
+    if (command === "previous") {
+      const previous = await player.queue.shiftPrevious();
+      if (!previous) throw new Error("There isn't a previous track in history.");
+      await player.play({ clientTrack: previous });
+      return send("⏮️ Playing **" + clean(previous.info?.title, 160) + "**.");
+    }
     if (command === "pause") await player.pause();
     else if (command === "resume") await player.resume();
     else if (command === "skip") await player.skip();
