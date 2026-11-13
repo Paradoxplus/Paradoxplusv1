@@ -87,8 +87,30 @@ async function getPlayer(client, source) {
 }
 
 async function searchSoundCloud(player, query, requester) {
-  const found = await player.search({ query, source: "soundcloud" }, requester);
-  return found?.tracks || [];
+  try {
+    const found = await player.search({ query, source: "soundcloud" }, requester);
+    const exception = found?.exception;
+    console.log("[Music] SoundCloud search diagnostic:", JSON.stringify({
+      query: clean(query, 120),
+      loadType: found?.loadType ?? null,
+      trackCount: Array.isArray(found?.tracks) ? found.tracks.length : null,
+      exception: exception ? {
+        message: exception.message ?? null,
+        severity: exception.severity ?? null,
+        cause: exception.cause ?? null
+      } : null
+    }));
+    return Array.isArray(found?.tracks) ? found.tracks : [];
+  } catch (error) {
+    console.error("[Music] SoundCloud search threw:", JSON.stringify({
+      query: clean(query, 120),
+      name: error?.name ?? null,
+      message: error?.message ?? String(error),
+      status: error?.status ?? error?.statusCode ?? null,
+      cause: error?.cause?.message ?? error?.cause ?? null
+    }));
+    throw new Error("SoundCloud search failed: " + (error?.message || "Unknown Lavalink error"));
+  }
 }
 
 async function queueTrack(player, track) {
