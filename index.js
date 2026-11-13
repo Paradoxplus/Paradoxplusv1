@@ -1583,6 +1583,7 @@ client.on(Events.MessageCreate, async message => {
   if (!message.content.startsWith(prefix)) return;
   const args = message.content.slice(prefix.length).trim().split(/\s+/);
   const command = (args.shift() || "").toLowerCase();
+  if (!command) return;
   const send = (title, description) => message.reply({
     embeds: [prefixEmbed(title, description)],
     allowedMentions: { repliedUser: false, parse: [] }
@@ -1919,7 +1920,7 @@ client.on(Events.MessageCreate, async message => {
       };
       return applyRank(adapter, target, desired, action, reasonArgs.join(" ").slice(0,300) || null);
     }
-    return fail(`Unknown command .${command}. Use .rankhelp. (Slash commands still work.)`);
+    return; // Ignore unknown prefixed text; only registered commands receive replies.
   } catch (error) {
     console.error("Prefix command error:", error);
     return fail("Something went wrong. Check the bot logs.");
