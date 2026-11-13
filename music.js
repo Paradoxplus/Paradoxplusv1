@@ -83,6 +83,12 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
     const channel = client.channels.cache.get(player.textChannelId);
     if (channel?.isTextBased()) void channel.send("🎵 The queue has finished.").catch(() => {});
   });
+  const advanceAfterFailure = async player => {
+    // skip() requires a current track; after a failed load the current slot may be empty.
+    if (player.queue.current) return player.skip(0, false);
+    // With no current track, start the next queued item directly.
+    if (player.queue.tracks?.length) return player.play();
+  };
   const fallbackInProgress = new Set();
   const recoverTrack = async (player, track, payload, eventName) => {
     const guildId = player.guildId;
@@ -119,14 +125,14 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
           await player.queue.add(fallback, 0);
           console.log("[Music] Added SoundCloud playback fallback:", clean(fallback.info?.title, 120));
           if (channel?.isTextBased()) await channel.send("🔁 YouTube couldn't play that track. Added a SoundCloud alternative to the front of the queue.").catch(() => {});
-          // Advance explicitly because autoSkip is disabled during recovery.
-          await player.skip(0, false);
+          // Advance safely whether a current track still exists or not.
+          await advanceAfterFailure(player);
           return;
         }
       }
       if (channel?.isTextBased()) await channel.send("⚠️ That track failed" + (sourceName ? " on " + sourceName : "") + ". Skipping to the next queued track.").catch(() => {});
-      // Safely advance after non-YouTube failures too; no-op when queue is empty.
-      await player.skip(0, false);
+      // Advance safely; an empty current slot must never make recovery throw.
+      await advanceAfterFailure(player);
     } catch (error) {
       console.warn("[Music] Playback recovery failed:", error?.message || error);
       if (channel?.isTextBased()) await channel.send("⚠️ Playback failed and automatic fallback was unavailable. Moving on to the next track.").catch(() => {});
