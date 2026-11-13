@@ -33,4 +33,5 @@ lavalink:
 logging:
   level:
     root: INFO
-    lavalink: INFO
+    lavalink: DEBUG
+    com.sedmelluq.discord.lavaplayer.tools.ExceptionTools: DEBUG
