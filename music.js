@@ -2,8 +2,6 @@ import { getVoiceConnection } from "@discordjs/voice";
 import { LavalinkManager } from "lavalink-client";
 import { ActionRowBuilder, EmbedBuilder, StringSelectMenuBuilder } from "discord.js";
 
-let spotifyToken;
-let spotifyExpires = 0;
 const COLOR = 0x7c5cff;
 
 const clean = (v, n = 120) => String(v ?? "").replace(/[\r\n]/g, " ").slice(0, n);
@@ -12,42 +10,6 @@ const fmt = ms => {
   const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
   return h ? h + ":" + String(m).padStart(2,"0") + ":" + String(r).padStart(2,"0") : m + ":" + String(r).padStart(2,"0");
 };
-
-async function getSpotifyToken() {
-  const id = process.env.SPOTIFY_CLIENT_ID, secret = process.env.SPOTIFY_CLIENT_SECRET;
-  if (!id || !secret) throw new Error("Spotify search needs SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET in the bot's hosting variables.");
-  if (spotifyToken && Date.now() < spotifyExpires - 60000) return spotifyToken;
-  const auth = Buffer.from(id + ":" + secret).toString("base64");
-  const res = await fetch("https://accounts.spotify.com/api/token", {
-    method: "POST",
-    headers: { Authorization: "Basic " + auth, "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ grant_type: "client_credentials" })
-  });
-  if (!res.ok) throw new Error("Spotify authentication failed (" + res.status + "). Check the app credentials.");
-  const data = await res.json();
-  spotifyToken = data.access_token;
-  spotifyExpires = Date.now() + (Number(data.expires_in) || 3600) * 1000;
-  return spotifyToken;
-}
-
-async function spotifySearch(query) {
-  const token = await getSpotifyToken();
-  const url = new URL("https://api.spotify.com/v1/search");
-  url.searchParams.set("q", query);
-  url.searchParams.set("type", "track");
-  url.searchParams.set("limit", "5");
-  url.searchParams.set("market", "PK");
-  const res = await fetch(url, { headers: { Authorization: "Bearer " + token } });
-  if (!res.ok) throw new Error(res.status === 429 ? "Spotify search is rate-limited. Try again shortly." : "Spotify search failed (" + res.status + ").");
-  const data = await res.json();
-  return (data.tracks?.items || []).map(t => ({
-    title: t.name,
-    artists: t.artists.map(a => a.name).join(", "),
-    duration: t.duration_ms || 0,
-    artwork: t.album?.images?.[0]?.url || null,
-    url: t.external_urls?.spotify || null
-  }));
-}
 
 export function setupMusic(client, onPlayerDestroy = () => {}) {
   const rawHost = process.env.LAVALINK_HOST || "";
@@ -90,7 +52,7 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
     const embed = new EmbedBuilder().setColor(COLOR).setAuthor({ name: "PARADOXPLUS • NOW PLAYING" })
       .setTitle(clean(info.title, 240))
       .setDescription("**Artist:** " + clean(info.author, 160) + "\n**Duration:** " + fmt(info.duration))
-      .setFooter({ text: "Spotify discovery • SoundCloud playback" }).setTimestamp();
+      .setFooter({ text: "SoundCloud search & playback" }).setTimestamp();
     if (info.artworkUrl) embed.setThumbnail(info.artworkUrl);
     void channel.send({ embeds: [embed] }).catch(() => {});
   });
@@ -105,20 +67,6 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
   });
   manager.on("playerDestroy", () => setTimeout(() => { void Promise.resolve(onPlayerDestroy()).catch(() => {}); }, 1500));
   return manager;
-}
-
-function bestMatch(tracks, chosen) {
-  const norm = s => String(s || "").toLowerCase().replace(/\(.*?\)|\[.*?\]/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
-  const wanted = norm(chosen.title), artistWords = norm(chosen.artists).split(" ").filter(w => w.length > 2);
-  const score = track => {
-    const title = norm(track.info?.title), author = norm(track.info?.author);
-    let points = title === wanted ? 10 : (title.includes(wanted) || wanted.includes(title) ? 5 : 0);
-    for (const word of artistWords) if ((title + " " + author).includes(word)) points++;
-    const diff = Math.abs((track.info?.duration || 0) - chosen.duration);
-    if (diff < 8000) points += 3; else if (diff < 25000) points++;
-    return points;
-  };
-  return [...tracks].sort((a,b) => score(b) - score(a))[0] || null;
 }
 
 async function getPlayer(client, source) {
@@ -138,15 +86,15 @@ async function getPlayer(client, source) {
   return player;
 }
 
-async function addSpotifyTrack(client, source, chosen) {
-  const player = await getPlayer(client, source);
-  const found = await player.search({ query: chosen.title + " " + chosen.artists, source: "soundcloud" }, source.user || source.author);
-  if (!found?.tracks?.length) throw new Error("Found it on Spotify, but no playable SoundCloud match was found.");
-  const track = bestMatch(found.tracks, chosen);
-  if (!track) throw new Error("No playable SoundCloud match was found.");
+async function searchSoundCloud(player, query, requester) {
+  const found = await player.search({ query, source: "soundcloud" }, requester);
+  return found?.tracks || [];
+}
+
+async function queueTrack(player, track) {
   await player.queue.add(track);
   if (!player.playing) await player.play();
-  return { player, track };
+  return track;
 }
 
 function queueText(player) {
@@ -193,17 +141,18 @@ export async function handleMusicInteraction(interaction, client) {
       if (!guildMember.voice?.channel) throw new Error("Join a voice channel first.");
       const musicSource = { guild: interaction.guild, member: guildMember, channel: interaction.channel, user: interaction.user };
       await interaction.deferReply({ ephemeral: true });
-      const results = await spotifySearch(interaction.options.getString("query", true).trim());
-      if (!results.length) throw new Error("Spotify didn't find any matching tracks.");
+      const player = await getPlayer(client, musicSource);
+      const results = await searchSoundCloud(player, interaction.options.getString("query", true).trim(), interaction.user);
+      if (!results.length) throw new Error("SoundCloud didn't find any playable tracks.");
       const menu = new StringSelectMenuBuilder().setCustomId("paradoxplus_music_choice").setPlaceholder("Choose a song")
         .addOptions(results.map((t,i) => ({
-          label: clean(t.title, 95),
-          description: clean(t.artists + " • " + fmt(t.duration), 95),
+          label: clean(t.info?.title || "Unknown title", 95),
+          description: clean((t.info?.author || "Unknown artist") + " • " + fmt(t.info?.duration || 0), 95),
           value: String(i)
         })));
-      const embed = new EmbedBuilder().setColor(COLOR).setTitle("🎵 Spotify search results")
-        .setDescription(results.map((t,i) => "**" + (i+1) + ". " + clean(t.title, 120) + "**\n" + clean(t.artists, 140)).join("\n\n"))
-        .setFooter({ text: "Select a result • Playback matched through SoundCloud" });
+      const embed = new EmbedBuilder().setColor(COLOR).setTitle("🎵 SoundCloud search results")
+        .setDescription(results.slice(0, 25).map((t,i) => "**" + (i+1) + ". " + clean(t.info?.title, 120) + "**\n" + clean(t.info?.author, 140)).join("\n\n"))
+        .setFooter({ text: "Select a result • SoundCloud playback" });
       const reply = await interaction.editReply({ embeds: [embed], components: [new ActionRowBuilder().addComponents(menu)] });
       try {
         const selected = await reply.awaitMessageComponent({
@@ -213,10 +162,11 @@ export async function handleMusicInteraction(interaction, client) {
         await selected.deferUpdate();
         const chosen = results[Number(selected.values[0])];
         if (!chosen) throw new Error("That selection expired. Run /play again.");
-        const queued = await addSpotifyTrack(client, musicSource, chosen);
+        await queueTrack(player, chosen);
+        const queued = { track: chosen };
         const resultEmbed = new EmbedBuilder().setColor(COLOR).setTitle("🎵 Added to queue")
           .setDescription("**" + clean(queued.track.info?.title, 200) + "**\n" + clean(queued.track.info?.author, 160))
-          .setFooter({ text: "Spotify discovery • SoundCloud playback" });
+          .setFooter({ text: "SoundCloud search & playback" });
         await interaction.editReply({ embeds: [resultEmbed], components: [] });
       } catch (error) {
         if (error?.code === "InteractionCollectorError" || /time/i.test(error?.message || "")) {
@@ -273,10 +223,12 @@ export async function handleMusicPrefix(message, command, args, client) {
       const query = args.join(" ").trim();
       if (!query) throw new Error("Usage: .play song name");
       if (!message.member.voice?.channel) throw new Error("Join a voice channel first.");
-      const status = await message.reply("🔎 Searching Spotify…");
-      const results = await spotifySearch(query);
-      if (!results.length) throw new Error("Spotify didn't find any matching tracks.");
-      const queued = await addSpotifyTrack(client, message, results[0]);
+      const status = await message.reply("🔎 Searching SoundCloud…");
+      const player = await getPlayer(client, message);
+      const results = await searchSoundCloud(player, query, message.author);
+      if (!results.length) throw new Error("SoundCloud didn't find any playable tracks.");
+      await queueTrack(player, results[0]);
+      const queued = { track: results[0] };
       await status.edit("🎵 Added **" + clean(queued.track.info?.title, 160) + "** to the queue.");
       return true;
     }
