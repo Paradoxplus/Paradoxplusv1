@@ -2,11 +2,27 @@ server:
   port: ${SERVER_PORT:2333}
   address: 0.0.0.0
 
+plugins:
+  youtube:
+    enabled: true
+    allowSearch: true
+    allowDirectVideoIds: true
+    allowDirectPlaylistIds: true
+    clients:
+      - MUSIC
+      - ANDROID_VR
+      - WEB
+      - WEBEMBEDDED
+
 lavalink:
+  plugins:
+    - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.2"
+      snapshot: false
   server:
     password: ${LAVALINK_SERVER_PASSWORD}
     sources:
-      soundcloud: false # Replaced by Paradoxplus AAC/fMP4 HLS source plugin.
+      youtube: false # Use the maintained youtube-source plugin.
+      soundcloud: false # Replaced by Paradoxplus SoundCloud source plugin.
       bandcamp: false
       twitch: false
       vimeo: false
