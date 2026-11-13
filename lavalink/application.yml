@@ -16,8 +16,9 @@ plugins:
       - WEB
       - WEBEMBEDDED
       - MUSIC
+      - TV
     oauth:
-      enabled: false
+      enabled: true
 
 lavalink:
   plugins:
