@@ -9,8 +9,11 @@ plugins:
     allowDirectVideoIds: true
     allowDirectPlaylistIds: true
     clients:
-      - WEB
+      - MWEB
+      - ANDROID_MUSIC
+      - TVHTML5_SIMPLY
       - ANDROID_VR
+      - WEB
       - WEBEMBEDDED
       - MUSIC
     oauth:
