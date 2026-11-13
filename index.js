@@ -1634,6 +1634,7 @@ client.on(Events.MessageCreate, async message => {
     }
     if (command === "rankhelp" || command === "help") return send("✦ PARADOXPLUS COMMAND CENTER", [
       "**MEMBER:** `.rank [@member]`, `.rankpanel`, `.rankhistory @member`, `.ranksearch name`, `.rankstats`, `.rankleaderboard`",
+      "**MUSIC:** `.play song`, `.pause`, `.resume`, `.skip`, `.stop`, `.queue`, `.nowplaying`, `.volume 1-100`, `.loop off|track|queue`, `.shuffle`, `.remove position`, `.clear`",
       "**RANK STAFF:** `.promote @member [reason]`, `.demote @member [reason]`, `.setrank @member @rank [reason]`",
       "**STRIKES:** `.strike @member reason`, `.strikes [@member]`, `.remove-strike @member amount reason`",
       "**MODERATION (slash):** `/kick`, `/ban`, `/softban`, `/timeout`, `/untimeout`, `/warn`, `/warnings`, `/unwarn`, `/clear-warnings`, `/strike`, `/strikes`, `/remove-strike`, `/modlog`, `/case`, `/case-reason`, `/note`, `/notes`, `/clear-notes`, `/banlist`",
