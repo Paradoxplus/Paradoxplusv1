@@ -13,6 +13,7 @@ lavalink:
       nico: false
       http: false
       local: false
+    soundcloudSearchEnabled: true
     filters:
       volume: true
       equalizer: true
