@@ -536,7 +536,7 @@ client.on(Events.InteractionCreate, async interaction => {
         .setAuthor({ name: "PARADOXPLUS • RECRUITMENT", iconURL: interaction.client.user.displayAvatarURL() })
         .setTitle("✦ NEW RECRUIT")
         .setDescription("**Recruit:** " + target.user.username + "\n**Recruited by:** " + interaction.user.username + "\n**Recruit no:** **#" + config.recruitCount + "**")
-        .setImage("https://media1.tenor.com/m/15diBrpA-FIAAAAd/neon-paradox-techno.gif")
+        .setImage("https://media.tenor.com/15diBrpA-FIAAAAd/neon-paradox-techno.gif")
         .setFooter({ text: interaction.guild.name + " • Paradoxplus Recruitment" })
         .setTimestamp();
       return interaction.reply({
@@ -1553,7 +1553,7 @@ client.on(Events.MessageCreate, async message => {
         .setAuthor({ name: "PARADOXPLUS • RECRUITMENT", iconURL: client.user.displayAvatarURL() })
         .setTitle("✦ NEW RECRUIT")
         .setDescription("**Recruit:** " + target.user.username + "\n**Recruited by:** " + message.author.username + "\n**Recruit no:** **#" + config.recruitCount + "**")
-        .setImage("https://media1.tenor.com/m/15diBrpA-FIAAAAd/neon-paradox-techno.gif")
+        .setImage("https://media.tenor.com/15diBrpA-FIAAAAd/neon-paradox-techno.gif")
         .setFooter({ text: message.guild.name + " • Paradoxplus Recruitment" })
         .setTimestamp();
       return message.reply({
