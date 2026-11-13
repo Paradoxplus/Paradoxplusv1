@@ -196,8 +196,7 @@ const commands = [
       .setDescription("Disable rank-up announcements."))
 
     .addSubcommand(s => s.setName("backup")
-      .setDescription("Download a backup of this server's rank configuration."))
-
+      .setDescription("Download a backup of this server's rank configuration.")),
 
   new SlashCommandBuilder()
     .setName("rank-history")
