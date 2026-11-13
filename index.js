@@ -120,6 +120,29 @@ function rankLabel(rank, index, total) {
   return `${index + 1}. <@&${rank.id}>`;
 }
 
+async function syncRankRoles(guild) {
+  const config = getGuildConfig(guild.id);
+  const [roles, botMember] = await Promise.all([
+    guild.roles.fetch(),
+    guild.members.fetchMe()
+  ]);
+  const ignored = new Set(config.ignoredRoleIds);
+  const eligible = [...roles.values()]
+    .filter(role =>
+      role.id !== guild.id &&
+      !role.managed &&
+      !ignored.has(role.id) &&
+      role.position < botMember.roles.highest.position
+    )
+    .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
+  config.ranks = eligible.map((role, index) => ({
+    id: role.id,
+    position: index + 1
+  }));
+  await saveDatabase();
+  console.log(`[Paradoxplus] Auto-synced ${eligible.length} assignable roles for ${guild.name}.`);
+}
+
 function getHighestConfiguredRank(member, ranks) {
   for (let i = ranks.length - 1; i >= 0; i--) {
     if (member.roles.cache.has(ranks[i].id)) return ranks[i];
@@ -377,6 +400,16 @@ client.on(Events.MessageCreate, async message => {
     .catch(error => console.error("Custom autoresponder failed:", error));
 });
 
+client.on(Events.GuildRoleCreate, role => {
+  if (role.guild.id === "1568943817762017400") void syncRankRoles(role.guild).catch(error => console.error("Role-create auto-sync failed:", error));
+});
+client.on(Events.GuildRoleUpdate, (oldRole, newRole) => {
+  if (newRole.guild.id === "1568943817762017400") void syncRankRoles(newRole.guild).catch(error => console.error("Role-update auto-sync failed:", error));
+});
+client.on(Events.GuildRoleDelete, role => {
+  if (role.guild.id === "1568943817762017400") void syncRankRoles(role.guild).catch(error => console.error("Role-delete auto-sync failed:", error));
+});
+
 client.on(Events.GuildMemberAdd, member => {
   const config=getGuildConfig(member.guild.id); pulseDay(config).joins++; trimPulse(config);
   void saveDatabase().catch(error=>console.error("Pulse join save failed:",error));
@@ -441,7 +474,9 @@ async function connectOwnerVoice(readyClient) {
   }
 }
 
-client.once(Events.ClientReady, readyClient => {
+client.once(Events.ClientReady, async readyClient => {
+  const rankGuild = await readyClient.guilds.fetch("1568943817762017400").catch(() => null);
+  if (rankGuild) await syncRankRoles(rankGuild).catch(error => console.error("Initial rank-role auto-sync failed:", error));
   console.log(`Online as ${readyClient.user.tag}`);
   console.log(`Serving ${readyClient.guilds.cache.size} server(s).`);
   void connectOwnerVoice(readyClient);
@@ -561,69 +596,6 @@ client.on(Events.InteractionCreate, async interaction => {
         });
       }
 
-      if (sub === "autodetect") {
-        const confirm = interaction.options.getBoolean("confirm", true);
-        const [allRoles, botMember] = await Promise.all([
-          interaction.guild.roles.fetch(),
-          interaction.guild.members.fetchMe()
-        ]);
-        const configuredIds = new Set(config.ranks.map(rank => rank.id));
-        const ignoredIds = new Set(config.ignoredRoleIds);
-        const blockedByHierarchy = allRoles.filter(role =>
-          role.id !== interaction.guildId &&
-          !role.managed &&
-          !configuredIds.has(role.id) &&
-          role.position >= botMember.roles.highest.position
-        );
-        const managedRoles = allRoles.filter(role =>
-          role.id !== interaction.guildId &&
-          role.managed &&
-          !configuredIds.has(role.id)
-        );
-        const candidates = allRoles
-          .filter(role =>
-            role.id !== interaction.guildId &&
-            !role.managed &&
-            !configuredIds.has(role.id) &&
-            !ignoredIds.has(role.id) &&
-            role.position < botMember.roles.highest.position
-          )
-          .sort((a, b) => a.position - b.position);
-
-        if (!candidates.size) {
-          return interaction.reply({
-            content: "I couldn't find any new eligible roles below the bot's highest role. @everyone, managed integration roles, already-configured ranks, and roles on your ignore list are skipped.",
-            ephemeral: true
-          });
-        }
-
-        if (!confirm) {
-          const preview = candidates.map((role, index) => `${index + 1}. **${role.name}**`).slice(0, 35);
-          const remaining = candidates.size - preview.length;
-          return interaction.reply({
-            content: `**Rank-role detection preview**\nFound **${candidates.size}** possible rank roles, ordered from lowest to highest by Discord role position.\n\n${preview.join("\n")}${remaining > 0 ? `\n…and ${remaining} more.` : ""}\n\nNothing has been changed. Run \`/rank-config autodetect confirm:true\` to import these roles. Review the list first. Full scan: **${allRoles.size}** roles; blocked by bot hierarchy: **${blockedByHierarchy.size}**; managed roles: **${managedRoles.size}**; ignored by you: **${config.ignoredRoleIds.length}**.`,
-            ephemeral: true,
-            allowedMentions: { parse: [] }
-          });
-        }
-
-        const startPosition = config.ranks.reduce((max, rank) => Math.max(max, Number(rank.position) || 0), 0);
-        const imported = candidates.map((role, index) => ({
-          id: role.id,
-          position: startPosition + index + 1
-        }));
-        config.ranks.push(...imported);
-        config.ranks.sort((a, b) => a.position - b.position);
-        await saveDatabase();
-
-        const names = candidates.map(role => role.name).slice(0, 25);
-        const remaining = candidates.size - names.length;
-        return interaction.reply({
-          content: `✅ Imported **${candidates.size}** detected rank roles into the existing hierarchy. Existing configured ranks were kept. New roles were added above them, ordered by Discord role position.\n\n${names.map((name, index) => `${index + 1}. **${name}**`).join("\n")}${remaining > 0 ? `\n…and ${remaining} more.` : ""}\n\nUse \`/rank-config list\` to review the full hierarchy.`,
-          ephemeral: true,
-          allowedMentions: { parse: [] }
-        });
-      }
     }
 
     if (interaction.commandName === "rank-history") {
@@ -708,8 +680,8 @@ client.on(Events.InteractionCreate, async interaction => {
           "`/modlog`, `/case`, `/case-reason`, `/note`, `/notes`, `/clear-notes`, `/banlist` — staff records",
           "`/purge-user`, `/purge-bots`, `/purge-links`, `/purge-invites`, `/purge-attachments`, `/purge-embeds`, `/purge-mentions`, `/purge-stickers`, `/purge-contains`, `/clear-reactions` — cleanup",
           "`/hide`, `/show`, `/slowmode-off`, `/set-topic`, `/nick-reset`, `/voice-deafen`, `/voice-undeafen`, `/move-member` — channel and voice tools",
-          "`/rank-config` — configure ranks, logs, announcements and detection",
-          "Progression is manual. The bot never promotes members automatically."
+          "`/rank-config` — configure ranks, logs and announcements",
+          "Rank roles are detected and synced automatically from the server role order."
         ].join("\n"),
         ephemeral: true
       });
