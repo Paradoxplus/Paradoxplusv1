@@ -683,7 +683,8 @@ client.on(Events.InteractionCreate, async interaction => {
         const reviewChannel = await interaction.guild.channels.fetch("1570589159289126962").catch(() => null);
         if (!reviewChannel?.isTextBased()) return interaction.editReply("⚠️ Strike removal recorded, but I couldn't access the staff review channel.");
         await reviewChannel.send({ embeds: [embed], allowedMentions: { parse: [], users: [] } });
-        return interaction.editReply("✅ Removed " + amount + " strike(s). Remaining active strikes: **" + result.total + "**. Logged in the staff review channel.");
+        const remaining = config.strikes.filter(item => item.memberId === target.id).length;
+        return interaction.editReply("✅ Removed " + amount + " strike(s). Remaining active strikes: **" + remaining + "**. Logged in the staff review channel.");
       });
       if (result.error) return interaction.editReply("⚠️ " + result.error);
       return;
