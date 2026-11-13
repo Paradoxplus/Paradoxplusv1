@@ -19,9 +19,9 @@ plugins:
 
 lavalink:
   plugins:
-    - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.2"
-      repository: "https://maven.lavalink.dev/releases"
-      snapshot: false
+    - dependency: "dev.lavalink.youtube:youtube-plugin:2be8e542d3f6f178e048dca565892684c2e40177-SNAPSHOT"
+      repository: "https://maven.lavalink.dev/snapshots"
+      snapshot: true
   server:
     password: ${LAVALINK_SERVER_PASSWORD}
     sources:
