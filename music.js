@@ -60,10 +60,59 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
     const channel = client.channels.cache.get(player.textChannelId);
     if (channel?.isTextBased()) void channel.send("🎵 The queue has finished.").catch(() => {});
   });
-  manager.on("trackError", (player, track, payload) => {
-    console.warn("[Music] Track error:", payload?.exception?.message || payload?.error || "Unknown");
+  const fallbackInProgress = new Set();
+  const recoverTrack = async (player, track, payload, eventName) => {
+    const guildId = player.guildId;
+    if (fallbackInProgress.has(guildId)) return;
+    fallbackInProgress.add(guildId);
+    const info = track?.info || player.queue.current?.info || {};
+    const sourceName = String(info.sourceName || "").toLowerCase();
+    const reason = payload?.exception?.message || payload?.exception?.cause || payload?.error || eventName;
+    console.warn("[Music] " + eventName + ":", JSON.stringify({
+      title: clean(info.title, 120),
+      source: sourceName || "unknown",
+      reason: clean(reason, 300)
+    }));
     const channel = client.channels.cache.get(player.textChannelId);
-    if (channel?.isTextBased()) void channel.send("⚠️ That track couldn't play. Try another result.").catch(() => {});
+    try {
+      if (sourceName === "youtube" && info.title) {
+        const query = [info.title, info.author].filter(Boolean).join(" ");
+        const result = await player.search({ query, source: "soundcloud" }, track?.requester);
+        const alternatives = Array.isArray(result?.tracks) ? result.tracks : [];
+        const duration = Number(info.duration || info.length || 0);
+        const fallback = alternatives.find(candidate => {
+          const candidateInfo = candidate?.info || {};
+          if (String(candidateInfo.sourceName || "").toLowerCase() !== "soundcloud") return false;
+          const candidateDuration = Number(candidateInfo.duration || candidateInfo.length || 0);
+          return !duration || !candidateDuration || Math.abs(candidateDuration - duration) <= Math.max(30000, duration * 0.2);
+        });
+        if (fallback) {
+          await player.queue.add(fallback, 0);
+          console.log("[Music] Added SoundCloud playback fallback:", clean(fallback.info?.title, 120));
+          if (channel?.isTextBased()) {
+            await channel.send("🔁 YouTube couldn't play that track. Added a SoundCloud alternative to the front of the queue.").catch(() => {});
+          }
+          // autoSkip advances the failed track; if the queue had already gone idle,
+          // explicitly start the newly added fallback.
+          if (!player.playing && !player.paused) await player.play();
+          return;
+        }
+      }
+      if (channel?.isTextBased()) {
+        await channel.send("⚠️ That track failed" + (sourceName ? " on " + sourceName : "") + ". Skipping to the next queued track.").catch(() => {});
+      }
+    } catch (error) {
+      console.warn("[Music] Playback recovery failed:", error?.message || error);
+      if (channel?.isTextBased()) await channel.send("⚠️ Playback failed and automatic fallback was unavailable. Moving on to the next track.").catch(() => {});
+    } finally {
+      fallbackInProgress.delete(guildId);
+    }
+  };
+  manager.on("trackError", (player, track, payload) => {
+    void recoverTrack(player, track, payload, "Track error");
+  });
+  manager.on("trackStuck", (player, track, payload) => {
+    void recoverTrack(player, track, payload, "Track stuck");
   });
   manager.on("playerDestroy", () => setTimeout(() => { void Promise.resolve(onPlayerDestroy()).catch(() => {}); }, 1500));
   return manager;
