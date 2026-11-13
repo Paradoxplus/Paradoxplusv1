@@ -102,12 +102,18 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
         const result = await player.search({ query, source: "soundcloud" }, track?.requester);
         const alternatives = Array.isArray(result?.tracks) ? result.tracks : [];
         const duration = Number(info.duration || info.length || 0);
-        const fallback = alternatives.find(candidate => {
-          const candidateInfo = candidate?.info || {};
-          if (String(candidateInfo.sourceName || "").toLowerCase() !== "soundcloud") return false;
-          const candidateDuration = Number(candidateInfo.duration || candidateInfo.length || 0);
+        const durationMatch = alternatives.find(candidate => {
+          const candidateDuration = Number(candidate?.info?.duration || candidate?.info?.length || 0);
           return !duration || !candidateDuration || Math.abs(candidateDuration - duration) <= Math.max(30000, duration * 0.2);
         });
+        // The search was explicitly sent to SoundCloud, so do not reject a valid
+        // result just because a plugin omits or labels sourceName differently.
+        const fallback = durationMatch || alternatives[0];
+        console.log("[Music] SoundCloud fallback search:", JSON.stringify({
+          resultCount: alternatives.length,
+          durationMatch: Boolean(durationMatch),
+          selected: clean(fallback?.info?.title, 120)
+        }));
         if (fallback) {
           await player.queue.add(fallback, 0);
           console.log("[Music] Added SoundCloud playback fallback:", clean(fallback.info?.title, 120));
