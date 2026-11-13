@@ -646,7 +646,12 @@ client.on(Events.InteractionCreate, async interaction => {
       const bot = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
       if (target.roles.highest.comparePositionTo(bot.roles.highest) >= 0) return replyError(interaction, "My highest role must be above the target member highest role.");
       await interaction.deferReply();
-      return issueStrike(interaction.guild, config, target, interaction.user, reason, embed => interaction.editReply({ embeds: [embed], allowedMentions: { parse: [], users: [] } }));
+      return issueStrike(interaction.guild, config, target, interaction.user, reason, async embed => {
+        const reviewChannel = await interaction.guild.channels.fetch("1570589159289126962").catch(() => null);
+        if (!reviewChannel?.isTextBased()) return interaction.editReply("⚠️ Strike recorded, but I couldn't access the staff review channel.");
+        await reviewChannel.send({ embeds: [embed], allowedMentions: { parse: [], users: [] } });
+        return interaction.editReply("✅ Strike recorded and sent to the staff review channel.");
+      });
     }
     if (["warn","warnings","clear-warnings","lock","unlock","slowmode","nickname","role-add","role-remove","userinfo","serverinfo","modstats","unban","voice-mute","voice-unmute","disconnect"].includes(interaction.commandName)) {
       const cmd=interaction.commandName;
@@ -1118,7 +1123,12 @@ client.on(Events.MessageCreate, async message => {
       if (target.roles.highest.comparePositionTo(bot.roles.highest) >= 0) return fail("My highest role must be above the target member highest role.");
       const reason = args.slice(1).join(" ").trim().slice(0, 800);
       if (!reason) return fail("Usage: .strike @member reason");
-      return issueStrike(message.guild, config, target, message.author, reason, embed => message.reply({ embeds: [embed], allowedMentions: { parse: [], repliedUser: false } }));
+      return issueStrike(message.guild, config, target, message.author, reason, async embed => {
+        const reviewChannel = await message.guild.channels.fetch("1570589159289126962").catch(() => null);
+        if (!reviewChannel?.isTextBased()) return message.reply("⚠️ Strike recorded, but I couldn't access the staff review channel.");
+        await reviewChannel.send({ embeds: [embed], allowedMentions: { parse: [], users: [] } });
+        return message.reply("✅ Strike recorded and sent to the staff review channel.");
+      });
     }
     if (["kick","ban","timeout","untimeout","purge"].includes(command)) {
       const perm={kick:PermissionFlagsBits.KickMembers,ban:PermissionFlagsBits.BanMembers,timeout:PermissionFlagsBits.ModerateMembers,untimeout:PermissionFlagsBits.ModerateMembers,purge:PermissionFlagsBits.ManageMessages}[command];
