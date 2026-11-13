@@ -90,6 +90,8 @@ function getGuildConfig(guildId) {
   if (!Array.isArray(config.strikes)) config.strikes = [];
   if (!Array.isArray(config.strikeHistory)) config.strikeHistory = [];
   if (!Array.isArray(config.moderationCases)) config.moderationCases = [];
+  if (!Array.isArray(config.notes)) config.notes = [];
+  if (!Array.isArray(config.warningHistory)) config.warningHistory = [];
   if (!config.pulse || typeof config.pulse !== "object") config.pulse = { days: {} };
   if (!config.pulse.days || typeof config.pulse.days !== "object") config.pulse.days = {};
   if (!Array.isArray(config.ignoredRoleIds)) config.ignoredRoleIds = [];
@@ -879,6 +881,207 @@ client.on(Events.InteractionCreate, async interaction => {
         const counts={}; for(const c of config.moderationCases)counts[c.action]=(counts[c.action]||0)+1;
         const summary=Object.entries(counts).map(([k,v])=>`• **${k}**: ${v}`).join("\n")||"No moderation cases yet.";
         return interaction.reply({content:`**Paradoxplus moderation statistics**\nTotal cases: **${config.moderationCases.length}**\nWarnings recorded: **${config.warnings.length}**\n\n${summary}`,ephemeral:true});
+      }
+    }
+
+
+    const extraModCommands = ["modlog","case","case-reason","note","notes","clear-notes","softban","purge-user","purge-bots","purge-links","purge-invites","purge-attachments","purge-embeds","purge-mentions","purge-stickers","purge-contains","hide","show","voice-deafen","voice-undeafen","move-member","nick-reset","banlist","slowmode-off","unwarn","clear-reactions","set-topic"];
+    if (extraModCommands.includes(interaction.commandName)) {
+      const cmd = interaction.commandName;
+      const admin = isBotOwner(interaction.user.id) || interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
+      const has = permission => admin || interaction.memberPermissions?.has(permission);
+      if (!Array.isArray(config.notes)) config.notes = [];
+      const record = (action, targetId, reason) => {
+        const nextId = config.moderationCases.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
+        const item = { id: nextId, action, targetId: targetId || null, moderatorId: interaction.user.id, reason: reason || null, timestamp: new Date().toISOString() };
+        config.moderationCases.unshift(item);
+        config.moderationCases = config.moderationCases.slice(0, 500);
+        return item;
+      };
+      const requireMember = async user => {
+        const target = await interaction.guild.members.fetch(user.id).catch(() => null);
+        if (!target) return { error: "That member isn't in this server." };
+        const actor = await interaction.guild.members.fetch(interaction.user.id);
+        if (target.id === interaction.user.id || target.id === client.user.id) return { error: "You can't use this action on yourself or the bot." };
+        if (!canActOnTarget(actor, target, interaction.guild)) return { error: "That member has an equal or higher role than you." };
+        const bot = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
+        if (target.roles.highest.comparePositionTo(bot.roles.highest) >= 0) return { error: "My highest role must be above the target member's highest role." };
+        return { target };
+      };
+      if (["modlog","case","case-reason"].includes(cmd) && !has(PermissionFlagsBits.ModerateMembers)) return replyError(interaction, "You need Moderate Members or Administrator.");
+      if (cmd === "modlog") {
+        const user = interaction.options.getUser("member");
+        const rows = config.moderationCases.filter(item => !user || item.targetId === user.id).slice(0, 15);
+        const lines = rows.map(item => "• **#" + item.id + " " + item.action + "** — " + (item.reason || "No reason") + " — <t:" + Math.floor(new Date(item.timestamp).getTime()/1000) + ":R> — by <@" + item.moderatorId + ">");
+        return interaction.reply({ content: "**Moderation log" + (user ? " — " + user.tag : "") + "**\n" + (lines.join("\n") || "No cases found."), ephemeral: true, allowedMentions: { parse: [] } });
+      }
+      if (cmd === "case" || cmd === "case-reason") {
+        const id = interaction.options.getInteger("case_id", true);
+        const item = config.moderationCases.find(row => Number(row.id) === id);
+        if (!item) return replyError(interaction, "I couldn't find that moderation case.");
+        if (cmd === "case") return interaction.reply({ content: "**Case #" + item.id + " — " + item.action + "**\nMember: " + (item.targetId ? "<@" + item.targetId + ">" : "Not specified") + "\nModerator: <@" + item.moderatorId + ">\nReason: " + (item.reason || "No reason recorded") + "\nDate: <t:" + Math.floor(new Date(item.timestamp).getTime()/1000) + ":F>", ephemeral: true, allowedMentions: { parse: [] } });
+        item.reason = interaction.options.getString("reason", true).trim();
+        item.reasonUpdatedAt = new Date().toISOString();
+        item.reasonUpdatedBy = interaction.user.id;
+        await saveDatabase();
+        return interaction.reply({ content: "✅ Updated the reason for case #" + id + ".", ephemeral: true });
+      }
+      if (cmd === "note" || cmd === "notes" || cmd === "clear-notes") {
+        if (!has(PermissionFlagsBits.ModerateMembers)) return replyError(interaction, "You need Moderate Members or Administrator.");
+        const user = interaction.options.getUser("member", true);
+        if (cmd === "note") {
+          const note = interaction.options.getString("note", true).trim();
+          config.notes.unshift({ id: config.notes.reduce((m,n)=>Math.max(m,Number(n.id)||0),0)+1, memberId: user.id, moderatorId: interaction.user.id, note, timestamp: new Date().toISOString() });
+          config.notes = config.notes.slice(0, 1000);
+          record("STAFF_NOTE", user.id, note.slice(0, 400));
+          await saveDatabase();
+          return interaction.reply({ content: "📝 Private staff note added for **" + user.tag + "**.", ephemeral: true });
+        }
+        const rows = config.notes.filter(item => item.memberId === user.id);
+        if (cmd === "notes") {
+          const lines = rows.slice(0, 12).map(item => "• **#" + item.id + "** " + item.note + " — by <@" + item.moderatorId + "> <t:" + Math.floor(new Date(item.timestamp).getTime()/1000) + ":R>");
+          return interaction.reply({ content: "**Private staff notes — " + user.tag + "**\n" + (lines.join("\n") || "No staff notes found."), ephemeral: true, allowedMentions: { parse: [] } });
+        }
+        if (!rows.length) return replyError(interaction, "That member has no staff notes.");
+        config.notes = config.notes.filter(item => item.memberId !== user.id);
+        record("CLEAR_NOTES", user.id, "Cleared " + rows.length + " staff notes");
+        await saveDatabase();
+        return interaction.reply({ content: "🗑️ Cleared " + rows.length + " staff notes for **" + user.tag + "**.", ephemeral: true });
+      }
+      if (cmd === "softban") {
+        if (!has(PermissionFlagsBits.BanMembers)) return replyError(interaction, "You need Ban Members or Administrator.");
+        const user = interaction.options.getUser("member", true);
+        const checked = await requireMember(user);
+        if (checked.error) return replyError(interaction, checked.error);
+        if (!checked.target.bannable) return replyError(interaction, "I can't ban that member. Check my role position and Ban Members permission.");
+        const reason = interaction.options.getString("reason") || "Softban by " + interaction.user.tag;
+        await interaction.deferReply({ ephemeral: true });
+        await checked.target.ban({ deleteMessageSeconds: 86400, reason: reason.slice(0, 480) });
+        await interaction.guild.bans.remove(user.id, "Softban completed by " + interaction.user.tag);
+        record("SOFTBAN", user.id, reason);
+        await saveDatabase();
+        return interaction.editReply("✅ Softbanned **" + user.tag + "**. Recent message history was deleted and the ban was immediately lifted.");
+      }
+      const purgeRules = {
+        "purge-user": message => message.author.id === interaction.options.getUser("member", true).id,
+        "purge-bots": message => message.author.bot,
+        "purge-links": message => /https?:\/\/|www\./i.test(message.content),
+        "purge-invites": message => /discord(?:app)?\.com\/invite\/|discord\.gg\//i.test(message.content),
+        "purge-attachments": message => message.attachments.size > 0,
+        "purge-embeds": message => message.embeds.length > 0,
+        "purge-mentions": message => message.mentions.users.size > 0 || message.mentions.roles.size > 0,
+        "purge-stickers": message => message.stickers.size > 0,
+        "purge-contains": message => message.content.toLowerCase().includes(interaction.options.getString("text", true).toLowerCase())
+      };
+      if (Object.prototype.hasOwnProperty.call(purgeRules, cmd)) {
+        if (!has(PermissionFlagsBits.ManageMessages)) return replyError(interaction, "You need Manage Messages or Administrator.");
+        const amount = interaction.options.getInteger("amount", true);
+        const channel = interaction.channel;
+        if (!channel?.messages?.fetch || !channel.bulkDelete) return replyError(interaction, "This channel doesn't support message cleanup.");
+        await interaction.deferReply({ ephemeral: true });
+        const recent = await channel.messages.fetch({ limit: 100 });
+        const selected = recent.filter(message => !message.pinned && purgeRules[cmd](message)).first(amount);
+        if (!selected.length) return interaction.editReply("No matching recent messages were found.");
+        const deleted = await channel.bulkDelete(selected, true);
+        record(cmd.toUpperCase().replace(/-/g,"_"), null, "Deleted " + deleted.size + " messages in #" + channel.name);
+        await saveDatabase();
+        return interaction.editReply("🧹 Deleted **" + deleted.size + "** matching messages. Only the latest 100 messages were checked; messages older than 14 days can't be bulk-deleted.");
+      }
+      if (cmd === "hide" || cmd === "show") {
+        if (!has(PermissionFlagsBits.ManageChannels)) return replyError(interaction, "You need Manage Channels or Administrator.");
+        const channel = interaction.options.getChannel("channel") || interaction.channel;
+        if (!channel?.permissionOverwrites?.edit) return replyError(interaction, "That channel doesn't support visibility overrides.");
+        await channel.permissionOverwrites.edit(interaction.guild.roles.everyone, { ViewChannel: cmd === "hide" ? false : null }, { reason: cmd + " by " + interaction.user.tag });
+        record(cmd.toUpperCase(), null, channel.name);
+        await saveDatabase();
+        return interaction.reply({ content: cmd === "hide" ? "🙈 Hidden " + channel + " from @everyone." : "👀 Restored inherited visibility for " + channel + ".", ephemeral: false });
+      }
+      if (["voice-deafen","voice-undeafen","move-member"].includes(cmd)) {
+        const needed = cmd === "move-member" ? PermissionFlagsBits.MoveMembers : PermissionFlagsBits.DeafenMembers;
+        if (!has(needed)) return replyError(interaction, "You don't have the required voice moderation permission.");
+        const user = interaction.options.getUser("member", true);
+        const checked = await requireMember(user);
+        if (checked.error) return replyError(interaction, checked.error);
+        const target = checked.target;
+        if (!target.voice.channel) return replyError(interaction, "That member isn't in a voice channel.");
+        if (cmd === "move-member") {
+          const destination = interaction.options.getChannel("channel", true);
+          if (!destination.isVoiceBased()) return replyError(interaction, "Choose a voice or stage channel.");
+          await target.voice.setChannel(destination, "Moved by " + interaction.user.tag);
+          record("MOVE_MEMBER", user.id, "Moved to " + destination.name);
+          await saveDatabase();
+          return interaction.reply({ content: "🔀 Moved **" + user.tag + "** to " + destination + ".", ephemeral: false });
+        }
+        const deaf = cmd === "voice-deafen";
+        await target.voice.setDeaf(deaf, interaction.options.getString("reason") || cmd + " by " + interaction.user.tag);
+        record(cmd.toUpperCase().replace(/-/g,"_"), user.id, interaction.options.getString("reason") || null);
+        await saveDatabase();
+        return interaction.reply({ content: deaf ? "🔇 Server-deafened **" + user.tag + "**." : "🔊 Removed server deafen from **" + user.tag + "**.", ephemeral: false });
+      }
+      if (cmd === "nick-reset") {
+        if (!has(PermissionFlagsBits.ManageNicknames)) return replyError(interaction, "You need Manage Nicknames or Administrator.");
+        const user = interaction.options.getUser("member", true);
+        const checked = await requireMember(user);
+        if (checked.error) return replyError(interaction, checked.error);
+        if (!checked.target.manageable) return replyError(interaction, "I can't manage that member's nickname. Check my role position.");
+        await checked.target.setNickname(null, "Nickname reset by " + interaction.user.tag);
+        record("NICK_RESET", user.id, "Nickname reset");
+        await saveDatabase();
+        return interaction.reply({ content: "✅ Reset **" + user.tag + "**'s server nickname.", ephemeral: true });
+      }
+      if (cmd === "banlist") {
+        if (!has(PermissionFlagsBits.BanMembers)) return replyError(interaction, "You need Ban Members or Administrator.");
+        await interaction.deferReply({ ephemeral: true });
+        const bans = await interaction.guild.bans.fetch();
+        const lines = bans.first(20).map(entry => "• **" + entry.user.tag + "** (" + entry.user.id + ") — " + (entry.reason || "No reason recorded"));
+        return interaction.editReply("**Server ban list — " + bans.size + " total**\n" + (lines.join("\n") || "No active bans.") + (bans.size > 20 ? "\nShowing the latest 20 entries." : ""));
+      }
+      if (cmd === "slowmode-off") {
+        if (!has(PermissionFlagsBits.ManageChannels)) return replyError(interaction, "You need Manage Channels or Administrator.");
+        const channel = interaction.options.getChannel("channel") || interaction.channel;
+        if (typeof channel?.setRateLimitPerUser !== "function") return replyError(interaction, "That channel doesn't support slowmode.");
+        await channel.setRateLimitPerUser(0, "Slowmode disabled by " + interaction.user.tag);
+        record("SLOWMODE_OFF", null, channel.name);
+        await saveDatabase();
+        return interaction.reply({ content: "🐢 Slowmode disabled in " + channel + ".", ephemeral: false });
+      }
+      if (cmd === "unwarn") {
+        if (!has(PermissionFlagsBits.ModerateMembers)) return replyError(interaction, "You need Moderate Members or Administrator.");
+        const user = interaction.options.getUser("member", true);
+        const warningId = interaction.options.getInteger("warning_id", true);
+        const reason = interaction.options.getString("reason", true).trim();
+        const warning = config.warnings.find(item => item.memberId === user.id && Number(item.id) === warningId);
+        if (!warning) return replyError(interaction, "I couldn't find that warning ID for this member.");
+        config.warnings = config.warnings.filter(item => item !== warning);
+        const c = record("UNWARN", user.id, "Removed warning #" + warningId + ": " + reason);
+        warning.removedAt = new Date().toISOString();
+        warning.removedBy = interaction.user.id;
+        warning.removalReason = reason;
+        config.warningHistory.unshift(warning);
+        c.warningId = warningId;
+        await saveDatabase();
+        return interaction.reply({ content: "✅ Removed warning #" + warningId + " for **" + user.tag + "**. The audit record was preserved.", ephemeral: true });
+      }
+      if (cmd === "clear-reactions") {
+        if (!has(PermissionFlagsBits.ManageMessages)) return replyError(interaction, "You need Manage Messages or Administrator.");
+        const messageId = interaction.options.getString("message_id", true).trim();
+        if (!/^\d{17,20}$/.test(messageId)) return replyError(interaction, "Enter a valid Discord message ID.");
+        const targetMessage = await interaction.channel.messages.fetch(messageId).catch(() => null);
+        if (!targetMessage) return replyError(interaction, "I couldn't find that message in this channel.");
+        await targetMessage.reactions.removeAll();
+        record("CLEAR_REACTIONS", null, "Message " + messageId);
+        await saveDatabase();
+        return interaction.reply({ content: "🧽 Removed all reactions from that message.", ephemeral: true });
+      }
+      if (cmd === "set-topic") {
+        if (!has(PermissionFlagsBits.ManageChannels)) return replyError(interaction, "You need Manage Channels or Administrator.");
+        const channel = interaction.options.getChannel("channel", true);
+        const topic = interaction.options.getString("topic", true);
+        if (typeof channel.setTopic !== "function") return replyError(interaction, "Choose a text channel.");
+        await channel.setTopic(topic, "Topic updated by " + interaction.user.tag);
+        record("SET_TOPIC", null, channel.name + ": " + topic.slice(0, 300));
+        await saveDatabase();
+        return interaction.reply({ content: "✅ Updated the topic for " + channel + ".", ephemeral: true });
       }
     }
 
