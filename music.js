@@ -27,7 +27,7 @@ export function setupMusic(client, onPlayerDestroy = () => {}) {
     nodes: [{ id: "paradoxplus-main", host, port, secure, authorization: password, retryAmount: 10, retryDelay: 5000, requestTimeout: 15000 }],
     sendToShard: (guildId, payload) => client.guilds.cache.get(guildId)?.shard?.send(payload),
     client: { id: process.env.CLIENT_ID, username: "Paradoxplus" },
-    // Recovery handler owns failed-track transitions to avoid racing auto-skip.
+    // Let Lavalink-client advance failed tracks; recovery only inserts a fallback.
     autoSkip: true,
     playerOptions: {
       defaultSearchPlatform: "scsearch",
