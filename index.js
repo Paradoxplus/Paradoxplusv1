@@ -446,10 +446,47 @@ client.on(Events.GuildRoleDelete, role => {
   if (role.guild.id === "1568943817762017400") void syncRankRoles(role.guild).catch(error => console.error("Role-delete auto-sync failed:", error));
 });
 
-client.on(Events.GuildMemberAdd, member => {
-  const config=getGuildConfig(member.guild.id); pulseDay(config).joins++; trimPulse(config);
-  void saveDatabase().catch(error=>console.error("Pulse join save failed:",error));
+client.on(Events.GuildMemberAdd, async member => {
+  const config = getGuildConfig(member.guild.id);
+  pulseDay(config).joins++;
+  trimPulse(config);
+  void saveDatabase().catch(error => console.error("Pulse join save failed:", error));
+  if (!config.welcomeChannelId) return;
+  const channel = member.guild.channels.cache.get(config.welcomeChannelId)
+    ?? await member.guild.channels.fetch(config.welcomeChannelId).catch(() => null);
+  if (!channel?.isTextBased()) return;
+  const bannerUrl = "https://www.image2url.com/r2/default/gifs/1794386711876-4bbf4f54-5448-4384-960d-4424655e01a2.gif";
+  const count = member.guild.memberCount;
+  const embed = new EmbedBuilder()
+    .setColor(0x7c5cff)
+    .setAuthor({ name: "Paradoxplus", iconURL: client.user.displayAvatarURL() })
+    .setTitle("✦ WELCOME TO PARADOXX")
+    .setDescription(
+      "A new legend just entered the realm.\n\n" +
+      "Welcome aboard, " + member.toString() + "!\n" +
+      "You're our **" + count.toLocaleString() + getOrdinalSuffix(count) + " member**.\n\n" +
+      "Make yourself at home, meet the community, and enjoy your stay.\n\n" +
+      "╰┈➤ **PARADOXX • WHERE LEGENDS CONNECT**"
+    )
+    .setThumbnail(member.user.displayAvatarURL({ extension: "png", size: 256 }))
+    .setImage(bannerUrl)
+    .setFooter({ text: "ParadoxManagerV1  •  Member #" + count })
+    .setTimestamp();
+  await channel.send({
+    embeds: [embed],
+    allowedMentions: { users: [member.id], parse: [] }
+  }).catch(error => console.error("Welcome message failed:", error));
 });
+function getOrdinalSuffix(number) {
+  const mod100 = number % 100;
+  if (mod100 >= 11 && mod100 <= 13) return "th";
+  switch (number % 10) {
+    case 1: return "st";
+    case 2: return "nd";
+    case 3: return "rd";
+    default: return "th";
+  }
+}
 client.on(Events.GuildMemberRemove, member => {
   const config=getGuildConfig(member.guild.id); pulseDay(config).leaves++; trimPulse(config);
   void saveDatabase().catch(error=>console.error("Pulse leave save failed:",error));
@@ -1553,6 +1590,34 @@ client.on(Events.MessageCreate, async message => {
   const fail = text => send("⚠️ Command error", text);
   try {
     if (await handleMusicPrefix(message, command, args, client)) return;
+    if (command === "welcome") {
+      const sub = (args.shift() || "").toLowerCase();
+      const canConfigure = isBotOwner(message.author.id) ||
+        message.member.permissions.has(PermissionFlagsBits.Administrator) ||
+        message.member.permissions.has(PermissionFlagsBits.ManageGuild);
+      if (!canConfigure) return fail("You need Manage Server or Administrator to configure welcome messages.");
+      if (sub === "set") {
+        const channelId = mentionedId(args[0]);
+        if (!channelId) return fail("Usage: " + prefix + "welcome set #channel");
+        const channel = await message.guild.channels.fetch(channelId).catch(() => null);
+        if (!channel?.isTextBased()) return fail("Please select a text channel.");
+        const botMember = message.guild.members.me ?? await message.guild.members.fetchMe();
+        if (!channel.permissionsFor(botMember)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
+          return fail("I need View Channel, Send Messages, and Embed Links permissions in that channel.");
+        }
+        config.welcomeChannelId = channel.id;
+        await saveDatabase();
+        return send("✦ Welcome channel configured", "Paradoxplus will now send premium welcome messages in " + channel.toString() + ".");
+      }
+      if (sub === "remove" || sub === "disable" || sub === "off") {
+        if (!config.welcomeChannelId) return fail("Welcome messages are not configured yet.");
+        const previous = config.welcomeChannelId;
+        config.welcomeChannelId = null;
+        await saveDatabase();
+        return send("✦ Welcome messages disabled", "Removed the welcome channel <#" + previous + ">.");
+      }
+      return fail("Usage: " + prefix + "welcome set #channel\\n" + prefix + "welcome remove");
+    }
     if (command === "recruit") {
       const id = mentionedId(args[0]);
       if (!id) return fail("Usage: " + prefix + "recruit @member");
@@ -1650,6 +1715,7 @@ client.on(Events.MessageCreate, async message => {
       return fail("Use .ar add trigger | response, .ar remove trigger, or .ar list.");
     }
     if (command === "rankhelp" || command === "help") return send("✦ PARADOXPLUS COMMAND CENTER", [
+      "**WELCOME:** `.welcome set #channel`, `.welcome remove`",
       "**RECRUITMENT:** `.recruit @member`, `.recruits [@member]`, `.recruitleaderboard [daily|weekly|monthly|all]`",
       "**MEMBER:** `.rank [@member]`, `.rankpanel`, `.rankhistory @member`, `.ranksearch name`, `.rankstats`, `.rankleaderboard`",
       "**MUSIC:** `.play song`, `.pause`, `.resume`, `.skip`, `.stop`, `.queue`, `.nowplaying`, `.volume 1-100`, `.loop off|track|queue`, `.shuffle`, `.remove position`, `.clear`",
