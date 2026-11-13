@@ -489,6 +489,54 @@ client.on(Events.InteractionCreate, async interaction => {
   try {
     const config = getGuildConfig(interaction.guildId);
 
+    if (interaction.commandName === "autoresponder") {
+      const sub = interaction.options.getSubcommand();
+      const allowed = isBotOwner(interaction.user.id) ||
+        interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) ||
+        interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages) ||
+        interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild);
+      if (sub !== "list" && !allowed) {
+        return interaction.reply({ content: "You need Manage Messages, Manage Server, or Administrator to manage autoresponders.", ephemeral: true });
+      }
+      if (sub === "list") {
+        if (!config.autoresponders.length) {
+          return interaction.reply({ content: "No custom autoresponders are configured.", ephemeral: true });
+        }
+        const lines = config.autoresponders.map((item, index) => `${index + 1}. **Trigger:** ${item.trigger}\n   **Reply:** ${item.response}`);
+        return interaction.reply({ content: `**Custom autoresponders**\n${lines.join("\n")}`, ephemeral: true, allowedMentions: { parse: [] } });
+      }
+      if (sub === "add") {
+        const trigger = interaction.options.getString("trigger", true).trim();
+        const response = interaction.options.getString("response", true).trim();
+        if (trigger.length < 2 || trigger.length > 100) {
+          return interaction.reply({ content: "Triggers must be 2–100 characters.", ephemeral: true });
+        }
+        if (!response || response.length > 1800) {
+          return interaction.reply({ content: "Replies must be 1–1800 characters.", ephemeral: true });
+        }
+        if (config.autoresponders.some(item => item.trigger.toLowerCase() === trigger.toLowerCase())) {
+          return interaction.reply({ content: "That trigger already exists. Remove it first if you want to replace it.", ephemeral: true });
+        }
+        if (config.autoresponders.length >= 25) {
+          return interaction.reply({ content: "This server has reached the 25 custom autoresponder limit.", ephemeral: true });
+        }
+        config.autoresponders.push({ trigger, response });
+        await saveDatabase();
+        return interaction.reply({ content: `✅ **Autoresponder added**\n**Trigger:** ${trigger}\n**Reply:** ${response}`, ephemeral: true, allowedMentions: { parse: [] } });
+      }
+      if (sub === "remove") {
+        const trigger = interaction.options.getString("trigger", true).trim();
+        const before = config.autoresponders.length;
+        config.autoresponders = config.autoresponders.filter(item => item.trigger.toLowerCase() !== trigger.toLowerCase());
+        if (config.autoresponders.length === before) {
+          return interaction.reply({ content: "I couldn't find that exact trigger.", ephemeral: true });
+        }
+        await saveDatabase();
+        return interaction.reply({ content: `🗑️ Removed autoresponder trigger: **${trigger}**`, ephemeral: true, allowedMentions: { parse: [] } });
+      }
+    }
+
+
     if (interaction.commandName === "rank-config") {
       if (!hasManagerPermission(interaction.member)) {
         return replyError(interaction, "You need **Manage Roles** or **Administrator** to configure ranks.");
