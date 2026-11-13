@@ -230,8 +230,8 @@ export async function handleMusicInteraction(interaction, client) {
 
     const guildMember = await interaction.guild.members.fetch(interaction.user.id);
     const player = requirePlayer(client, interaction.guildId, guildMember);
-    if (command === "pause") { await player.pause(true); await interaction.reply({ content: "⏸️ Paused.", ephemeral: true }); }
-    else if (command === "resume") { await player.pause(false); await interaction.reply({ content: "▶️ Resumed.", ephemeral: true }); }
+    if (command === "pause") { await player.pause(); await interaction.reply({ content: "⏸️ Paused.", ephemeral: true }); }
+    else if (command === "resume") { await player.resume(); await interaction.reply({ content: "▶️ Resumed.", ephemeral: true }); }
     else if (command === "skip") { await player.skip(); await interaction.reply({ content: "⏭️ Skipped.", ephemeral: true }); }
     else if (command === "stop") {
       await player.stopPlaying(true, false); await player.destroy();
@@ -253,7 +253,7 @@ export async function handleMusicInteraction(interaction, client) {
       if (pos < 1 || pos > player.queue.tracks.length) throw new Error("That queue position doesn't exist.");
       await player.queue.remove(pos - 1); await interaction.reply({ content: "🗑️ Removed queue position " + pos + ".", ephemeral: true });
     } else if (command === "clear") {
-      player.queue.clear(); await interaction.reply({ content: "🧹 Cleared upcoming tracks. The current song will finish.", ephemeral: true });
+      await player.queue.splice(0, player.queue.tracks.length); await interaction.reply({ content: "🧹 Cleared upcoming tracks. The current song will finish.", ephemeral: true });
     }
     return true;
   } catch (error) {
@@ -281,8 +281,8 @@ export async function handleMusicPrefix(message, command, args, client) {
       return true;
     }
     const player = requirePlayer(client, message.guild.id, message.member);
-    if (command === "pause") await player.pause(true);
-    else if (command === "resume") await player.pause(false);
+    if (command === "pause") await player.pause();
+    else if (command === "resume") await player.resume();
     else if (command === "skip") await player.skip();
     else if (command === "stop") { await player.stopPlaying(true, false); await player.destroy(); }
     else if (command === "queue") return send(queueText(player));
@@ -300,7 +300,7 @@ export async function handleMusicPrefix(message, command, args, client) {
       const pos = Number(args[0]);
       if (!Number.isInteger(pos) || pos < 1 || pos > player.queue.tracks.length) throw new Error("Usage: .remove queue_position");
       await player.queue.remove(pos - 1);
-    } else if (command === "clear") player.queue.clear();
+    } else if (command === "clear") await player.queue.splice(0, player.queue.tracks.length);
     const replies = {
       pause:"⏸️ Paused.", resume:"▶️ Resumed.", skip:"⏭️ Skipped.",
       stop:"⏹️ Stopped playback and left voice.", volume:"🔊 Volume updated.",
