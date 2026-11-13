@@ -9,13 +9,12 @@ plugins:
     allowDirectVideoIds: true
     allowDirectPlaylistIds: true
     clients:
-      - TV
       - WEB
-      - WEBEMBEDDED
       - ANDROID_VR
+      - WEBEMBEDDED
       - MUSIC
     oauth:
-      enabled: true
+      enabled: false
 
 lavalink:
   plugins:
