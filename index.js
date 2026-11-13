@@ -535,11 +535,15 @@ client.on(Events.InteractionCreate, async interaction => {
         .setColor(0x7c5cff)
         .setAuthor({ name: "PARADOXPLUS • RECRUITMENT", iconURL: interaction.client.user.displayAvatarURL() })
         .setTitle("✦ NEW RECRUIT")
-        .setDescription("**Recruit:** " + target + "\n**Recruited by:** " + interaction.user + "\n**Recruit no:** **#" + config.recruitCount + "**")
+        .setDescription("**Recruit:** " + target.user.username + "\n**Recruited by:** " + interaction.user.username + "\n**Recruit no:** **#" + config.recruitCount + "**")
         .setImage("https://media1.tenor.com/m/15diBrpA-FIAAAAd/neon-paradox-techno.gif")
         .setFooter({ text: interaction.guild.name + " • Paradoxplus Recruitment" })
         .setTimestamp();
-      return interaction.reply({ embeds: [embed], allowedMentions: { users: [target.id, interaction.user.id], parse: [] } });
+      return interaction.reply({
+        content: "🎉 " + target.toString() + " was recruited by " + interaction.user.toString() + "!\nhttps://tenor.com/view/neon-paradox-techno-ebm-gif-15534993220671961170",
+        embeds: [embed],
+        allowedMentions: { users: [target.id, interaction.user.id], parse: [] }
+      });
     }
 
     if (interaction.commandName === "dm-optin" || interaction.commandName === "dm-optout") {
@@ -1548,11 +1552,15 @@ client.on(Events.MessageCreate, async message => {
         .setColor(0x7c5cff)
         .setAuthor({ name: "PARADOXPLUS • RECRUITMENT", iconURL: client.user.displayAvatarURL() })
         .setTitle("✦ NEW RECRUIT")
-        .setDescription("**Recruit:** " + target + "\n**Recruited by:** " + message.author + "\n**Recruit no:** **#" + config.recruitCount + "**")
+        .setDescription("**Recruit:** " + target.user.username + "\n**Recruited by:** " + message.author.username + "\n**Recruit no:** **#" + config.recruitCount + "**")
         .setImage("https://media1.tenor.com/m/15diBrpA-FIAAAAd/neon-paradox-techno.gif")
         .setFooter({ text: message.guild.name + " • Paradoxplus Recruitment" })
         .setTimestamp();
-      return message.reply({ embeds: [embed], allowedMentions: { users: [target.id, message.author.id], parse: [] } });
+      return message.reply({
+        content: "🎉 " + target.toString() + " was recruited by " + message.author.toString() + "!\nhttps://tenor.com/view/neon-paradox-techno-ebm-gif-15534993220671961170",
+        embeds: [embed],
+        allowedMentions: { users: [target.id, message.author.id], parse: [] }
+      });
     }
     if (command === "ping") {
       const roundTrip = Math.max(0, Date.now() - message.createdTimestamp);
