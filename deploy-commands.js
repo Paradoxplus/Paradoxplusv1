@@ -17,6 +17,15 @@ const commands = [
     .addIntegerOption(o=>o.setName("seconds").setDescription("Position in seconds").setMinValue(0).setMaxValue(7200).setRequired(true)),
   new SlashCommandBuilder().setName("autoplay").setDescription("Automatically find related tracks when the queue ends.")
     .addBooleanOption(o=>o.setName("enabled").setDescription("Turn autoplay on or off").setRequired(true)),
+  new SlashCommandBuilder().setName("filter").setDescription("Apply an audio effect or equalizer preset.")
+    .addStringOption(o=>o.setName("preset").setDescription("Audio preset").setRequired(true).addChoices(
+      {name:"Off",value:"off"},{name:"Nightcore",value:"nightcore"},{name:"Vaporwave",value:"vaporwave"},
+      {name:"Karaoke",value:"karaoke"},{name:"Bassboost Low",value:"bassboost-low"},
+      {name:"Bassboost Medium",value:"bassboost-medium"},{name:"Bassboost High",value:"bassboost-high"},
+      {name:"Better Music",value:"better-music"},{name:"Pop",value:"pop"},{name:"Rock",value:"rock"},
+      {name:"Classic",value:"classic"},{name:"Electronic",value:"electronic"},
+      {name:"Full Sound",value:"full-sound"},{name:"Gaming",value:"gaming"}
+    )),
   new SlashCommandBuilder().setName("previous").setDescription("Replay the previous track."),
   new SlashCommandBuilder().setName("pause").setDescription("Pause music playback."),
   new SlashCommandBuilder().setName("resume").setDescription("Resume music playback."),
