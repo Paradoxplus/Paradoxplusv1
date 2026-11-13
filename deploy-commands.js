@@ -236,6 +236,99 @@ const commands = [
     .setName("rank-help")
     .setDescription("Show Paradoxplus command help."),
 
+
+  new SlashCommandBuilder().setName("modlog").setDescription("View recent moderation actions.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Filter by member")),
+  new SlashCommandBuilder().setName("case").setDescription("View a moderation case.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addIntegerOption(o=>o.setName("case_id").setDescription("Case number").setMinValue(1).setRequired(true)),
+  new SlashCommandBuilder().setName("case-reason").setDescription("Update a case reason.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addIntegerOption(o=>o.setName("case_id").setDescription("Case number").setMinValue(1).setRequired(true))
+    .addStringOption(o=>o.setName("reason").setDescription("New reason").setMaxLength(800).setRequired(true)),
+  new SlashCommandBuilder().setName("note").setDescription("Add a private staff note.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true))
+    .addStringOption(o=>o.setName("note").setDescription("Staff note").setMaxLength(800).setRequired(true)),
+  new SlashCommandBuilder().setName("notes").setDescription("View private staff notes.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true)),
+  new SlashCommandBuilder().setName("clear-notes").setDescription("Clear staff notes for a member.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true)),
+  new SlashCommandBuilder().setName("softban").setDescription("Ban then immediately unban, deleting recent messages.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true))
+    .addStringOption(o=>o.setName("reason").setDescription("Reason").setMaxLength(480)),
+  new SlashCommandBuilder().setName("purge-user").setDescription("Delete recent messages from one member.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addUserOption(o=>o.setName("member").setDescription("Message author").setRequired(true))
+    .addIntegerOption(o=>o.setName("amount").setDescription("Maximum messages").setMinValue(1).setMaxValue(100).setRequired(true)),
+  new SlashCommandBuilder().setName("purge-bots").setDescription("Delete recent bot messages.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addIntegerOption(o=>o.setName("amount").setDescription("Maximum messages").setMinValue(1).setMaxValue(100).setRequired(true)),
+  new SlashCommandBuilder().setName("purge-links").setDescription("Delete recent messages containing links.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addIntegerOption(o=>o.setName("amount").setDescription("Maximum messages").setMinValue(1).setMaxValue(100).setRequired(true)),
+  new SlashCommandBuilder().setName("purge-invites").setDescription("Delete recent Discord invite messages.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addIntegerOption(o=>o.setName("amount").setDescription("Maximum messages").setMinValue(1).setMaxValue(100).setRequired(true)),
+  new SlashCommandBuilder().setName("purge-attachments").setDescription("Delete recent messages with attachments.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addIntegerOption(o=>o.setName("amount").setDescription("Maximum messages").setMinValue(1).setMaxValue(100).setRequired(true)),
+  new SlashCommandBuilder().setName("purge-embeds").setDescription("Delete recent messages with embeds.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addIntegerOption(o=>o.setName("amount").setDescription("Maximum messages").setMinValue(1).setMaxValue(100).setRequired(true)),
+  new SlashCommandBuilder().setName("purge-mentions").setDescription("Delete recent messages with mentions.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addIntegerOption(o=>o.setName("amount").setDescription("Maximum messages").setMinValue(1).setMaxValue(100).setRequired(true)),
+  new SlashCommandBuilder().setName("purge-stickers").setDescription("Delete recent messages with stickers.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addIntegerOption(o=>o.setName("amount").setDescription("Maximum messages").setMinValue(1).setMaxValue(100).setRequired(true)),
+  new SlashCommandBuilder().setName("purge-contains").setDescription("Delete recent messages containing specific text.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addStringOption(o=>o.setName("text").setDescription("Text to match").setMaxLength(100).setRequired(true))
+    .addIntegerOption(o=>o.setName("amount").setDescription("Maximum messages").setMinValue(1).setMaxValue(100).setRequired(true)),
+  new SlashCommandBuilder().setName("hide").setDescription("Hide a channel from everyone.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+    .addChannelOption(o=>o.setName("channel").setDescription("Channel; defaults to this one")),
+  new SlashCommandBuilder().setName("show").setDescription("Restore channel visibility for everyone.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+    .addChannelOption(o=>o.setName("channel").setDescription("Channel; defaults to this one")),
+  new SlashCommandBuilder().setName("voice-deafen").setDescription("Server-deafen a member.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.DeafenMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true))
+    .addStringOption(o=>o.setName("reason").setDescription("Reason").setMaxLength(480)),
+  new SlashCommandBuilder().setName("voice-undeafen").setDescription("Remove a server deafen.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.DeafenMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true))
+    .addStringOption(o=>o.setName("reason").setDescription("Reason").setMaxLength(480)),
+  new SlashCommandBuilder().setName("move-member").setDescription("Move a member to another voice channel.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.MoveMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true))
+    .addChannelOption(o=>o.setName("channel").setDescription("Destination voice channel").setRequired(true).addChannelTypes(ChannelType.GuildVoice,ChannelType.GuildStageVoice)),
+  new SlashCommandBuilder().setName("nick-reset").setDescription("Reset a member nickname.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageNicknames)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true)),
+  new SlashCommandBuilder().setName("banlist").setDescription("View the server ban list.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers),
+  new SlashCommandBuilder().setName("slowmode-off").setDescription("Disable channel slowmode.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+    .addChannelOption(o=>o.setName("channel").setDescription("Channel; defaults to this one")),
+  new SlashCommandBuilder().setName("unwarn").setDescription("Remove one warning and preserve its audit record.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
+    .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true))
+    .addIntegerOption(o=>o.setName("warning_id").setDescription("Warning ID").setMinValue(1).setRequired(true))
+    .addStringOption(o=>o.setName("reason").setDescription("Removal reason").setMaxLength(500).setRequired(true)),
+  new SlashCommandBuilder().setName("clear-reactions").setDescription("Remove all reactions from a message.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .addStringOption(o=>o.setName("message_id").setDescription("Message ID in this channel").setRequired(true)),
+  new SlashCommandBuilder().setName("set-topic").setDescription("Update a text channel topic.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels)
+    .addChannelOption(o=>o.setName("channel").setDescription("Text channel").setRequired(true).addChannelTypes(ChannelType.GuildText,ChannelType.GuildAnnouncement))
+    .addStringOption(o=>o.setName("topic").setDescription("New topic").setMaxLength(1024).setRequired(true)),
+
 ].map(c => c.toJSON());
 
 const token = process.env.DISCORD_TOKEN;
