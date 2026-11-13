@@ -334,7 +334,7 @@ export async function handleMusicInteraction(interaction, client) {
 }
 
 export async function handleMusicPrefix(message, command, args, client) {
-  const names = ["play","pause","resume","skip","stop","queue","nowplaying","volume","loop","shuffle","remove","clear"];
+  const names = ["play","playnext","pause","resume","skip","previous","stop","queue","nowplaying","volume","seek","autoplay","loop","shuffle","remove","clear"];
   if (!names.includes(command)) return false;
   const send = text => message.reply({ content: text, allowedMentions: { repliedUser: false, parse: [] } });
   try {
