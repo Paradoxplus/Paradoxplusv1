@@ -758,7 +758,35 @@ client.on(Events.InteractionCreate, async interaction => {
         config.inactiveAppeals.unshift(appeal);
         config.inactiveAppeals = config.inactiveAppeals.slice(0, 500);
         await saveDatabase();
-        return interaction.reply({ content: `📨 Your inactivity appeal **#${appeal.id}** has been submitted. Staff will review it.`, ephemeral: true });
+
+        const appealChannelId = "1570589159289126962";
+        const appealChannel = await interaction.guild.channels.fetch(appealChannelId).catch(() => null);
+        if (!appealChannel || !appealChannel.isTextBased() || !appealChannel.send) {
+          return interaction.reply({ content: `⚠️ Your appeal **#${appeal.id}** was saved, but I couldn't post it to the staff review channel. Please notify an administrator.`, ephemeral: true });
+        }
+        const reviewEmbed = new EmbedBuilder()
+          .setColor(0xf0a33a)
+          .setTitle(`📨 INACTIVITY APPEAL #${appeal.id}`)
+          .setDescription(`**Member:** <@${interaction.user.id}> (\`${interaction.user.id}\`)\n**Status:** 🟠 Pending review`)
+          .addFields({ name: "Reason for inactivity", value: reason.slice(0, 1000) })
+          .setFooter({ text: "Use /inactive-reason review to accept, reject, or hold this appeal." })
+          .setTimestamp(new Date(appeal.submittedAt));
+        const reviewMessage = await appealChannel.send({
+          content: "📋 **New inactivity appeal submitted for staff review.**",
+          embeds: [reviewEmbed],
+          allowedMentions: { parse: [], users: [] }
+        }).catch(() => null);
+        if (reviewMessage) {
+          appeal.reviewChannelId = appealChannel.id;
+          appeal.reviewMessageId = reviewMessage.id;
+          await saveDatabase();
+        }
+        return interaction.reply({
+          content: reviewMessage
+            ? `📨 Your inactivity appeal **#${appeal.id}** has been sent to the staff review channel.`
+            : `⚠️ Your appeal **#${appeal.id}** was saved, but the bot couldn't send it to the staff review channel. Please notify an administrator.`,
+          ephemeral: true
+        });
       }
       if (sub === "review") {
         if (!interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers) && !isBotOwner(interaction.user.id))
@@ -774,6 +802,22 @@ client.on(Events.InteractionCreate, async interaction => {
         appeal.staffNote = note;
         await saveDatabase();
         const labels = { ACCEPTED: "accepted", REJECTED: "rejected", ON_HOLD: "placed on hold" };
+        if (appeal.reviewChannelId && appeal.reviewMessageId) {
+          const reviewChannel = await interaction.guild.channels.fetch(appeal.reviewChannelId).catch(() => null);
+          const reviewMessage = reviewChannel?.messages?.fetch
+            ? await reviewChannel.messages.fetch(appeal.reviewMessageId).catch(() => null)
+            : null;
+          if (reviewMessage) {
+            const statusColor = decision === "ACCEPTED" ? 0x35d07f : decision === "REJECTED" ? 0xf05b67 : 0xf0a33a;
+            const statusLabel = decision === "ACCEPTED" ? "🟢 Accepted" : decision === "REJECTED" ? "🔴 Rejected" : "🟠 On hold";
+            const updated = EmbedBuilder.from(reviewMessage.embeds[0] || new EmbedBuilder())
+              .setColor(statusColor)
+              .setDescription(`**Member:** <@${user.id}> (\`${user.id}\`)\n**Status:** ${statusLabel}\n**Reviewed by:** <@${interaction.user.id}>`)
+              .setFooter({ text: note ? `Staff note: ${note.slice(0, 180)}` : "Appeal reviewed by Paradoxplus" })
+              .setTimestamp(new Date(appeal.reviewedAt));
+            await reviewMessage.edit({ content: "📋 **Inactivity appeal reviewed.**", embeds: [updated], allowedMentions: { parse: [] } }).catch(() => null);
+          }
+        }
         return interaction.reply({
           embeds: [new EmbedBuilder().setColor(decision === "ACCEPTED" ? 0x35d07f : decision === "REJECTED" ? 0xf05b67 : 0xf0a33a)
             .setTitle("📋 Inactivity appeal reviewed")
