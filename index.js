@@ -1119,9 +1119,11 @@ client.on(Events.InteractionCreate, async interaction => {
 const PREFIX = ".";
 const prefixEmbed = (title, description) => new EmbedBuilder()
   .setColor(0x7c5cff)
-  .setAuthor({ name: "PARADOXPLUS • RANK SYSTEM", iconURL: client.user.displayAvatarURL() })
-  .setTitle(title).setDescription(description)
-  .setFooter({ text: "Manual progression • Staff-controlled" }).setTimestamp();
+  .setAuthor({ name: "ＰＡＲＡＤＯＸＰＬＵＳ  •  SYSTEM", iconURL: client.user.displayAvatarURL() })
+  .setTitle("✦ " + title)
+  .setDescription(description)
+  .setFooter({ text: "PARADOXPLUS  •  Premium rank & moderation system" })
+  .setTimestamp();
 const mentionedId = (value, role = false) => value?.match(role ? /^<@&(\d+)>$/ : /^<@!?(\d+)>$/)?.[1] || null;
 
 client.on(Events.MessageCreate, async message => {
@@ -1168,12 +1170,15 @@ client.on(Events.MessageCreate, async message => {
       }
       return fail("Use .ar add trigger | response, .ar remove trigger, or .ar list.");
     }
-    if (command === "rankhelp" || command === "help") return send("✨ Paradoxplus command center", [
-      "**Member:** `.rank [@member]`, `.rankpanel`, `.rankhistory @member`, `.ranksearch name`, `.rankstats`, `.rankleaderboard`",
-      "**Staff:** `.promote @member [reason]`, `.demote @member [reason]`, `.setrank @member @rank [reason]`",
-      "**Moderation:** `.strike @member reason`, `.strikes [@member]`, `.remove-strike @member amount reason`, `.kick @member`, `.ban @member`, `.timeout @member minutes`, `.untimeout @member`, `.purge 1-100`, `.lock`, `.unlock`, `.slowmode seconds`",
-      "**Configuration:** use `/rank-config` for setup, detection, logs, announcements and backups.",
-      "Prefix: `.` • All slash commands remain available."
+    if (command === "rankhelp" || command === "help") return send("✦ PARADOXPLUS COMMAND CENTER", [
+      "**MEMBER:** `.rank [@member]`, `.rankpanel`, `.rankhistory @member`, `.ranksearch name`, `.rankstats`, `.rankleaderboard`",
+      "**RANK STAFF:** `.promote @member [reason]`, `.demote @member [reason]`, `.setrank @member @rank [reason]`",
+      "**STRIKES:** `.strike @member reason`, `.strikes [@member]`, `.remove-strike @member amount reason`",
+      "**MODERATION:** `.kick @member`, `.ban @member`, `.timeout @member minutes [reason]`, `.untimeout @member`, `.purge 1-100`, `.lock`, `.unlock`, `.slowmode seconds`",
+      "**AUTORESPONDERS:** `.ar add trigger | response`, `.ar remove trigger`, `.ar list`",
+      "**SLASH COMMANDS:** `/warn`, `/warnings`, `/clear-warnings`, `/nickname`, `/role-add`, `/role-remove`, `/userinfo`, `/serverinfo`, `/modstats`, `/unban`, `/voice-mute`, `/voice-unmute`, `/disconnect`, `/inactive-reason`, `/serverpulse`, `/rankpredict`, `/staffactivity`, `/memberjourney`, `/spotlight`",
+      "**SETUP:** `/rank-config` controls rank roles, ignored roles, logs, announcements, autodetection and backups.",
+      "Prefix commands use `.` • Slash commands are available from Discord's command picker."
     ].join("\n"));
     if (command === "strikes") {
       const id = mentionedId(args[0]) || message.author.id;
