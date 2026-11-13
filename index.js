@@ -1753,6 +1753,55 @@ client.on(Events.MessageCreate, async message => {
       const result = await sendOptInDmall(message.guild, config, content);
       return status.edit("**DMall finished**\nOpted-in recipients processed: **" + result.total + "**\nSent: **" + result.sent + "**\nFailed: **" + result.failed + "**" + (result.capped ? "\nSafety cap: first 100 opted-in members only." : ""));
     }
+    if (command === "triggerlist" || command === "trigger") {
+      const rawCommand = message.content.slice(prefix.length).trim();
+      const rawArgs = rawCommand.replace(/^\\S+\\s*/, "").trim();
+      const sub = command === "triggerlist" ? "list" : (args[0] || "list").toLowerCase();
+      const allowed = isBotOwner(message.author.id) ||
+        message.member.permissions.has(PermissionFlagsBits.Administrator) ||
+        message.member.permissions.has(PermissionFlagsBits.ManageMessages) ||
+        message.member.permissions.has(PermissionFlagsBits.ManageGuild);
+
+      if (sub === "list") {
+        if (!config.autoresponders.length) return send("✦ PARADOXPLUS TRIGGERS", "No custom triggers are configured yet.");
+        const lines = config.autoresponders.map((item, index) =>
+          "**" + (index + 1) + ".** \`" + item.trigger + "\` → " + item.response
+        );
+        return send("✦ PARADOXPLUS TRIGGERS", lines.join("\\n"));
+      }
+      if (!allowed) return fail("You need Manage Messages, Manage Server, or Administrator to manage triggers.");
+
+      if (sub === "add") {
+        const payload = rawArgs.replace(/^add\\s+/i, "");
+        const split = payload.indexOf("|");
+        if (split < 1 || split === payload.length - 1) {
+          return fail("Usage: " + prefix + "trigger add trigger phrase | reply message");
+        }
+        const trigger = payload.slice(0, split).trim().replace(/^["'](.*)["']$/, "$1");
+        const response = payload.slice(split + 1).trim();
+        if (trigger.length < 2 || trigger.length > 100) return fail("Trigger names must be 2–100 characters.");
+        if (!response || response.length > 1800) return fail("Trigger replies must be 1–1800 characters.");
+        if (config.autoresponders.some(item => item.trigger.toLowerCase() === trigger.toLowerCase())) {
+          return fail("That trigger already exists. Remove it first if you want to replace it.");
+        }
+        if (config.autoresponders.length >= 25) return fail("This server has reached the 25-trigger limit.");
+        config.autoresponders.push({ trigger, response });
+        await saveDatabase();
+        return send("✦ TRIGGER CREATED", "**Trigger:** \`" + trigger + "\`\\n**Reply:** " + response);
+      }
+
+      if (sub === "remove" || sub === "delete") {
+        const trigger = rawArgs.replace(/^(remove|delete)\\s+/i, "").trim().replace(/^["'](.*)["']$/, "$1");
+        if (!trigger) return fail("Usage: " + prefix + 'trigger remove "trigger name"');
+        const before = config.autoresponders.length;
+        config.autoresponders = config.autoresponders.filter(item => item.trigger.toLowerCase() !== trigger.toLowerCase());
+        if (config.autoresponders.length === before) return fail("I couldn't find that exact trigger. Use " + prefix + "triggerlist to check the saved names.");
+        await saveDatabase();
+        return send("✦ TRIGGER REMOVED", "Removed trigger: **" + trigger + "**");
+      }
+
+      return fail("Use " + prefix + "triggerlist, " + prefix + "trigger add trigger phrase | reply, or " + prefix + 'trigger remove "trigger name".');
+    }
     if (command === "ar" || command === "autoresponder") {
       const sub = (args.shift() || "").toLowerCase();
       const allowed = isBotOwner(message.author.id) || message.member.permissions.has(PermissionFlagsBits.Administrator) || message.member.permissions.has(PermissionFlagsBits.ManageMessages) || message.member.permissions.has(PermissionFlagsBits.ManageGuild);
