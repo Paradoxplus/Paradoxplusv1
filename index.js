@@ -526,10 +526,10 @@ client.on(Events.InteractionCreate, async interaction => {
     if (interaction.commandName === "prefix") {
       if (!isBotOwner(interaction.user.id) && !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) && !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) return replyError(interaction, "You need Manage Server or Administrator to change the prefix.");
       const nextPrefix = interaction.options.getString("new_prefix", true).trim();
-      if (!/^[^\\s]{1,5}$/.test(nextPrefix)) return replyError(interaction, "Prefix must be 1–5 characters with no spaces.");
+      if (!/^[^\s]{1,5}$/.test(nextPrefix)) return replyError(interaction, "Prefix must be 1–5 characters with no spaces.");
       config.prefix = nextPrefix;
       await saveDatabase();
-      return interaction.reply({ content: `✅ Server prefix changed to `${nextPrefix}``, ephemeral: true });
+      return interaction.reply({ content: "✅ Server prefix changed to `" + nextPrefix + "`", ephemeral: true });
     }
 
     if (interaction.commandName === "recruit") {
