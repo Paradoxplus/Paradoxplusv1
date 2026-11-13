@@ -90,16 +90,19 @@ async function searchSoundCloud(player, query, requester) {
   try {
     const found = await player.search({ query, source: "soundcloud" }, requester);
     const exception = found?.exception;
-    console.log("[Music] SoundCloud search diagnostic:", JSON.stringify({
+    const trackCount = Array.isArray(found?.tracks) ? found.tracks.length : null;
+    const diagnostic = {
       query: clean(query, 120),
       loadType: found?.loadType ?? null,
-      trackCount: Array.isArray(found?.tracks) ? found.tracks.length : null,
-      exception: exception ? {
-        message: exception.message ?? null,
-        severity: exception.severity ?? null,
-        cause: exception.cause ?? null
-      } : null
-    }));
+      trackCount,
+      exception: exception ?? null
+    };
+    // Include the complete error load result when Lavalink returns no tracks.
+    // This captures any additional response fields without flooding normal search logs.
+    if (trackCount === 0 || found?.loadType === "error") {
+      diagnostic.rawResponse = JSON.stringify(found ?? null).slice(0, 6000);
+    }
+    console.log("[Music] SoundCloud search diagnostic:", JSON.stringify(diagnostic));
     return Array.isArray(found?.tracks) ? found.tracks : [];
   } catch (error) {
     console.error("[Music] SoundCloud search threw:", JSON.stringify({
