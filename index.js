@@ -888,6 +888,28 @@ async function finishGiveaway(guild, giveaway, reroll = false) {
   return winners;
 }
 
+let giveawayExpiryRunning = false;
+setInterval(async () => {
+  if (giveawayExpiryRunning || !client.isReady()) return;
+  giveawayExpiryRunning = true;
+  try {
+    for (const guild of client.guilds.cache.values()) {
+      const config = getGuildConfig(guild.id);
+      const due = config.giveaways.filter(item => !item.endedAt && Number(item.endsAt) <= Date.now());
+      for (const giveaway of due) {
+        try {
+          await finishGiveaway(guild, giveaway, false);
+          console.log("[Giveaway] Automatically ended " + giveaway.messageId + " in " + guild.name);
+        } catch (error) {
+          console.error("[Giveaway] Automatic ending failed for " + giveaway.messageId + ":", error);
+        }
+      }
+    }
+  } finally {
+    giveawayExpiryRunning = false;
+  }
+}, 30000);
+
 client.on(Events.InteractionCreate, async interaction => {
   if (await handleMusicInteraction(interaction, client)) return;
 
