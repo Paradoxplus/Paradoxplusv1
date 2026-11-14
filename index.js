@@ -2201,6 +2201,218 @@ client.on(Events.MessageCreate, async message => {
 
       return fail("Use " + prefix + "triggerlist, " + prefix + "trigger add trigger phrase | reply, or " + prefix + 'trigger remove "trigger name".');
     }
+    const modPermission = permission => isBotOwner(message.author.id) ||
+      message.member.permissions.has(PermissionFlagsBits.Administrator) ||
+      message.member.permissions.has(permission);
+    const prefixTarget = async token => {
+      const id = mentionedId(token) || (token && /^\\d{17,20}$/.test(token) ? token : null);
+      return id ? (message.guild.members.cache.get(id) ?? await message.guild.members.fetch(id).catch(() => null)) : null;
+    };
+    const addPrefixCase = (action, targetId, reason) => {
+      const item = { id: config.moderationCases.reduce((max, row) => Math.max(max, Number(row.id) || 0), 0) + 1, action, targetId: targetId || null, moderatorId: message.author.id, reason: reason || null, timestamp: new Date().toISOString() };
+      config.moderationCases.unshift(item);
+      config.moderationCases = config.moderationCases.slice(0, 500);
+      void saveDatabase().catch(error => console.error("Moderation case save failed:", error));
+      return item;
+    };
+    if (["warn","warnings","clear-warnings"].includes(command)) {
+      if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
+      const target = await prefixTarget(args[0]);
+      if (!target) return fail("Usage: " + prefix + command + " @member [reason]");
+      const actor = message.member;
+      if (target.id === message.author.id || !canActOnTarget(actor, target, message.guild)) return fail("You cannot moderate a member with an equal or higher role.");
+      if (command === "warn") {
+        const reason = args.slice(1).join(" ").trim();
+        if (!reason) return fail("Usage: " + prefix + "warn @member <reason>");
+        const warning = { id: config.warnings.length + 1, memberId: target.id, moderatorId: message.author.id, reason, timestamp: new Date().toISOString() };
+        config.warnings.unshift(warning);
+        const item = addPrefixCase("WARN", target.id, reason);
+        warning.caseId = item.id;
+        await saveDatabase();
+        return send("⚠️ WARNING ISSUED", target.toString() + " now has **" + config.warnings.filter(row => row.memberId === target.id).length + "** active warning(s). Case #" + item.id + ".");
+      }
+      const rows = config.warnings.filter(row => row.memberId === target.id);
+      if (command === "warnings") return send("✦ MEMBER WARNINGS", rows.length ? rows.slice(0, 15).map(row => "• **#" + row.id + "** " + row.reason + " — <t:" + Math.floor(new Date(row.timestamp).getTime()/1000) + ":R>").join("\n") : "No warnings recorded.");
+      if (!rows.length) return fail("That member has no recorded warnings.");
+      config.warnings = config.warnings.filter(row => row.memberId !== target.id);
+      addPrefixCase("CLEAR_WARNINGS", target.id, "Cleared " + rows.length + " warnings");
+      await saveDatabase();
+      return send("✦ WARNINGS CLEARED", "Removed **" + rows.length + "** warning(s) from " + target.toString() + ".");
+    }
+    if (["lock","unlock","hide","show","slowmode","slowmode-off"].includes(command)) {
+      const needed = command === "lock" || command === "unlock" || command === "hide" || command === "show" || command.startsWith("slowmode") ? PermissionFlagsBits.ManageChannels : PermissionFlagsBits.ManageChannels;
+      if (!modPermission(needed)) return fail("You need Manage Channels or Administrator.");
+      const channelId = args[0]?.match(/^<#(\\d+)>$/)?.[1];
+      const channel = channelId ? await message.guild.channels.fetch(channelId).catch(() => null) : message.channel;
+      if (!channel) return fail("Channel not found.");
+      if (command === "lock" || command === "unlock") {
+        if (!channel.permissionOverwrites) return fail("That channel can't be locked.");
+        await channel.permissionOverwrites.edit(message.guild.roles.everyone, { SendMessages: command === "lock" ? false : null }, { reason: command + " by " + message.author.tag });
+      } else if (command === "hide" || command === "show") {
+        if (!channel.permissionOverwrites) return fail("That channel can't be updated.");
+        await channel.permissionOverwrites.edit(message.guild.roles.everyone, { ViewChannel: command === "hide" ? false : null }, { reason: command + " by " + message.author.tag });
+      } else {
+        if (typeof channel.setRateLimitPerUser !== "function") return fail("That channel doesn't support slowmode.");
+        const seconds = command === "slowmode-off" ? 0 : Number(args[channelId ? 1 : 0]);
+        if (!Number.isInteger(seconds) || seconds < 0 || seconds > 21600) return fail("Usage: " + prefix + "slowmode <0–21600 seconds> [#channel]");
+        await channel.setRateLimitPerUser(seconds, "Slowmode updated by " + message.author.tag);
+      }
+      addPrefixCase(command.toUpperCase().replace(/-/g, "_"), null, channel.name);
+      await saveDatabase();
+      return send("✦ CHANNEL UPDATED", (command === "lock" ? "🔒 Locked " : command === "unlock" ? "🔓 Unlocked " : command === "hide" ? "🙈 Hidden " : command === "show" ? "👀 Restored visibility for " : "🐢 Updated slowmode in ") + channel.toString() + ".");
+    }
+    if (["nickname","nick-reset"].includes(command)) {
+      if (!modPermission(PermissionFlagsBits.ManageNicknames)) return fail("You need Manage Nicknames or Administrator.");
+      const target = await prefixTarget(args[0]);
+      if (!target) return fail("Usage: " + prefix + command + " @member [nickname]");
+      if (!canActOnTarget(message.member, target, message.guild) || !target.manageable) return fail("I can't manage that member. Check role hierarchy and permissions.");
+      const nickname = command === "nick-reset" ? null : args.slice(1).join(" ").trim();
+      if (command === "nickname" && !nickname) return fail("Usage: " + prefix + "nickname @member <new nickname>");
+      await target.setNickname(nickname, command + " by " + message.author.tag);
+      addPrefixCase(command.toUpperCase().replace("-", "_"), target.id, nickname || "Nickname reset");
+      await saveDatabase();
+      return send("✦ NICKNAME UPDATED", "Updated " + target.toString() + ".");
+    }
+    if (["role-add","role-remove"].includes(command)) {
+      if (!modPermission(PermissionFlagsBits.ManageRoles)) return fail("You need Manage Roles or Administrator.");
+      const target = await prefixTarget(args[0]);
+      const roleId = args[1]?.match(/^<@&?(\\d+)>$/)?.[1] || (args[1] && /^\\d{17,20}$/.test(args[1]) ? args[1] : null);
+      const role = roleId ? await message.guild.roles.fetch(roleId).catch(() => null) : null;
+      if (!target || !role) return fail("Usage: " + prefix + command + " @member @role");
+      const bot = message.guild.members.me ?? await message.guild.members.fetchMe();
+      if (!canActOnTarget(message.member, target, message.guild) || role.managed || role.position >= message.member.roles.highest.position || role.position >= bot.roles.highest.position || !role.editable) return fail("That member or role is above my or your manageable role hierarchy.");
+      if (command === "role-add") await target.roles.add(role, "Role added by " + message.author.tag);
+      else await target.roles.remove(role, "Role removed by " + message.author.tag);
+      addPrefixCase(command.toUpperCase().replace("-", "_"), target.id, role.name);
+      await saveDatabase();
+      return send("✦ ROLE UPDATED", (command === "role-add" ? "Added " : "Removed ") + role.toString() + (command === "role-add" ? " to " : " from ") + target.toString() + ".");
+    }
+    if (["userinfo","serverinfo","modstats"].includes(command)) {
+      if (command === "modstats" && !modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
+      if (command === "userinfo") {
+        const target = await prefixTarget(args[0]) || message.member;
+        const roles = target.roles.cache.filter(role => role.id !== message.guild.id).sort((a,b) => b.position-a.position).map(role => role.toString()).slice(0, 12);
+        const embed = new EmbedBuilder().setColor(0x7c5cff).setTitle("User profile").setThumbnail(target.user.displayAvatarURL()).addFields(
+          { name: "Member", value: target.user.tag }, { name: "User ID", value: target.id },
+          { name: "Joined", value: target.joinedTimestamp ? "<t:" + Math.floor(target.joinedTimestamp/1000) + ":R>" : "Unknown", inline: true },
+          { name: "Created", value: "<t:" + Math.floor(target.user.createdTimestamp/1000) + ":D>", inline: true },
+          { name: "Highest role", value: target.roles.highest.toString() }, { name: "Roles", value: roles.join(", ") || "None" }
+        );
+        return message.reply({ embeds: [embed], allowedMentions: { parse: [] } });
+      }
+      if (command === "serverinfo") {
+        const guild = message.guild;
+        const embed = new EmbedBuilder().setColor(0x7c5cff).setTitle("Server overview").setThumbnail(guild.iconURL()).addFields(
+          { name: "Server", value: guild.name }, { name: "Owner", value: "<@" + guild.ownerId + ">" },
+          { name: "Members", value: String(guild.memberCount), inline: true }, { name: "Channels", value: String(guild.channels.cache.size), inline: true },
+          { name: "Roles", value: String(guild.roles.cache.size), inline: true }, { name: "Created", value: "<t:" + Math.floor(guild.createdTimestamp/1000) + ":D>" }
+        );
+        return message.reply({ embeds: [embed], allowedMentions: { parse: [] } });
+      }
+      const counts = {};
+      for (const item of config.moderationCases) counts[item.action] = (counts[item.action] || 0) + 1;
+      return send("✦ MODERATION ANALYTICS", "Cases: **" + config.moderationCases.length + "**\nWarnings: **" + config.warnings.length + "**\n" + (Object.entries(counts).map(([key,value]) => "• **" + key + ":** " + value).join("\n") || "No cases recorded."));
+    }
+    if (command === "unban") {
+      if (!modPermission(PermissionFlagsBits.BanMembers)) return fail("You need Ban Members or Administrator.");
+      const id = args[0];
+      if (!id || !/^\\d{17,20}$/.test(id)) return fail("Usage: " + prefix + "unban <user-id>");
+      await message.guild.bans.remove(id, "Unban by " + message.author.tag);
+      addPrefixCase("UNBAN", id, args.slice(1).join(" ") || null);
+      await saveDatabase();
+      return send("✦ MEMBER UNBANNED", "User ID `" + id + "` has been unbanned.");
+    }
+    if (command === "untimeout") {
+      if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
+      const target = await prefixTarget(args[0]);
+      if (!target || !target.moderatable) return fail("Usage: " + prefix + "untimeout @member — check the role hierarchy.");
+      await target.timeout(null, "Timeout removed by " + message.author.tag);
+      addPrefixCase("UNTIMEOUT", target.id, "Timeout removed");
+      await saveDatabase();
+      return send("✦ TIMEOUT REMOVED", "Removed the timeout for " + target.toString() + ".");
+    }
+    if (["voice-mute","voice-unmute","voice-deafen","voice-undeafen","disconnect","move-member"].includes(command)) {
+      const needed = command === "move-member" || command === "disconnect" ? PermissionFlagsBits.MoveMembers : command.includes("mute") ? PermissionFlagsBits.MuteMembers : PermissionFlagsBits.DeafenMembers;
+      if (!modPermission(needed)) return fail("You need the matching voice moderation permission.");
+      const target = await prefixTarget(args[0]);
+      if (!target?.voice.channel) return fail("Usage: " + prefix + command + " @member — the member must be in voice.");
+      if (!canActOnTarget(message.member, target, message.guild)) return fail("That member has an equal or higher role than you.");
+      if (command === "disconnect") await target.voice.disconnect("Disconnected by " + message.author.tag);
+      else if (command === "move-member") {
+        const destinationId = args[1]?.match(/^<#(\\d+)>$/)?.[1];
+        const destination = destinationId ? await message.guild.channels.fetch(destinationId).catch(() => null) : null;
+        if (!destination?.isVoiceBased()) return fail("Usage: " + prefix + "move-member @member #voice-channel");
+        await target.voice.setChannel(destination, "Moved by " + message.author.tag);
+      } else if (command === "voice-mute" || command === "voice-unmute") await target.voice.setMute(command === "voice-mute", "Voice moderation by " + message.author.tag);
+      else await target.voice.setDeaf(command === "voice-deafen", "Voice moderation by " + message.author.tag);
+      addPrefixCase(command.toUpperCase().replace(/-/g, "_"), target.id, args.slice(1).join(" ") || null);
+      await saveDatabase();
+      return send("✦ VOICE ACTION COMPLETE", "Updated voice status for " + target.toString() + ".");
+    }
+    if (command === "banlist") {
+      if (!modPermission(PermissionFlagsBits.BanMembers)) return fail("You need Ban Members or Administrator.");
+      const bans = await message.guild.bans.fetch();
+      return send("✦ SERVER BAN LIST", bans.size ? bans.first(20).map(entry => "• **" + entry.user.tag + "** — " + entry.user.id + " — " + (entry.reason || "No reason")).join("\n") : "No active bans.");
+    }
+    if (["modlog","case"].includes(command)) {
+      if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
+      if (command === "modlog") {
+        const target = await prefixTarget(args[0]);
+        const rows = config.moderationCases.filter(item => !target || item.targetId === target.id).slice(0, 15);
+        return send("✦ MODERATION LOG", rows.length ? rows.map(item => "• **#" + item.id + " " + item.action + "** — " + (item.reason || "No reason") + " — <t:" + Math.floor(new Date(item.timestamp).getTime()/1000) + ":R>").join("\n") : "No moderation cases found.");
+      }
+      const id = Number(args[0]), item = config.moderationCases.find(row => row.id === id);
+      if (!item) return fail("Usage: " + prefix + "case <case-id>");
+      return send("✦ CASE #" + item.id + " • " + item.action, "Member: " + (item.targetId ? "<@" + item.targetId + ">" : "Not specified") + "\nModerator: <@" + item.moderatorId + ">\nReason: " + (item.reason || "No reason") + "\nDate: <t:" + Math.floor(new Date(item.timestamp).getTime()/1000) + ":F>");
+    }
+    if (["note","notes","clear-notes"].includes(command)) {
+      if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
+      const target = await prefixTarget(args[0]);
+      if (!target) return fail("Usage: " + prefix + command + " @member [note]");
+      if (command === "note") {
+        const note = args.slice(1).join(" ").trim();
+        if (!note) return fail("Usage: " + prefix + "note @member <private note>");
+        config.notes.unshift({ id: config.notes.reduce((max,row)=>Math.max(max,Number(row.id)||0),0)+1, memberId: target.id, moderatorId: message.author.id, note, timestamp: new Date().toISOString() });
+        config.notes = config.notes.slice(0,1000);
+        addPrefixCase("STAFF_NOTE", target.id, note.slice(0,400));
+        await saveDatabase();
+        return send("✦ PRIVATE NOTE SAVED", "Added a staff note for " + target.toString() + ".");
+      }
+      const rows = config.notes.filter(row => row.memberId === target.id);
+      if (command === "notes") return send("✦ PRIVATE STAFF NOTES", rows.length ? rows.slice(0,12).map(row => "• **#" + row.id + "** " + row.note + " — <t:" + Math.floor(new Date(row.timestamp).getTime()/1000) + ":R>").join("\n") : "No staff notes found.");
+      if (!rows.length) return fail("That member has no staff notes.");
+      config.notes = config.notes.filter(row => row.memberId !== target.id);
+      addPrefixCase("CLEAR_NOTES", target.id, "Cleared " + rows.length + " staff notes");
+      await saveDatabase();
+      return send("✦ NOTES CLEARED", "Removed **" + rows.length + "** staff notes for " + target.toString() + ".");
+    }
+    if (command === "slowmode-off") {
+      if (!modPermission(PermissionFlagsBits.ManageChannels)) return fail("You need Manage Channels or Administrator.");
+      await message.channel.setRateLimitPerUser(0, "Slowmode disabled by " + message.author.tag);
+      return send("✦ SLOWMODE DISABLED", "Slowmode is off in this channel.");
+    }
+    if (command === "clear-reactions") {
+      if (!modPermission(PermissionFlagsBits.ManageMessages)) return fail("You need Manage Messages or Administrator.");
+      const id = args[0];
+      if (!id || !/^\\d{17,20}$/.test(id)) return fail("Usage: " + prefix + "clear-reactions <message-id>");
+      const targetMessage = await message.channel.messages.fetch(id).catch(() => null);
+      if (!targetMessage) return fail("Message not found in this channel.");
+      await targetMessage.reactions.removeAll();
+      addPrefixCase("CLEAR_REACTIONS", null, "Message " + id);
+      await saveDatabase();
+      return send("✦ REACTIONS CLEARED", "Removed all reactions from that message.");
+    }
+    if (command === "set-topic") {
+      if (!modPermission(PermissionFlagsBits.ManageChannels)) return fail("You need Manage Channels or Administrator.");
+      const channelId = args[0]?.match(/^<#(\\d+)>$/)?.[1];
+      const channel = channelId ? await message.guild.channels.fetch(channelId).catch(() => null) : message.channel;
+      const topic = args.slice(channelId ? 1 : 0).join(" ").trim();
+      if (!channel || !topic || typeof channel.setTopic !== "function") return fail("Usage: " + prefix + "set-topic [#channel] <topic>");
+      await channel.setTopic(topic, "Topic updated by " + message.author.tag);
+      addPrefixCase("SET_TOPIC", null, channel.name + ": " + topic.slice(0,300));
+      await saveDatabase();
+      return send("✦ CHANNEL TOPIC UPDATED", "Updated the topic for " + channel.toString() + ".");
+    }
     if (command === "rankhelp" || command === "help") {
       const help = new EmbedBuilder()
         .setColor(0x7c5cff)
