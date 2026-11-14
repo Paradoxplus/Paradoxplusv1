@@ -639,7 +639,7 @@ function isTicketStaff(interaction, config, member) {
     Boolean(config.ticketStaffRoleId && member?.roles.cache.has(config.ticketStaffRoleId));
 }
 
-async function buildTicketPanel(guild, botUser) {
+function buildTicketPanel(guild, botUser) {
   const menu = new StringSelectMenuBuilder()
     .setCustomId("px_ticket_create")
     .setPlaceholder("✦  Select a department")
