@@ -651,14 +651,15 @@ function buildTicketPanel(guild, botUser) {
     );
   const panel = new EmbedBuilder()
     .setColor(0x6d5dfc)
-    .setAuthor({ name: "PARADOXPLUS  •  SUPPORT", iconURL: botUser.displayAvatarURL() })
+    .setAuthor({ name: "PARADOX 1.9+  •  SUPPORT", iconURL: botUser.displayAvatarURL() })
     .setTitle("✦ Support Center")
     .setDescription(
       "Need assistance? Choose the right department below and our team will take it from there.\n\n" +
       "🔒 **Private tickets**  •  👥 **Staff support**  •  ✦ **One open ticket at a time**"
     )
     .setThumbnail(guild.iconURL({ size: 256 }) || botUser.displayAvatarURL())
-    .setFooter({ text: "PARADOXPLUS  /  ParadoxManagerV1" });
+    .setImage("https://www.image2url.com/r2/default/gifs/1794386711876-4bbf4f54-5448-4384-960d-4424655e01a2.gif")
+    .setFooter({ text: "PARADOX 1.9+  /  ParadoxManagerV1" });
   return { embeds: [panel], components: [new ActionRowBuilder().addComponents(menu)] };
 }
 
