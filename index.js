@@ -2507,7 +2507,7 @@ client.on(Events.MessageCreate, async message => {
       if (!target) return fail("Usage: " + prefix + "mute @member [duration] [reason] — default duration is 10 minutes.");
       if (target.id === message.author.id || !canActOnTarget(message.member, target, message.guild) || !target.moderatable) return fail("You cannot timeout a member with an equal or higher role, or yourself.");
       const durationToken = args[1] || "10m";
-      const durationMatch = durationToken.match(/^(\\d+)(s|m|h|d)?$/i);
+      const durationMatch = durationToken.match(/^(\d+)(s|m|h|d)?$/i);
       if (!durationMatch) return fail("Duration must look like 10m, 2h, or 1d. Maximum is 28d.");
       const amount = Number(durationMatch[1]);
       const unit = (durationMatch[2] || "m").toLowerCase();
