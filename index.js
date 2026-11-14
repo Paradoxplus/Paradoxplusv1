@@ -101,6 +101,7 @@ function getGuildConfig(guildId) {
   if (!Array.isArray(config.autoresponders)) config.autoresponders = [];
   if (typeof config.ticketStaffRoleId !== "string") config.ticketStaffRoleId = null;
   if (!Array.isArray(config.dmOptIns)) config.dmOptIns = [];
+  if (!config.afkUsers || typeof config.afkUsers !== "object" || Array.isArray(config.afkUsers)) config.afkUsers = {};
   if (!Number.isInteger(config.recruitCount) || config.recruitCount < 0) config.recruitCount = 0;
   if (!Array.isArray(config.inactiveAppeals)) config.inactiveAppeals = [];
   if (typeof config.announceChannelId !== "string") config.announceChannelId = null;
@@ -437,6 +438,46 @@ client.on(Events.MessageCreate, async message => {
   const match = config.autoresponders.find(item => item && typeof item.trigger === "string" && text.includes(item.trigger.toLowerCase()));
   if (match) return message.reply({ content: match.response, allowedMentions: { repliedUser: false, parse: [] } })
     .catch(error => console.error("Custom autoresponder failed:", error));
+});
+
+// AFK status: automatically clear when the member speaks and notify others when they mention an AFK member.
+client.on(Events.MessageCreate, async message => {
+  if (!message.guild || message.author.bot) return;
+  const config = getGuildConfig(message.guild.id);
+  const ownAfk = config.afkUsers[message.author.id];
+  if (ownAfk) {
+    delete config.afkUsers[message.author.id];
+    await saveDatabase().catch(error => console.error("[AFK] Could not save return:", error));
+    const elapsed = Math.max(0, Date.now() - Number(ownAfk.since || Date.now()));
+    const minutes = Math.floor(elapsed / 60000);
+    const duration = minutes < 1 ? "less than a minute" : minutes < 60 ? minutes + " minute(s)" : Math.floor(minutes / 60) + " hour(s)";
+    await message.reply({
+      embeds: [new EmbedBuilder()
+        .setColor(0x35d07f)
+        .setTitle("✦ Welcome back")
+        .setDescription(message.author.toString() + " is no longer AFK. Away for **" + duration + "**.")
+        .setFooter({ text: "Paradoxplus AFK System" })
+        .setTimestamp()],
+      allowedMentions: { users: [message.author.id], repliedUser: false }
+    }).catch(error => console.error("[AFK] Return notice failed:", error));
+    return;
+  }
+  const afkMentions = [...message.mentions.users.values()]
+    .filter(user => !user.bot && user.id !== message.author.id && config.afkUsers[user.id])
+    .slice(0, 5);
+  if (!afkMentions.length) return;
+  const details = afkMentions.map(user => {
+    const record = config.afkUsers[user.id];
+    return user.toString() + ": **" + String(record.reason || "No reason provided").slice(0, 180) + "**";
+  });
+  await message.reply({
+    embeds: [new EmbedBuilder()
+      .setColor(0x7c5cff)
+      .setTitle("✦ AFK notice")
+      .setDescription(details.join("\n"))
+      .setFooter({ text: "Paradoxplus AFK System" })],
+    allowedMentions: { parse: [], repliedUser: false }
+  }).catch(error => console.error("[AFK] Mention notice failed:", error));
 });
 
 client.on(Events.GuildRoleCreate, role => {
@@ -2140,6 +2181,18 @@ client.on(Events.MessageCreate, async message => {
   const fail = text => send("⚠️ Command error", text);
   try {
     if (await handleMusicPrefix(message, command, args, client)) return;
+    if (command === "afk") {
+      if (args[0]?.toLowerCase() === "off" || args[0]?.toLowerCase() === "remove") {
+        if (!config.afkUsers[message.author.id]) return fail("You are not currently marked as AFK.");
+        delete config.afkUsers[message.author.id];
+        await saveDatabase();
+        return send("✦ AFK DISABLED", "Your AFK status has been cleared.");
+      }
+      const reason = args.join(" ").trim().slice(0, 300) || "No reason provided";
+      config.afkUsers[message.author.id] = { reason, since: Date.now() };
+      await saveDatabase();
+      return send("✦ AFK ENABLED", "You're now marked as AFK. I'll notify people who mention you and clear your status when you send your next message.\nReason: **" + reason + "**");
+    }
     if (command === "welcome") {
       const sub = (args.shift() || "").toLowerCase();
       const canConfigure = isBotOwner(message.author.id) ||
