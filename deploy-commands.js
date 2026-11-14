@@ -44,7 +44,8 @@ const commands = [
   new SlashCommandBuilder().setName("clear").setDescription("Clear upcoming tracks."),
 
   new SlashCommandBuilder().setName("ticket").setDescription("Create and manage private support tickets.")
-    .addSubcommand(sc=>sc.setName("panel").setDescription("Post the dropdown ticket panel in this channel.")
+    .addSubcommand(sc=>sc.setName("panel").setDescription("Post the dropdown ticket panel in a chosen channel.")
+      .addChannelOption(o=>o.setName("channel").setDescription("Destination text channel; defaults to this channel").addChannelTypes(ChannelType.GuildText))
       .addRoleOption(o=>o.setName("staff_role").setDescription("Optional role that can view and manage tickets")))
     .addSubcommand(sc=>sc.setName("add").setDescription("Add a member to the current ticket.")
       .addUserOption(o=>o.setName("user").setDescription("Member to add").setRequired(true)))
