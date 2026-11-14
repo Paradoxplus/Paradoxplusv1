@@ -2517,7 +2517,7 @@ client.on(Events.MessageCreate, async message => {
       if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
       const target = await prefixTarget(args[0]);
       if (!target) return fail("Usage: " + prefix + "mute @member [reason]");
-      if (target.id === message.author.id || !canActOnTarget(message.member, target, message.guild) || !target.moderatable) return fail("You cannot mute a member with an equal or higher role, or yourself.");
+      if (target.id === message.author.id) return fail("You cannot mute yourself.");
       if (!Array.isArray(config.permanentMutes)) config.permanentMutes = [];
       const reason = args.slice(1).join(" ").trim() || "No reason provided";
       const existing = config.permanentMutes.find(item => item.memberId === target.id);
