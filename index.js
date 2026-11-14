@@ -652,6 +652,14 @@ async function connectOwnerVoice(readyClient) {
 }
 
 client.once(Events.ClientReady, async readyClient => {
+  const nicknameGuild = await readyClient.guilds.fetch(MEMBER_COUNTER_GUILD_ID).catch(() => null);
+  if (nicknameGuild) {
+    const botMember = await nicknameGuild.members.fetchMe().catch(() => null);
+    if (botMember && botMember.nickname !== "Paradox • Core") {
+      await botMember.setNickname("Paradox • Core", "Set official Paradoxplus bot nickname")
+        .catch(error => console.error("[Nickname] Could not set bot nickname:", error));
+    }
+  }
   const counterGuild = await readyClient.guilds.fetch(MEMBER_COUNTER_GUILD_ID).catch(() => null);
   if (counterGuild) await syncMemberCounter(counterGuild).catch(error => console.error("[MemberCounter] Startup sync failed:", error));
   const rankGuild = await readyClient.guilds.fetch("1568943817762017400").catch(() => null);
