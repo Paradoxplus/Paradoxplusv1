@@ -8,7 +8,7 @@ import path from "node:path";
 import { startDashboard } from "./dashboard.js";
 import { joinVoiceChannel, VoiceConnectionStatus, entersState, getVoiceConnection } from "@discordjs/voice";
 import { setupMusic, handleMusicInteraction, handleMusicPrefix } from "./music.js";
-import { initRecruitmentDatabase, recordRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady } from "./recruitment.js";
+import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady } from "./recruitment.js";
 
  
 // Discord does not support loading custom fonts, so use Unicode sans-serif bold
@@ -1090,9 +1090,9 @@ client.on(Events.InteractionCreate, async interaction => {
       if (target.user.bot) return replyError(interaction, "Bots cannot be recruited.");
       if (target.id === interaction.user.id) return replyError(interaction, "You cannot recruit yourself.");
       if (!isRecruitmentDatabaseReady()) return replyError(interaction, "Recruitment storage is unavailable. Check the PostgreSQL connection.");
-      const perks = await applyRecruitPerks(interaction.guild, target);
-      const result = await recordRecruit({ guildId: interaction.guildId, recruitId: target.id, recruiterId: interaction.user.id, source: "slash" });
+      const result = await recordRecruit({ guildId: interaction.guildId, recruitId: target.id, recruiterId: interaction.user.id, source: "slash", originalNickname: target.nickname });
       if (result.duplicate) return replyError(interaction, "That member has already been recorded as a recruit in this server.");
+      const perks = await applyRecruitPerks(interaction.guild, target);
       const embed = new EmbedBuilder()
         .setColor(0x7c5cff)
         .setAuthor({ name: "APP", iconURL: interaction.client.user.displayAvatarURL() })
@@ -2250,9 +2250,9 @@ client.on(Events.MessageCreate, async message => {
       if (target.user.bot) return fail("Bots cannot be recruited.");
       if (target.id === message.author.id) return fail("You cannot recruit yourself.");
       if (!isRecruitmentDatabaseReady()) return fail("Recruitment storage is unavailable. Check the PostgreSQL connection.");
-      const perks = await applyRecruitPerks(message.guild, target);
-      const result = await recordRecruit({ guildId: message.guild.id, recruitId: target.id, recruiterId: message.author.id, source: "prefix" });
+      const result = await recordRecruit({ guildId: message.guild.id, recruitId: target.id, recruiterId: message.author.id, source: "prefix", originalNickname: target.nickname });
       if (result.duplicate) return fail("That member has already been recorded as a recruit in this server.");
+      const perks = await applyRecruitPerks(message.guild, target);
       const embed = new EmbedBuilder()
         .setColor(0x7c5cff)
         .setAuthor({ name: "APP", iconURL: client.user.displayAvatarURL() })
@@ -2268,6 +2268,33 @@ client.on(Events.MessageCreate, async message => {
       embed.addFields({ name: "Recruit perks", value: (perks.role ? "✅ Recruit role assigned" : "⚠️ Recruit role not assigned") + "\n" + (perks.nickname ? "✅ Server nickname updated" : "⚠️ Server nickname unchanged") + (perks.errors.length ? "\n" + perks.errors.join("\n") : ""), inline: false });
       await recruitChannel.send({ embeds: [embed], allowedMentions: { users: [target.id, message.author.id], parse: [] } });
       return message.react("✅");
+    }
+    if (command === "unrecruit") {
+      if (!isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.ManageGuild) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) return fail("You need Manage Server or Administrator to unrecruit members.");
+      const id = mentionedId(args[0]);
+      if (!id) return fail("Usage: " + prefix + "unrecruit @member");
+      if (!isRecruitmentDatabaseReady()) return fail("Recruitment storage is unavailable. Check the PostgreSQL connection.");
+      const target = message.guild.members.cache.get(id) ?? await message.guild.members.fetch(id).catch(() => null);
+      const record = await removeRecruit(message.guild.id, id);
+      if (!record) return fail("That member is not recorded as a recruit in this server.");
+      const results = [];
+      const role = await message.guild.roles.fetch("1568943817858744344").catch(() => null);
+      const botMember = message.guild.members.me ?? await message.guild.members.fetchMe();
+      if (target && role && target.roles.cache.has(role.id)) {
+        if (botMember.permissions.has(PermissionFlagsBits.ManageRoles) && role.position < botMember.roles.highest.position) {
+          try { await target.roles.remove(role, "Paradoxplus unrecruit"); results.push("✅ Recruit role removed"); }
+          catch (error) { results.push("⚠️ Role removal failed: " + error.message); }
+        } else results.push("⚠️ Cannot remove recruit role; check Manage Roles and role hierarchy.");
+      } else results.push(target ? "ℹ️ Recruit role was not present" : "ℹ️ Member has left the server; database record removed");
+      if (target && record.nickname_saved) {
+        if (botMember.permissions.has(PermissionFlagsBits.ManageNicknames) || botMember.permissions.has(PermissionFlagsBits.Administrator)) {
+          try { await target.setNickname(record.original_nickname, "Restore nickname after Paradoxplus unrecruit"); results.push("✅ Original server nickname restored"); }
+          catch (error) { results.push("⚠️ Nickname restore failed: " + error.message); }
+        } else results.push("⚠️ I need Manage Nicknames to restore the original nickname.");
+      } else if (target) results.push("ℹ️ Original nickname was not saved for this older recruit; nickname left unchanged.");
+      const logChannel = config.logChannelId ? await message.guild.channels.fetch(config.logChannelId).catch(() => null) : null;
+      if (logChannel?.isTextBased()) await logChannel.send({ embeds: [prefixEmbed("RECRUIT REMOVED", "Member: <@" + id + ">\nAction by: " + message.author.toString() + "\nOriginal recruiter: <@" + record.recruiter_id + ">\n\n" + results.join("\n"))], allowedMentions: { parse: [] } }).catch(() => null);
+      return send("✦ MEMBER UNRECRUITED", "Removed <@" + id + "> from the recruitment system.\n\n" + results.join("\n"));
     }
     if (command === "recruits") {
       const id = mentionedId(args[0]) || message.author.id;
