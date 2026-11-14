@@ -642,24 +642,30 @@ function isTicketStaff(interaction, config, member) {
 function buildTicketPanel(guild, botUser) {
   const menu = new StringSelectMenuBuilder()
     .setCustomId("px_ticket_create")
-    .setPlaceholder("✦  Select a department")
+    .setPlaceholder("🎫  Select a ticket category")
     .addOptions(
-      { label: "General Support", description: "Questions and assistance", value: "General Support", emoji: "🎫" },
-      { label: "Member Report", description: "Privately report an issue", value: "Member Report", emoji: "🛡️" },
-      { label: "Partnership", description: "Business enquiries", value: "Partnership", emoji: "🤝" },
-      { label: "Alliance / Merge", description: "Alliances and server merges", value: "Alliance / Merge", emoji: "🌐" }
+      { label: "Team Application", description: "Apply to join the team", value: "Team Application", emoji: "🛡️" },
+      { label: "General Support", description: "Get help from the support team", value: "General Support", emoji: "🎫" },
+      { label: "Paid Promotion", description: "Enquire about paid promotions", value: "Paid Promotion", emoji: "📢" }
     );
   const panel = new EmbedBuilder()
     .setColor(0x6d5dfc)
-    .setAuthor({ name: "PARADOX 1.9+  •  SUPPORT", iconURL: botUser.displayAvatarURL() })
-    .setTitle("✦ Support Center")
+    .setTitle("<a:ticket1:1446778565722112060> Paradoxx | Ticket Support")
     .setDescription(
-      "Need assistance? Choose the right department below and our team will take it from there.\n\n" +
-      "🔒 **Private tickets**  •  👥 **Staff support**  •  ✦ **One open ticket at a time**"
+      "## Paradoxx | 1.9+ Ticket Support\n\n" +
+      "**Types Of Support We Provide**\n\n" +
+      "> - Team Application\n> - General Support\n> - Paid Promotion\n\n" +
+      "**Requirements for __Team Application:__**\n\n" +
+      "> • Must be LT4+ in one of these gamemodes: Nethpot / SMP / Crystal\n" +
+      "> • Must be active in both VC and Chat\n" +
+      "> • Must act mature and have common sense\n\n" +
+      "**Types of help we can provide in __General Support:__**\n\n" +
+      "> - Ally / Merge Request\n> - Technical Help\n> - Staff Report\n> - Giveaways Rewards\n> - Clan V/s Clan\n\n" +
+      "**NOTE:** Create a ticket only for one of the support types listed above."
     )
     .setThumbnail(guild.iconURL({ size: 256 }) || botUser.displayAvatarURL())
     .setImage("https://www.image2url.com/r2/default/gifs/1794386711876-4bbf4f54-5448-4384-960d-4424655e01a2.gif")
-    .setFooter({ text: "PARADOX 1.9+  /  ParadoxManagerV1" });
+    .setFooter({ text: "Powered By Zonex Devs" });
   return { embeds: [panel], components: [new ActionRowBuilder().addComponents(menu)] };
 }
 
