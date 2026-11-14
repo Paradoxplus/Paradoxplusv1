@@ -867,8 +867,10 @@ async function finishGiveaway(guild, giveaway, reroll = false) {
   const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
   if (!message) throw new Error("Giveaway announcement message is unavailable.");
   const entries = [...new Set((giveaway.entries || []).filter(id => id && id !== client.user.id))];
-  const excluded = new Set(reroll ? (giveaway.winners || []) : []);
+  const excluded = new Set(reroll ? [...(giveaway.previousWinners || []), ...(giveaway.winners || [])] : []);
   const pool = entries.filter(id => !excluded.has(id));
+  if (!reroll) giveaway.previousWinners = [];
+  else giveaway.previousWinners = [...new Set([...(giveaway.previousWinners || []), ...(giveaway.winners || [])])];
   const winners = [];
   while (pool.length && winners.length < giveaway.winnerCount) {
     const index = Math.floor(Math.random() * pool.length);
@@ -927,6 +929,7 @@ client.on(Events.InteractionCreate, async interaction => {
     }
     giveaway.entries.push(interaction.user.id);
     await saveDatabase();
+    await interaction.message.edit({ embeds: [giveawayEmbed(giveaway)] }).catch(error => console.error("[Giveaway] Entry count update failed:", error));
     return interaction.reply({ content: "🎉 You're entered in **" + giveaway.prize + "**. Good luck!", ephemeral: true });
   }
 
