@@ -1,7 +1,7 @@
 import "dotenv/config";
 import {
   Client, GatewayIntentBits, Partials, Events, PermissionFlagsBits,
-  EmbedBuilder, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder
+  EmbedBuilder, AttachmentBuilder, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder
 } from "discord.js";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -607,6 +607,70 @@ client.once(Events.ClientReady, async readyClient => {
 
 setupMusic(client, () => connectOwnerVoice(client));
 
+function getTicketData(channel) {
+  const match = channel?.topic?.match(/^paradoxplus-ticket:(\\d+)(?:\\|(.*))?$/);
+  if (!match) return null;
+  const data = { ownerId: match[1], claimedBy: null, priority: "Normal", status: "open" };
+  for (const item of (match[2] || "").split("|")) {
+    const [key, ...parts] = item.split("=");
+    const value = parts.join("=");
+    if (key === "claim" && /^\\d+$/.test(value)) data.claimedBy = value;
+    if (key === "priority" && ["Low", "Normal", "High", "Urgent"].includes(value)) data.priority = value;
+    if (key === "status" && ["open", "closed"].includes(value)) data.status = value;
+  }
+  return data;
+}
+
+async function setTicketData(channel, patch) {
+  const data = { ...(getTicketData(channel) || {}), ...patch };
+  if (!data.ownerId) throw new Error("Ticket metadata is missing.");
+  const parts = ["paradoxplus-ticket:" + data.ownerId];
+  if (data.claimedBy) parts.push("claim=" + data.claimedBy);
+  parts.push("priority=" + (data.priority || "Normal"));
+  parts.push("status=" + (data.status || "open"));
+  await channel.setTopic(parts.join("|"));
+  return data;
+}
+
+function isTicketStaff(interaction, config, member) {
+  return isBotOwner(interaction.user.id) ||
+    interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) ||
+    interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels) ||
+    Boolean(config.ticketStaffRoleId && member?.roles.cache.has(config.ticketStaffRoleId));
+}
+
+async function buildTicketTranscript(channel) {
+  const collected = [];
+  let before;
+  for (let page = 0; page < 10; page++) {
+    const batch = await channel.messages.fetch({ limit: 100, ...(before ? { before } : {}) });
+    if (!batch.size) break;
+    collected.push(...batch.values());
+    before = batch.last().id;
+    if (batch.size < 100) break;
+  }
+  collected.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+  const lines = [
+    "PARADOXPLUS TICKET TRANSCRIPT",
+    "Server: " + channel.guild.name,
+    "Channel: #" + channel.name,
+    "Generated: " + new Date().toISOString(),
+    "Messages included: " + collected.length,
+    "----------------------------------------"
+  ];
+  for (const message of collected) {
+    const author = message.author?.tag || "Unknown user";
+    const body = message.content || "";
+    const attachments = [...message.attachments.values()].map(file => file.url);
+    const embeds = message.embeds.map(embed => embed.title || embed.description || "[Embed]").filter(Boolean);
+    lines.push("[" + message.createdAt.toISOString() + "] " + author + ": " + body);
+    for (const url of attachments) lines.push("  Attachment: " + url);
+    for (const embed of embeds) lines.push("  Embed: " + String(embed).replace(/\\s+/g, " ").slice(0, 500));
+  }
+  if (collected.length >= 1000) lines.push("", "[Transcript limit reached: latest 1,000 messages included.]");
+  return lines.join("\\n");
+}
+
 client.on(Events.InteractionCreate, async interaction => {
   if (await handleMusicInteraction(interaction, client)) return;
 
@@ -619,7 +683,7 @@ client.on(Events.InteractionCreate, async interaction => {
       const existing = interaction.guild.channels.cache.find(channel =>
         channel.type === ChannelType.GuildText &&
         typeof channel.topic === "string" &&
-        channel.topic === "paradoxplus-ticket:" + interaction.user.id
+        getTicketData(channel)?.ownerId === interaction.user.id && getTicketData(channel)?.status !== "closed"
       );
       if (existing) return interaction.editReply("You already have an open ticket: " + existing.toString());
 
@@ -691,6 +755,7 @@ client.on(Events.InteractionCreate, async interaction => {
         SendMessages: false,
         AddReactions: false
       });
+      await setTicketData(interaction.channel, { status: "closed" });
       if (!interaction.channel.name.startsWith("closed-")) {
         await interaction.channel.setName(("closed-" + interaction.channel.name).slice(0, 100));
       }
@@ -759,6 +824,133 @@ client.on(Events.InteractionCreate, async interaction => {
           .setTimestamp();
         await interaction.channel.send({ embeds: [panel], components: [row] });
         return interaction.reply({ content: "✅ Premium ticket portal published in this channel.", ephemeral: true });
+      }
+
+      const ticketData = getTicketData(interaction.channel);
+      const isTicketChannel = Boolean(ticketData);
+      const staffMember = ticketActor;
+      const staffAccess = isTicketStaff(interaction, config, staffMember);
+
+      if (sub !== "panel" && !isTicketChannel) {
+        return replyError(interaction, "Use this command inside a Paradoxplus ticket channel.");
+      }
+
+      if (sub === "claim") {
+        if (!staffAccess) return replyError(interaction, "Only ticket staff can claim tickets.");
+        if (ticketData.claimedBy && ticketData.claimedBy !== interaction.user.id) {
+          return replyError(interaction, "This ticket is already claimed by <@" + ticketData.claimedBy + ">.");
+        }
+        await setTicketData(interaction.channel, { claimedBy: interaction.user.id });
+        return interaction.reply({ content: "✅ You claimed this ticket.", ephemeral: true });
+      }
+
+      if (sub === "unclaim") {
+        if (!staffAccess) return replyError(interaction, "Only ticket staff can unclaim tickets.");
+        if (!ticketData.claimedBy) return replyError(interaction, "This ticket is not claimed.");
+        if (ticketData.claimedBy !== interaction.user.id &&
+            !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) &&
+            !isBotOwner(interaction.user.id)) {
+          return replyError(interaction, "Only the current claimer or an administrator can unclaim this ticket.");
+        }
+        await setTicketData(interaction.channel, { claimedBy: null });
+        return interaction.reply({ content: "✅ Ticket claim released.", ephemeral: true });
+      }
+
+      if (sub === "remove") {
+        if (!staffAccess) return replyError(interaction, "Only ticket staff can remove people from tickets.");
+        const user = interaction.options.getUser("user", true);
+        if (user.id === ticketData.ownerId) return replyError(interaction, "The ticket creator cannot be removed.");
+        await interaction.channel.permissionOverwrites.delete(user.id, "Removed from ticket by " + interaction.user.tag);
+        return interaction.reply({ content: "✅ Removed " + user.toString() + " from this ticket.", allowedMentions: { users: [user.id], parse: [] } });
+      }
+
+      if (sub === "rename") {
+        if (!staffAccess) return replyError(interaction, "Only ticket staff can rename tickets.");
+        const requested = interaction.options.getString("name", true).toLowerCase()
+          .replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 90);
+        if (!requested) return replyError(interaction, "Choose a name with letters or numbers.");
+        await interaction.channel.setName(requested);
+        return interaction.reply({ content: "✅ Ticket renamed to **#" + requested + "**.", ephemeral: true });
+      }
+
+      if (sub === "priority") {
+        if (!staffAccess) return replyError(interaction, "Only ticket staff can change ticket priority.");
+        const priority = interaction.options.getString("level", true);
+        await setTicketData(interaction.channel, { priority });
+        return interaction.reply({ content: "✅ Ticket priority set to **" + priority + "**.", ephemeral: true });
+      }
+
+      if (sub === "info") {
+        const current = getTicketData(interaction.channel);
+        const info = new EmbedBuilder()
+          .setColor(0x6d5dfc)
+          .setTitle("Ticket Information")
+          .addFields(
+            { name: "Owner", value: "<@" + current.ownerId + ">", inline: true },
+            { name: "Status", value: current.status === "closed" ? "🔒 Closed" : "🟢 Open", inline: true },
+            { name: "Priority", value: current.priority, inline: true },
+            { name: "Claimed by", value: current.claimedBy ? "<@" + current.claimedBy + ">" : "Unclaimed", inline: true }
+          )
+          .setFooter({ text: "Paradoxplus • Ticket Management" });
+        return interaction.reply({ embeds: [info], ephemeral: true, allowedMentions: { parse: [] } });
+      }
+
+      if (sub === "close") {
+        if (interaction.user.id !== ticketData.ownerId && !staffAccess) {
+          return replyError(interaction, "Only the ticket creator or ticket staff can close this ticket.");
+        }
+        if (ticketData.status === "closed") return replyError(interaction, "This ticket is already closed.");
+        const reason = interaction.options.getString("reason")?.trim();
+        await interaction.channel.permissionOverwrites.edit(ticketData.ownerId, {
+          SendMessages: false,
+          AddReactions: false
+        });
+        await setTicketData(interaction.channel, { status: "closed" });
+        if (!interaction.channel.name.startsWith("closed-")) {
+          await interaction.channel.setName(("closed-" + interaction.channel.name).slice(0, 100));
+        }
+        return interaction.reply({
+          content: "🔒 Ticket closed by " + interaction.user.toString() + (reason ? "\\n**Reason:** " + reason.slice(0, 500) : ""),
+          allowedMentions: { users: [interaction.user.id], parse: [] }
+        });
+      }
+
+      if (sub === "reopen") {
+        if (!staffAccess) return replyError(interaction, "Only ticket staff can reopen tickets.");
+        if (ticketData.status !== "closed") return replyError(interaction, "This ticket is already open.");
+        await interaction.channel.permissionOverwrites.edit(ticketData.ownerId, {
+          ViewChannel: true,
+          SendMessages: true,
+          ReadMessageHistory: true,
+          AttachFiles: true,
+          EmbedLinks: true
+        });
+        await setTicketData(interaction.channel, { status: "open" });
+        if (interaction.channel.name.startsWith("closed-")) {
+          await interaction.channel.setName(interaction.channel.name.slice(7));
+        }
+        const closeRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId("px_ticket_close").setLabel("Close ticket").setEmoji("🔒").setStyle(ButtonStyle.Danger)
+        );
+        await interaction.channel.send({ content: "🔓 Ticket reopened by " + interaction.user.toString() + ".", components: [closeRow], allowedMentions: { users: [interaction.user.id], parse: [] } });
+        return interaction.reply({ content: "✅ Ticket reopened.", ephemeral: true });
+      }
+
+      if (sub === "transcript") {
+        if (!staffAccess && interaction.user.id !== ticketData.ownerId) {
+          return replyError(interaction, "Only the ticket creator or ticket staff can export this transcript.");
+        }
+        await interaction.deferReply({ ephemeral: true });
+        try {
+          const transcript = await buildTicketTranscript(interaction.channel);
+          const attachment = new AttachmentBuilder(Buffer.from(transcript, "utf8"), {
+            name: "paradoxplus-" + interaction.channel.id + "-transcript.txt"
+          });
+          return interaction.editReply({ content: "📄 Transcript generated (up to the latest 1,000 messages).", files: [attachment] });
+        } catch (error) {
+          console.error("[Tickets] Transcript generation failed:", error);
+          return interaction.editReply("I couldn't generate the transcript. Check that I have View Channel, Read Message History, and Attach Files permissions.");
+        }
       }
 
       if (sub === "add") {
