@@ -43,6 +43,18 @@ const commands = [
     .addIntegerOption(o=>o.setName("position").setDescription("Queue position, starting at 1").setMinValue(1).setRequired(true)),
   new SlashCommandBuilder().setName("clear").setDescription("Clear upcoming tracks."),
 
+  new SlashCommandBuilder().setName("giveaway").setDescription("Create, end, reroll, and view server giveaways.")
+    .addSubcommand(sc=>sc.setName("create").setDescription("Start a button-entry giveaway.")
+      .addStringOption(o=>o.setName("prize").setDescription("What members can win").setMaxLength(100).setRequired(true))
+      .addStringOption(o=>o.setName("duration").setDescription("Duration, e.g. 30m, 2h, 1d (max 30d)").setMaxLength(8).setRequired(true))
+      .addIntegerOption(o=>o.setName("winners").setDescription("Number of winners").setMinValue(1).setMaxValue(10).setRequired(true))
+      .addChannelOption(o=>o.setName("channel").setDescription("Announcement channel; defaults to this channel").addChannelTypes(ChannelType.GuildText))
+      .addStringOption(o=>o.setName("description").setDescription("Extra giveaway details").setMaxLength(500)))
+    .addSubcommand(sc=>sc.setName("end").setDescription("End a giveaway early and draw winners.")
+      .addStringOption(o=>o.setName("giveaway_id").setDescription("Message ID shown in the giveaway").setRequired(true)))
+    .addSubcommand(sc=>sc.setName("reroll").setDescription("Pick replacement winners from remaining entrants.")
+      .addStringOption(o=>o.setName("giveaway_id").setDescription("Message ID shown in the giveaway").setRequired(true)))
+    .addSubcommand(sc=>sc.setName("list").setDescription("View recent giveaways.")),
   new SlashCommandBuilder().setName("ticket").setDescription("Create and manage private support tickets.")
     .addSubcommand(sc=>sc.setName("panel").setDescription("Post the dropdown ticket panel in a chosen channel.")
       .addChannelOption(o=>o.setName("channel").setDescription("Destination text channel; defaults to this channel").addChannelTypes(ChannelType.GuildText))
