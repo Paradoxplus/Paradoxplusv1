@@ -710,13 +710,6 @@ client.on(Events.InteractionCreate, async interaction => {
     await interaction.deferReply({ ephemeral: true });
     try {
       const config = getGuildConfig(interaction.guildId);
-      const existing = interaction.guild.channels.cache.find(channel =>
-        channel.type === ChannelType.GuildText &&
-        typeof channel.topic === "string" &&
-        getTicketData(channel)?.ownerId === interaction.user.id && getTicketData(channel)?.status !== "closed"
-      );
-      if (existing) return interaction.editReply("You already have an open ticket: " + existing.toString());
-
       const member = await interaction.guild.members.fetch(interaction.user.id);
       const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
       const overwrites = [
@@ -727,15 +720,28 @@ client.on(Events.InteractionCreate, async interaction => {
       if (config.ticketStaffRoleId && interaction.guild.roles.cache.has(config.ticketStaffRoleId)) {
         overwrites.push({ id: config.ticketStaffRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
       }
-      const username = interaction.user.username.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").slice(0, 70) || "member";
+      const ticketType = interaction.values[0];
+      const categoryId = "1568943820995961012";
+      const ticketCategory = await interaction.guild.channels.fetch(categoryId).catch(() => null);
+      if (!ticketCategory || ticketCategory.type !== ChannelType.GuildCategory) {
+        return interaction.editReply("The ticket category is missing or is not a category. Please ask an administrator to check the ticket setup.");
+      }
+      const username = interaction.user.username.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 45) || "member";
+      const typeSlug = ticketType === "General Support" ? "general" : ticketType === "Team Application" ? "team-application" : "paid-promotion";
+      const baseName = typeSlug + "-" + username;
+      let channelName = baseName;
+      let suffix = 2;
+      while (interaction.guild.channels.cache.some(existingChannel => existingChannel.parentId === categoryId && existingChannel.name === channelName)) {
+        channelName = baseName + "-" + suffix++;
+      }
       const channel = await interaction.guild.channels.create({
-        name: "ticket-" + username,
+        name: channelName,
         type: ChannelType.GuildText,
+        parent: ticketCategory.id,
         topic: "paradoxplus-ticket:" + interaction.user.id,
         permissionOverwrites: overwrites,
-        reason: "Paradoxplus support ticket opened by " + interaction.user.tag
+        reason: "Paradox 1.9+ " + ticketType + " ticket opened by " + interaction.user.tag
       });
-      const ticketType = interaction.values[0];
       const closeRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("px_ticket_close").setLabel("Close ticket").setEmoji("🔒").setStyle(ButtonStyle.Danger)
       );
