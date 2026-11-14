@@ -47,7 +47,21 @@ const commands = [
     .addSubcommand(sc=>sc.setName("panel").setDescription("Post the dropdown ticket panel in this channel.")
       .addRoleOption(o=>o.setName("staff_role").setDescription("Optional role that can view and manage tickets")))
     .addSubcommand(sc=>sc.setName("add").setDescription("Add a member to the current ticket.")
-      .addUserOption(o=>o.setName("user").setDescription("Member to add").setRequired(true))),
+      .addUserOption(o=>o.setName("user").setDescription("Member to add").setRequired(true)))
+    .addSubcommand(sc=>sc.setName("remove").setDescription("Remove a member from the current ticket.")
+      .addUserOption(o=>o.setName("user").setDescription("Member to remove").setRequired(true)))
+    .addSubcommand(sc=>sc.setName("claim").setDescription("Claim the current ticket."))
+    .addSubcommand(sc=>sc.setName("unclaim").setDescription("Release your ticket claim."))
+    .addSubcommand(sc=>sc.setName("rename").setDescription("Rename the current ticket.")
+      .addStringOption(o=>o.setName("name").setDescription("New ticket channel name").setMinLength(1).setMaxLength(90).setRequired(true)))
+    .addSubcommand(sc=>sc.setName("priority").setDescription("Set the ticket priority.")
+      .addStringOption(o=>o.setName("level").setDescription("Priority level").setRequired(true)
+        .addChoices({name:"Low",value:"Low"},{name:"Normal",value:"Normal"},{name:"High",value:"High"},{name:"Urgent",value:"Urgent"})))
+    .addSubcommand(sc=>sc.setName("info").setDescription("View the current ticket details."))
+    .addSubcommand(sc=>sc.setName("close").setDescription("Close the current ticket with an optional reason.")
+      .addStringOption(o=>o.setName("reason").setDescription("Why this ticket is being closed").setMaxLength(500)))
+    .addSubcommand(sc=>sc.setName("reopen").setDescription("Reopen a closed ticket."))
+    .addSubcommand(sc=>sc.setName("transcript").setDescription("Export the ticket conversation as a text file.")),
   new SlashCommandBuilder().setName("ticket-panel").setDescription("Publish the Paradoxplus ticket portal in a selected channel.")
     .addChannelOption(o=>o.setName("channel").setDescription("Text channel where the ticket panel should be posted").addChannelTypes(ChannelType.GuildText).setRequired(true)),
   new SlashCommandBuilder().setName("prefix").setDescription("Change this server’s text command prefix.")
