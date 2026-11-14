@@ -2413,6 +2413,71 @@ client.on(Events.MessageCreate, async message => {
       await saveDatabase();
       return send("✦ CHANNEL TOPIC UPDATED", "Updated the topic for " + channel.toString() + ".");
     }
+    const prefixMember = async token => {
+      const id = mentionedId(token) || (token && /^\d{17,20}$/.test(token) ? token : null);
+      return id ? (message.guild.members.cache.get(id) ?? await message.guild.members.fetch(id).catch(() => null)) : null;
+    };
+    const prefixManager = permission => isBotOwner(message.author.id) || message.member.permissions.has(PermissionFlagsBits.Administrator) || message.member.permissions.has(permission);
+    const prefixRecord = (action,targetId,reason) => {
+      const id=config.moderationCases.reduce((m,x)=>Math.max(m,Number(x.id)||0),0)+1;
+      config.moderationCases.unshift({id,action,targetId:targetId||null,moderatorId:message.author.id,reason:reason||null,timestamp:new Date().toISOString()});
+      config.moderationCases=config.moderationCases.slice(0,500); return id;
+    };
+    if(command==="rank-config") {
+      if(!prefixManager(PermissionFlagsBits.ManageRoles))return fail("You need Manage Roles or Administrator.");
+      const sub=(args.shift()||"list").toLowerCase();
+      if(sub==="add") {
+        const roleId=mentionedId(args[0],true)||args[0], role=roleId?await message.guild.roles.fetch(roleId).catch(()=>null):null, pos=Number(args[1]);
+        const bot=message.guild.members.me??await message.guild.members.fetchMe();
+        if(!role||role.id===message.guild.id||role.managed||!Number.isInteger(pos)||pos<1||pos>100)return fail("Usage: "+prefix+"rank-config add @role <position>");
+        if(role.position>=bot.roles.highest.position)return fail("Move my bot role above that rank role first.");
+        config.ranks=config.ranks.filter(x=>x.id!==role.id&&x.position!==pos);config.ranks.push({id:role.id,position:pos});config.ranks.sort((a,b)=>a.position-b.position);await saveDatabase();
+        return send("RANK CONFIGURATION","Added "+role.toString()+" at position "+pos+".");
+      }
+      if(["remove","ignore","unignore"].includes(sub)) {
+        const roleId=mentionedId(args[0],true)||args[0],role=roleId?await message.guild.roles.fetch(roleId).catch(()=>null):null;
+        if(!role)return fail("Usage: "+prefix+"rank-config "+sub+" @role");
+        if(sub==="remove")config.ranks=config.ranks.filter(x=>x.id!==role.id);
+        if(sub==="ignore"){if(role.id===message.guild.id)return fail("@everyone is already excluded.");if(!config.ignoredRoleIds.includes(role.id))config.ignoredRoleIds.push(role.id);config.ranks=config.ranks.filter(x=>x.id!==role.id);}
+        if(sub==="unignore"){const n=config.ignoredRoleIds.length;config.ignoredRoleIds=config.ignoredRoleIds.filter(x=>x!==role.id);if(n===config.ignoredRoleIds.length)return fail("That role is not ignored.");}
+        await saveDatabase();return send("RANK CONFIGURATION","Updated rank detection for "+role.toString()+".");
+      }
+      if(sub==="ignored")return send("IGNORED ROLES",config.ignoredRoleIds.map(id=>"• <@&"+id+">").join("\n")||"None.");
+      if(sub==="list")return send("RANK HIERARCHY",config.ranks.map((r,i)=>(i+1)+". <@&"+r.id+">").join("\n")||"No ranks configured.");
+      if(sub==="logs"||sub==="announce"){const id=args[0]?.match(/^<#(\d+)>$/)?.[1],ch=id?await message.guild.channels.fetch(id).catch(()=>null):null;if(!ch?.isTextBased())return fail("Usage: "+prefix+"rank-config "+sub+" #channel");if(sub==="logs")config.logChannelId=ch.id;else config.announceChannelId=ch.id;await saveDatabase();return send("RANK CONFIGURATION","Updated destination to "+ch.toString()+".");}
+      if(sub==="clear-logs"||sub==="clear-announcements"){if(sub==="clear-logs")config.logChannelId=null;else config.announceChannelId=null;await saveDatabase();return send("RANK CONFIGURATION","Setting disabled.");}
+      if(sub==="backup"){const data=JSON.stringify({version:1,guildId:message.guild.id,config},null,2);return message.reply({content:"Paradoxplus configuration backup",files:[{attachment:Buffer.from(data,"utf8"),name:"paradoxplus-backup-"+message.guild.id+".json"}]});}
+      return fail("Subcommands: add, remove, ignore, unignore, ignored, list, logs, clear-logs, announce, clear-announcements, backup.");
+    }
+    if(["rank-history","rank-search","rank-stats","rank-leaderboard","rank-panel","rank-help","rankpredict","serverpulse","staffactivity","memberjourney","spotlight"].includes(command)){
+      if(command==="rank-help")return send("RANK COMMANDS",prefix+"rank, rankhistory, ranksearch, rankstats, rankleaderboard, rankpanel, rank-config, promote, demote, setrank.");
+      if(command==="rank-panel")return send("RANK HIERARCHY",config.ranks.map((r,i)=>(i+1)+". <@&"+r.id+">").join("\n")||"No ranks configured.");
+      if(command==="rank-history"){const m=await prefixMember(args[0]);if(!m)return fail("Usage: "+prefix+"rank-history @member");const rows=config.history.filter(x=>x.memberId===m.id).slice(0,10);return send("RANK HISTORY • "+m.user.tag,rows.map(x=>"• "+x.action+": "+(x.oldRankId?"<@&"+x.oldRankId+">":"Unranked")+" → "+(x.newRankId?"<@&"+x.newRankId+">":"Unranked")+" — <t:"+Math.floor(new Date(x.timestamp).getTime()/1000)+":R>").join("\n")||"No history.");}
+      if(command==="rank-search"){const q=args.join(" ").toLowerCase();if(!q)return fail("Usage: "+prefix+"rank-search <name>");const members=await getGuildMembers(message.guild);const rows=members.filter(m=>m.user.username.toLowerCase().includes(q)||m.displayName.toLowerCase().includes(q)).first(10);return send("RANK SEARCH",rows.map(m=>{const r=getHighestConfiguredRank(m,config.ranks,message.guild.roles.cache);return "• "+m.user.tag+" — "+(r?"<@&"+r.id+">":"Unranked");}).join("\n")||"No matches.");}
+      if(command==="rank-stats"){const members=await getGuildMembers(message.guild);return send("RANK STATISTICS","Members: "+members.size+"\n"+config.ranks.map(r=>"• <@&"+r.id+"> — "+members.filter(m=>m.roles.cache.has(r.id)).size).join("\n"));}
+      if(command==="rank-leaderboard"){const members=await getGuildMembers(message.guild);const rows=members.map(m=>({m,r:getHighestConfiguredRank(m,config.ranks,message.guild.roles.cache)})).filter(x=>x.r).sort((a,b)=>b.r.position-a.r.position).slice(0,10);return send("RANK LEADERBOARD",rows.map((x,i)=>(i+1)+". "+x.m.user.tag+" — <@&"+x.r.id+">").join("\n")||"No ranked members.");}
+      if(command==="rankpredict"){const m=await prefixMember(args[0]),id=mentionedId(args[1],true),r=config.ranks.find(x=>x.id===id);if(!m||!r)return fail("Usage: "+prefix+"rankpredict @member @rank");const cur=getHighestConfiguredRank(m,config.ranks,message.guild.roles.cache),gap=config.ranks.findIndex(x=>x.id===r.id)-(cur?config.ranks.findIndex(x=>x.id===cur.id):-1);return send("RANK TRAJECTORY","Current: "+(cur?"<@&"+cur.id+">":"Unranked")+"\nTarget: <@&"+r.id+">\n"+(gap===0?"Already there.":Math.abs(gap)+" rank levels "+(gap>0?"above":"below")+".");}
+      if(command==="serverpulse"){const days=Object.values(config.pulse.days||{}),t=days.reduce((a,d)=>({messages:a.messages+(d.messages||0),joins:a.joins+(d.joins||0),leaves:a.leaves+(d.leaves||0)}),{messages:0,joins:0,leaves:0});return send("PARADOX PULSE","Messages: "+t.messages+"\nJoins: "+t.joins+"\nLeaves: "+t.leaves+"\nDays: "+days.length);}
+      if(command==="staffactivity"){if(!prefixManager(PermissionFlagsBits.ModerateMembers))return fail("Staff permission required.");const counts={};for(const x of config.history)counts[x.actorId]=(counts[x.actorId]||0)+1;for(const x of config.moderationCases)counts[x.moderatorId]=(counts[x.moderatorId]||0)+1;return send("STAFF ACTIVITY",Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10).map((x,i)=>(i+1)+". <@"+x[0]+"> — "+x[1]).join("\n")||"No staff actions.");}
+      if(command==="memberjourney"){const m=await prefixMember(args[0]);if(!m)return fail("Usage: "+prefix+"memberjourney @member");const rows=config.history.filter(x=>x.memberId===m.id).slice(0,8),r=getHighestConfiguredRank(m,config.ranks,message.guild.roles.cache);return send("MEMBER JOURNEY","Member: "+m.toString()+"\nCurrent rank: "+(r?"<@&"+r.id+">":"Unranked")+"\nJoined: "+(m.joinedTimestamp?"<t:"+Math.floor(m.joinedTimestamp/1000)+":D>":"Unknown")+"\n"+rows.map(x=>"• "+(x.oldRankId?"<@&"+x.oldRankId+">":"Unranked")+" → "+(x.newRankId?"<@&"+x.newRankId+">":"Unranked")).join("\n"));}
+      if(command==="spotlight"){if(!prefixManager(PermissionFlagsBits.ManageRoles))return fail("Manage Roles or Administrator required.");const m=await prefixMember(args[0]);if(!m)return fail("Usage: "+prefix+"spotlight @member [reason]");const r=getHighestConfiguredRank(m,config.ranks,message.guild.roles.cache);const e=new EmbedBuilder().setColor(0xffc857).setTitle("🌟 COMMUNITY SPOTLIGHT").setThumbnail(m.user.displayAvatarURL()).setDescription(m.toString()+" deserves the spotlight!\n"+(args.slice(1).join(" ")||"Recognized by staff.")).addFields({name:"Current rank",value:r?"<@&"+r.id+">":"Unranked"}).setFooter({text:message.guild.name+" • Paradoxplus"});return message.channel.send({embeds:[e],allowedMentions:{users:[m.id],parse:[]}});}
+    }
+    if(command==="autoresponder"){
+      const sub=(args.shift()||"list").toLowerCase();
+      if(sub==="list")return send("AUTO-REPLIES",config.autoresponders.map(x=>"• "+x.trigger+" → "+x.response.slice(0,100)).join("\n")||"No autoresponders.");
+      if(!prefixManager(PermissionFlagsBits.ManageMessages))return fail("Manage Messages or Administrator required.");
+      if(sub==="add"){const p=args.join(" ").split("|");if(p.length<2)return fail("Usage: "+prefix+"autoresponder add trigger | response");const trigger=p[0].trim(),response=p.slice(1).join("|").trim();if(trigger.length<2||trigger.length>100||!response||response.length>1800)return fail("Trigger 2–100 chars; response up to 1,800.");config.autoresponders=config.autoresponders.filter(x=>x.trigger.toLowerCase()!==trigger.toLowerCase());config.autoresponders.push({trigger,response});await saveDatabase();return send("AUTO-REPLY ADDED","Trigger: "+trigger);}
+      if(sub==="remove"){const trigger=args.join(" ").trim(),n=config.autoresponders.length;config.autoresponders=config.autoresponders.filter(x=>x.trigger.toLowerCase()!==trigger.toLowerCase());if(n===config.autoresponders.length)return fail("Trigger not found.");await saveDatabase();return send("AUTO-REPLY REMOVED",trigger);}
+      return fail("Use add, remove, or list.");
+    }
+    if(command==="inactive-reason"){
+      const sub=(args.shift()||"submit").toLowerCase();
+      if(sub==="submit"){const reason=args.join(" ").trim().slice(0,800);if(reason.length<5)return fail("Usage: "+prefix+"inactive-reason submit <reason>");if(config.inactiveAppeals.some(x=>x.memberId===message.author.id&&["PENDING","ON_HOLD"].includes(x.status)))return fail("You already have a pending appeal.");const a={id:config.inactiveAppeals.reduce((m,x)=>Math.max(m,Number(x.id)||0),0)+1,memberId:message.author.id,reason,status:"PENDING",submittedAt:new Date().toISOString(),reviewedAt:null,reviewerId:null,staffNote:null};config.inactiveAppeals.unshift(a);await saveDatabase();const ch=await message.guild.channels.fetch("1570589159289126962").catch(()=>null);if(ch?.isTextBased())await ch.send({embeds:[new EmbedBuilder().setColor(0xf0a33a).setTitle("INACTIVITY APPEAL #"+a.id).setDescription("Member: "+message.author.toString()+"\nStatus: Pending").addFields({name:"Reason",value:reason})],allowedMentions:{parse:[]}});return send("APPEAL SUBMITTED","Your appeal #"+a.id+" has been saved.");}
+      if(!prefixManager(PermissionFlagsBits.ModerateMembers))return fail("Staff permission required.");
+      if(sub==="list")return send("INACTIVITY APPEALS",config.inactiveAppeals.slice(0,15).map(a=>"#"+a.id+" <@"+a.memberId+"> — "+a.status+"\n> "+a.reason.slice(0,150)).join("\n")||"No appeals.");
+      if(sub==="review"){const m=await prefixMember(args[0]),decision=(args[1]||"").toUpperCase(),a=m&&config.inactiveAppeals.find(x=>x.memberId===m.id&&["PENDING","ON_HOLD"].includes(x.status));if(!a||!["ACCEPTED","REJECTED","ON_HOLD"].includes(decision))return fail("Usage: "+prefix+"inactive-reason review @member <accepted|rejected|on_hold> [note]");a.status=decision;a.reviewedAt=new Date().toISOString();a.reviewerId=message.author.id;a.staffNote=args.slice(2).join(" ").slice(0,500)||null;await saveDatabase();return send("APPEAL REVIEWED","Appeal #"+a.id+" is now "+decision+".");}
+      return fail("Use submit, review, or list.");
+    }
     if (command === "rankhelp" || command === "help") {
       const help = new EmbedBuilder()
         .setColor(0x7c5cff)
