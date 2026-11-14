@@ -2096,8 +2096,12 @@ async function applyRecruitPerks(guild, target) {
   } else if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles) || role.position >= botMember.roles.highest.position) {
     results.errors.push("I cannot assign the recruit role. Check Manage Roles and move my highest role above the recruit role.");
   } else {
-    await target.roles.add(role, "Paradoxplus recruitment reward");
-    results.role = true;
+    try {
+      await target.roles.add(role, "Paradoxplus recruitment reward");
+      results.role = true;
+    } catch (error) {
+      results.errors.push("Role assignment failed: " + (error.message || "check Manage Roles and role hierarchy."));
+    }
   }
   const desiredNickname = ("PX ϟ " + target.user.username).slice(0, 32);
   if (!botMember.permissions.has(PermissionFlagsBits.ManageNicknames) && !botMember.permissions.has(PermissionFlagsBits.Administrator)) {
@@ -2105,8 +2109,12 @@ async function applyRecruitPerks(guild, target) {
   } else if (target.roles.highest.position >= botMember.roles.highest.position && guild.ownerId !== target.id) {
     results.errors.push("I cannot change this member's nickname because their highest role is equal to or above mine.");
   } else {
-    await target.setNickname(desiredNickname, "Paradoxplus recruitment nickname");
-    results.nickname = true;
+    try {
+      await target.setNickname(desiredNickname, "Paradoxplus recruitment nickname");
+      results.nickname = true;
+    } catch (error) {
+      results.errors.push("Nickname update failed: " + (error.message || "check Manage Nicknames and role hierarchy."));
+    }
   }
   return results;
 }
