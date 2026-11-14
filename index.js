@@ -739,7 +739,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
   if (interaction.isButton() && interaction.customId === "px_ticket_close") {
     if (!interaction.inGuild() || !interaction.channel) return interaction.reply({ content: "This ticket is no longer available.", ephemeral: true });
-    const ownerId = interaction.channel.topic?.match(/^paradoxplus-ticket:(\d+)$/)?.[1];
+    const ownerId = getTicketData(interaction.channel)?.ownerId;
     if (!ownerId) return interaction.reply({ content: "This button can only be used inside a Paradoxplus ticket.", ephemeral: true });
     const config = getGuildConfig(interaction.guildId);
     const staffRole = config.ticketStaffRoleId;
