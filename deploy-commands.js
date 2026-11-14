@@ -48,6 +48,8 @@ const commands = [
       .addRoleOption(o=>o.setName("staff_role").setDescription("Optional role that can view and manage tickets")))
     .addSubcommand(sc=>sc.setName("add").setDescription("Add a member to the current ticket.")
       .addUserOption(o=>o.setName("user").setDescription("Member to add").setRequired(true))),
+  new SlashCommandBuilder().setName("ticket-panel").setDescription("Publish the Paradoxplus ticket portal in a selected channel.")
+    .addChannelOption(o=>o.setName("channel").setDescription("Text channel where the ticket panel should be posted").addChannelTypes(ChannelType.GuildText).setRequired(true)),
   new SlashCommandBuilder().setName("prefix").setDescription("Change this server’s text command prefix.")
     .addStringOption(o=>o.setName("new_prefix").setDescription("New prefix (1–5 characters, no spaces)").setMinLength(1).setMaxLength(5).setRequired(true)),
   new SlashCommandBuilder().setName("recruit").setDescription("Record a new Paradoxplus recruit.")
