@@ -24,8 +24,12 @@ export async function initRecruitmentDatabase() {
       recruiter_id TEXT NOT NULL,
       recruited_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       source TEXT NOT NULL DEFAULT 'manual',
+      original_nickname TEXT,
+      nickname_saved BOOLEAN NOT NULL DEFAULT FALSE,
       UNIQUE (guild_id, recruit_id)
     )`);
+    await pool.query("ALTER TABLE recruitment_records ADD COLUMN IF NOT EXISTS original_nickname TEXT");
+    await pool.query("ALTER TABLE recruitment_records ADD COLUMN IF NOT EXISTS nickname_saved BOOLEAN NOT NULL DEFAULT FALSE");
     await pool.query("CREATE INDEX IF NOT EXISTS recruitment_records_guild_date_idx ON recruitment_records (guild_id, recruited_at DESC)");
     await pool.query("CREATE INDEX IF NOT EXISTS recruitment_records_recruiter_idx ON recruitment_records (guild_id, recruiter_id, recruited_at DESC)");
     ready = true;
@@ -44,19 +48,29 @@ function requireDatabase() {
   if (!ready || !pool) throw new Error("Recruitment database is not connected. Check DATABASE_URL and PostgreSQL.");
 }
 
-export async function recordRecruit({ guildId, recruitId, recruiterId, source = "manual" }) {
+export async function recordRecruit({ guildId, recruitId, recruiterId, source = "manual", originalNickname = null }) {
   requireDatabase();
   const inserted = await pool.query(
-    `INSERT INTO recruitment_records (guild_id, recruit_id, recruiter_id, source)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO recruitment_records (guild_id, recruit_id, recruiter_id, source, original_nickname, nickname_saved)
+     VALUES ($1, $2, $3, $4, $5, TRUE)
      ON CONFLICT (guild_id, recruit_id) DO NOTHING
      RETURNING id, recruited_at`,
-    [guildId, recruitId, recruiterId, source]
+    [guildId, recruitId, recruiterId, source, originalNickname]
   );
   if (!inserted.rowCount) return { duplicate: true, total: await getRecruitTotal(guildId), record: null };
   return { duplicate: false, total: await getRecruitTotal(guildId), record: inserted.rows[0] };
 }
 
+export async function removeRecruit(guildId, recruitId) {
+  requireDatabase();
+  const result = await pool.query(
+    `DELETE FROM recruitment_records
+     WHERE guild_id = $1 AND recruit_id = $2
+     RETURNING recruiter_id, original_nickname, nickname_saved, recruited_at`,
+    [guildId, recruitId]
+  );
+  return result.rows[0] ?? null;
+}
 async function getRecruitTotal(guildId) {
   requireDatabase();
   const result = await pool.query("SELECT COUNT(*)::int AS total FROM recruitment_records WHERE guild_id = $1", [guildId]);
