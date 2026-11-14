@@ -650,7 +650,7 @@ function buildTicketPanel(guild, botUser) {
     );
   const panel = new EmbedBuilder()
     .setColor(0x6d5dfc)
-    .setTitle("<a:ticket1:1446778565722112060> Paradoxx | Ticket Support")
+    .setTitle("🎟️ Paradoxx | Ticket Support")
     .setDescription(
       "## Paradoxx | 1.9+ Ticket Support\n\n" +
       "**Types Of Support We Provide**\n\n" +
@@ -741,7 +741,7 @@ client.on(Events.InteractionCreate, async interaction => {
       );
       const intro = new EmbedBuilder()
         .setColor(0x6d5dfc)
-        .setAuthor({ name: "PARADOXPLUS  /  PRIVATE SUPPORT", iconURL: interaction.client.user.displayAvatarURL() })
+        .setAuthor({ name: "PARADOX 1.9+  /  PRIVATE SUPPORT", iconURL: interaction.client.user.displayAvatarURL() })
         .setTitle("✦  " + ticketType.toUpperCase() + "  /  SUPPORT ROOM")
         .setDescription(
           "Welcome " + member.toString() + " — your private ticket is open.\n" +
@@ -753,7 +753,7 @@ client.on(Events.InteractionCreate, async interaction => {
           { name: "STATUS", value: "🟢 Open", inline: true }
         )
         .setThumbnail(member.user.displayAvatarURL({ size: 256 }))
-        .setFooter({ text: "PARADOXPLUS • ParadoxManagerV1  /  Use the button below when your issue is resolved" })
+        .setFooter({ text: "PARADOX 1.9+ • ParadoxManagerV1  /  Use the button below when your issue is resolved" })
         .setTimestamp();
       await channel.send({ embeds: [intro], components: [closeRow], allowedMentions: { users: [member.id], parse: [] } });
       return interaction.editReply("Your private ticket has been created: " + channel.toString());
