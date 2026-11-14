@@ -444,6 +444,8 @@ client.on(Events.MessageCreate, async message => {
 client.on(Events.MessageCreate, async message => {
   if (!message.guild || message.author.bot) return;
   const config = getGuildConfig(message.guild.id);
+  const configuredPrefix = typeof config.prefix === "string" && config.prefix.length >= 1 && config.prefix.length <= 5 ? config.prefix : DEFAULT_PREFIX;
+  if (message.content.startsWith(configuredPrefix) && message.content.slice(configuredPrefix.length).trim().split(/\\s+/, 1)[0]?.toLowerCase() === "afk") return;
   const ownAfk = config.afkUsers[message.author.id];
   if (ownAfk) {
     delete config.afkUsers[message.author.id];
