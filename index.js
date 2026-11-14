@@ -2478,6 +2478,71 @@ client.on(Events.MessageCreate, async message => {
       if(sub==="review"){const m=await prefixMember(args[0]),decision=(args[1]||"").toUpperCase(),a=m&&config.inactiveAppeals.find(x=>x.memberId===m.id&&["PENDING","ON_HOLD"].includes(x.status));if(!a||!["ACCEPTED","REJECTED","ON_HOLD"].includes(decision))return fail("Usage: "+prefix+"inactive-reason review @member <accepted|rejected|on_hold> [note]");a.status=decision;a.reviewedAt=new Date().toISOString();a.reviewerId=message.author.id;a.staffNote=args.slice(2).join(" ").slice(0,500)||null;await saveDatabase();return send("APPEAL REVIEWED","Appeal #"+a.id+" is now "+decision+".");}
       return fail("Use submit, review, or list.");
     }
+    if(command==="clear-warnings"){
+      if(!isBotOwner(message.author.id)&&!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)&&!message.member.permissions.has(PermissionFlagsBits.Administrator))return fail("You need Moderate Members or Administrator.");
+      const m=await prefixMember(args[0]);if(!m)return fail("Usage: "+prefix+"clear-warnings @member");
+      const rows=config.warnings.filter(x=>x.memberId===m.id);if(!rows.length)return fail("That member has no warnings.");
+      config.warnings=config.warnings.filter(x=>x.memberId!==m.id);prefixRecord("CLEAR_WARNINGS",m.id,"Cleared "+rows.length+" warnings");await saveDatabase();
+      return send("WARNINGS CLEARED","Removed "+rows.length+" warning(s) from "+m.toString()+".");
+    }
+    if(command==="unwarn"){
+      if(!prefixManager(PermissionFlagsBits.ModerateMembers))return fail("You need Moderate Members or Administrator.");
+      const m=await prefixMember(args[0]),id=Number(args[1]),reason=args.slice(2).join(" ").trim(),w=m&&config.warnings.find(x=>x.memberId===m.id&&Number(x.id)===id);
+      if(!w||!reason)return fail("Usage: "+prefix+"unwarn @member <warning-id> <reason>");
+      config.warnings=config.warnings.filter(x=>x!==w);w.removedAt=new Date().toISOString();w.removedBy=message.author.id;w.removalReason=reason;config.warningHistory.unshift(w);prefixRecord("UNWARN",m.id,"Removed warning #"+id+": "+reason);await saveDatabase();
+      return send("WARNING REMOVED","Removed warning #"+id+" for "+m.toString()+". Audit history preserved.");
+    }
+    if(command==="case-reason"){
+      if(!prefixManager(PermissionFlagsBits.ModerateMembers))return fail("You need Moderate Members or Administrator.");
+      const id=Number(args.shift()),item=config.moderationCases.find(x=>Number(x.id)===id),reason=args.join(" ").trim();
+      if(!item||!reason)return fail("Usage: "+prefix+"case-reason <case-id> <new reason>");
+      item.reason=reason.slice(0,480);item.reasonUpdatedAt=new Date().toISOString();item.reasonUpdatedBy=message.author.id;await saveDatabase();
+      return send("CASE REASON UPDATED","Updated case #"+id+".");
+    }
+    if(command==="softban"){
+      if(!prefixManager(PermissionFlagsBits.BanMembers))return fail("You need Ban Members or Administrator.");
+      const m=await prefixMember(args[0]),reason=args.slice(1).join(" ")||"Softban by "+message.author.tag;
+      if(!m||m.id===message.author.id||!canActOnTarget(message.member,m,message.guild))return fail("Usage: "+prefix+"softban @member [reason] — check role hierarchy.");
+      const bot=message.guild.members.me??await message.guild.members.fetchMe();if(!m.bannable||m.roles.highest.comparePositionTo(bot.roles.highest)>=0)return fail("I cannot ban that member. Check my role position and Ban Members permission.");
+      await m.ban({deleteMessageSeconds:86400,reason:reason.slice(0,480)});await message.guild.bans.remove(m.id,"Softban completed by "+message.author.tag);
+      prefixRecord("SOFTBAN",m.id,reason);await saveDatabase();return send("SOFTBAN COMPLETE","Softbanned "+m.user.tag+". Recent message history deleted; ban immediately lifted.");
+    }
+    if(["purge-user","purge-bots","purge-links","purge-invites","purge-attachments","purge-embeds","purge-mentions","purge-stickers","purge-contains"].includes(command)){
+      if(!prefixManager(PermissionFlagsBits.ManageMessages))return fail("You need Manage Messages or Administrator.");
+      const amount=Number(args[0]);if(!Number.isInteger(amount)||amount<1||amount>100)return fail("Usage: "+prefix+command+" <1-100> [member or text]");
+      const member=command==="purge-user"?await prefixMember(args[1]):null,contains=command==="purge-contains"?args.slice(1).join(" ").toLowerCase():"";
+      if(command==="purge-user"&&!member)return fail("Usage: "+prefix+"purge-user <1-100> @member");
+      if(command==="purge-contains"&&!contains)return fail("Usage: "+prefix+"purge-contains <1-100> <text>");
+      const recent=await message.channel.messages.fetch({limit:100});
+      const matches=recent.filter(m=>{
+        if(m.id===message.id||m.pinned)return false;
+        if(command==="purge-user")return m.author.id===member.id;
+        if(command==="purge-bots")return m.author.bot;
+        if(command==="purge-links")return /https?:\/\/|www\./i.test(m.content);
+        if(command==="purge-invites")return /discord(?:app)?\.com\/invite\/|discord\.gg\//i.test(m.content);
+        if(command==="purge-attachments")return m.attachments.size>0;
+        if(command==="purge-embeds")return m.embeds.length>0;
+        if(command==="purge-mentions")return m.mentions.users.size>0||m.mentions.roles.size>0;
+        if(command==="purge-stickers")return m.stickers.size>0;
+        return m.content.toLowerCase().includes(contains);
+      }).first(amount);
+      if(!matches.length)return fail("No matching recent messages found.");
+      const deleted=await message.channel.bulkDelete(matches,true);prefixRecord(command.toUpperCase().replace(/-/g,"_"),null,"Deleted "+deleted.size+" messages");await saveDatabase();
+      return send("CLEANUP COMPLETE","Deleted "+deleted.size+" matching messages. Checked latest 100; Discord cannot bulk-delete messages older than 14 days.");
+    }
+    if(["voice-deafen","voice-undeafen"].includes(command)){
+      if(!prefixManager(PermissionFlagsBits.DeafenMembers))return fail("You need Deafen Members or Administrator.");
+      const m=await prefixMember(args[0]);if(!m?.voice.channel)return fail("Usage: "+prefix+command+" @member — member must be in voice.");
+      if(!canActOnTarget(message.member,m,message.guild))return fail("That member has an equal or higher role than you.");
+      await m.voice.setDeaf(command==="voice-deafen","Voice moderation by "+message.author.tag);prefixRecord(command.toUpperCase().replace(/-/g,"_"),m.id,null);await saveDatabase();
+      return send("VOICE ACTION COMPLETE",(command==="voice-deafen"?"Server-deafened ":"Removed server deafen from ")+m.toString()+".");
+    }
+    if(command==="clear-reactions"){
+      if(!prefixManager(PermissionFlagsBits.ManageMessages))return fail("You need Manage Messages or Administrator.");
+      const id=args[0];if(!id||!/^\d{17,20}$/.test(id))return fail("Usage: "+prefix+"clear-reactions <message-id>");
+      const target=await message.channel.messages.fetch(id).catch(()=>null);if(!target)return fail("Message not found in this channel.");
+      await target.reactions.removeAll();prefixRecord("CLEAR_REACTIONS",null,"Message "+id);await saveDatabase();return send("REACTIONS CLEARED","Removed all reactions from that message.");
+    }
     if (command === "rankhelp" || command === "help") {
       const help = new EmbedBuilder()
         .setColor(0x7c5cff)
