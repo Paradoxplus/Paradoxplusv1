@@ -608,13 +608,13 @@ client.once(Events.ClientReady, async readyClient => {
 setupMusic(client, () => connectOwnerVoice(client));
 
 function getTicketData(channel) {
-  const match = channel?.topic?.match(/^paradoxplus-ticket:(\\d+)(?:\\|(.*))?$/);
+  const match = channel?.topic?.match(/^paradoxplus-ticket:(\d+)(?:\|(.*))?$/);
   if (!match) return null;
   const data = { ownerId: match[1], claimedBy: null, priority: "Normal", status: "open" };
   for (const item of (match[2] || "").split("|")) {
     const [key, ...parts] = item.split("=");
     const value = parts.join("=");
-    if (key === "claim" && /^\\d+$/.test(value)) data.claimedBy = value;
+    if (key === "claim" && /^\d+$/.test(value)) data.claimedBy = value;
     if (key === "priority" && ["Low", "Normal", "High", "Urgent"].includes(value)) data.priority = value;
     if (key === "status" && ["open", "closed"].includes(value)) data.status = value;
   }
@@ -665,10 +665,10 @@ async function buildTicketTranscript(channel) {
     const embeds = message.embeds.map(embed => embed.title || embed.description || "[Embed]").filter(Boolean);
     lines.push("[" + message.createdAt.toISOString() + "] " + author + ": " + body);
     for (const url of attachments) lines.push("  Attachment: " + url);
-    for (const embed of embeds) lines.push("  Embed: " + String(embed).replace(/\\s+/g, " ").slice(0, 500));
+    for (const embed of embeds) lines.push("  Embed: " + String(embed).replace(/\s+/g, " ").slice(0, 500));
   }
   if (collected.length >= 1000) lines.push("", "[Transcript limit reached: latest 1,000 messages included.]");
-  return lines.join("\\n");
+  return lines.join("\n");
 }
 
 client.on(Events.InteractionCreate, async interaction => {
