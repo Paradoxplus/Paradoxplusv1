@@ -1802,10 +1802,17 @@ client.on(Events.InteractionCreate, async interaction => {
         const actor=await interaction.guild.members.fetch(interaction.user.id);
         const bot=await interaction.guild.members.fetchMe();
         if(!canActOnTarget(actor,target,interaction.guild))return replyError(interaction,"That member has an equal or higher role than you.");
-        if(role.managed||role.position>=actor.roles.highest.position||role.position>=bot.roles.highest.position)return replyError(interaction,"That role is managed or above your/bot's role.");
-        if(!role.editable)return replyError(interaction,"I can't manage that role.");
-        if(cmd==="role-add")await target.roles.add(role,`Role added by ${interaction.user.tag}`);
-        else await target.roles.remove(role,`Role removed by ${interaction.user.tag}`);
+        const actorIsAdmin = isBotOwner(interaction.user.id) || interaction.guild.ownerId === interaction.user.id || actor.permissions.has(PermissionFlagsBits.Administrator);
+        if(target.id === interaction.guild.ownerId || !target.manageable)return replyError(interaction,"I can't manage that member. Move my bot role above the member's highest role.");
+        if(role.managed || (!actorIsAdmin && role.position >= actor.roles.highest.position))return replyError(interaction,"That role is managed or above your highest role.");
+        if(!bot.permissions.has(PermissionFlagsBits.ManageRoles) || !role.editable || role.position >= bot.roles.highest.position)return replyError(interaction,"I can't manage that role. Give me Manage Roles and move my bot role above it.");
+        if(cmd==="role-add") {
+          if(target.roles.cache.has(role.id))return replyError(interaction,"That member already has this role.");
+          await target.roles.add(role,`Role added by ${interaction.user.tag}`);
+        } else {
+          if(!target.roles.cache.has(role.id))return replyError(interaction,"That member does not have this role.");
+          await target.roles.remove(role,`Role removed by ${interaction.user.tag}`);
+        }
         addCase(cmd.toUpperCase(),user.id,role.name);
         return interaction.reply({content:`✅ ${cmd==="role-add"?"Added":"Removed"} **${role.name}** ${cmd==="role-add"?"to":"from"} **${user.tag}**.`,ephemeral:true});
       }
