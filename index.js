@@ -701,6 +701,57 @@ async function buildTicketTranscript(channel) {
   return lines.join("\n");
 }
 
+async function archiveTicketTranscript(channel, closedBy, reason) {
+  const transcript = await buildTicketTranscript(channel);
+  const guild = channel.guild;
+  const config = getGuildConfig(guild.id);
+  const botId = channel.client.user.id;
+  let transcriptChannel = guild.channels.cache.find(ch => ch.type === ChannelType.GuildText && ch.name === "ticket-transcripts");
+  if (!transcriptChannel) {
+    const overwrites = [
+      { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+      { id: botId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] }
+    ];
+    if (config.ticketStaffRoleId) overwrites.push({
+      id: config.ticketStaffRoleId,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory]
+    });
+    transcriptChannel = await guild.channels.create({
+      name: "ticket-transcripts",
+      type: ChannelType.GuildText,
+      topic: "Paradoxplus automatically archived ticket transcripts",
+      permissionOverwrites: overwrites,
+      reason: "Create private ticket transcript archive"
+    });
+  } else {
+    await transcriptChannel.permissionOverwrites.edit(guild.roles.everyone.id, { ViewChannel: false }).catch(() => null);
+    await transcriptChannel.permissionOverwrites.edit(botId, {
+      ViewChannel: true, SendMessages: true, ReadMessageHistory: true, AttachFiles: true, EmbedLinks: true
+    }).catch(() => null);
+    if (config.ticketStaffRoleId) await transcriptChannel.permissionOverwrites.edit(config.ticketStaffRoleId, {
+      ViewChannel: true, ReadMessageHistory: true
+    }).catch(() => null);
+  }
+  const ticketData = getTicketData(channel);
+  const attachment = new AttachmentBuilder(Buffer.from(transcript, "utf8"), {
+    name: "paradoxplus-" + channel.id + "-transcript.txt"
+  });
+  const embed = new EmbedBuilder()
+    .setColor(0x6d5dfc)
+    .setTitle("📄 Ticket Transcript Archived")
+    .addFields(
+      { name: "Ticket", value: "`" + channel.name + "`", inline: true },
+      { name: "Ticket ID", value: channel.id, inline: true },
+      { name: "Closed by", value: "<@" + closedBy + ">", inline: true },
+      { name: "Owner", value: ticketData?.ownerId ? "<@" + ticketData.ownerId + ">" : "Unknown", inline: true },
+      { name: "Reason", value: reason ? reason.slice(0, 900) : "No reason provided", inline: false }
+    )
+    .setFooter({ text: "Paradoxplus • Automatic Ticket Archive" })
+    .setTimestamp();
+  await transcriptChannel.send({ embeds: [embed], files: [attachment], allowedMentions: { users: [closedBy], parse: [] } });
+  return transcriptChannel;
+}
+
 client.on(Events.InteractionCreate, async interaction => {
   if (await handleMusicInteraction(interaction, client)) return;
 
@@ -794,13 +845,9 @@ client.on(Events.InteractionCreate, async interaction => {
       const disabledRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("px_ticket_closed").setLabel("Ticket Closed").setEmoji("🔒").setStyle(ButtonStyle.Secondary).setDisabled(true)
       );
-      await interaction.update({ content: "🔒 Ticket closed. This channel will be permanently deleted in 5 seconds.", components: [disabledRow] });
-      const channelToDelete = interaction.channel;
-      setTimeout(() => {
-        channelToDelete.delete("Paradoxplus ticket automatically deleted after closure").catch(error => {
-          console.error("[Tickets] Could not auto-delete closed ticket:", error);
-        });
-      }, 5000);
+      await archiveTicketTranscript(interaction.channel, interaction.user.id, "Closed using the ticket close button.");
+      await interaction.update({ content: "🔒 Ticket closed. Its transcript has been saved in #ticket-transcripts. This channel will now be deleted.", components: [disabledRow] });
+      await interaction.channel.delete("Paradoxplus ticket archived and automatically deleted after closure");
       return;
     } catch (error) {
       console.error("[Tickets] Could not close ticket:", error);
@@ -926,16 +973,12 @@ client.on(Events.InteractionCreate, async interaction => {
         if (!interaction.channel.name.startsWith("closed-")) {
           await interaction.channel.setName(("closed-" + interaction.channel.name).slice(0, 100));
         }
+        await archiveTicketTranscript(interaction.channel, interaction.user.id, reason || "Closed using /ticket close.");
         await interaction.reply({
-          content: "🔒 Ticket closed by " + interaction.user.toString() + (reason ? "\\n**Reason:** " + reason.slice(0, 500) : "") + "\\nThis channel will be permanently deleted in 5 seconds.",
+          content: "🔒 Ticket closed. Its transcript has been saved in #ticket-transcripts, and this channel will now be deleted.",
           allowedMentions: { users: [interaction.user.id], parse: [] }
         });
-        const channelToDelete = interaction.channel;
-        setTimeout(() => {
-          channelToDelete.delete("Paradoxplus ticket automatically deleted after closure").catch(error => {
-            console.error("[Tickets] Could not auto-delete closed ticket:", error);
-          });
-        }, 5000);
+        await interaction.channel.delete("Paradoxplus ticket archived and automatically deleted after closure");
         return;
       }
 
