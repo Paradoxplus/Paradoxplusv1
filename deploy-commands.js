@@ -43,6 +43,11 @@ const commands = [
     .addIntegerOption(o=>o.setName("position").setDescription("Queue position, starting at 1").setMinValue(1).setRequired(true)),
   new SlashCommandBuilder().setName("clear").setDescription("Clear upcoming tracks."),
 
+  new SlashCommandBuilder().setName("ticket").setDescription("Create and manage private support tickets.")
+    .addSubcommand(sc=>sc.setName("panel").setDescription("Post the dropdown ticket panel in this channel.")
+      .addRoleOption(o=>o.setName("staff_role").setDescription("Optional role that can view and manage tickets")))
+    .addSubcommand(sc=>sc.setName("add").setDescription("Add a member to the current ticket.")
+      .addUserOption(o=>o.setName("user").setDescription("Member to add").setRequired(true))),
   new SlashCommandBuilder().setName("prefix").setDescription("Change this server’s text command prefix.")
     .addStringOption(o=>o.setName("new_prefix").setDescription("New prefix (1–5 characters, no spaces)").setMinLength(1).setMaxLength(5).setRequired(true)),
   new SlashCommandBuilder().setName("recruit").setDescription("Record a new Paradoxplus recruit.")
