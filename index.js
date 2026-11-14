@@ -1090,6 +1090,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (target.user.bot) return replyError(interaction, "Bots cannot be recruited.");
       if (target.id === interaction.user.id) return replyError(interaction, "You cannot recruit yourself.");
       if (!isRecruitmentDatabaseReady()) return replyError(interaction, "Recruitment storage is unavailable. Check the PostgreSQL connection.");
+      const perks = await applyRecruitPerks(interaction.guild, target);
       const result = await recordRecruit({ guildId: interaction.guildId, recruitId: target.id, recruiterId: interaction.user.id, source: "slash" });
       if (result.duplicate) return replyError(interaction, "That member has already been recorded as a recruit in this server.");
       const embed = new EmbedBuilder()
@@ -1100,6 +1101,7 @@ client.on(Events.InteractionCreate, async interaction => {
         .setImage("https://www.image2url.com/r2/default/gifs/1794386711876-4bbf4f54-5448-4384-960d-4424655e01a2.gif")
         .setFooter({ text: interaction.guild.name })
         .setTimestamp();
+      embed.addFields({ name: "Recruit perks", value: (perks.role ? "✅ Recruit role assigned" : "⚠️ Recruit role not assigned") + "\n" + (perks.nickname ? "✅ Server nickname updated" : "⚠️ Server nickname unchanged") + (perks.errors.length ? "\n" + perks.errors.join("\n") : ""), inline: false });
       return interaction.reply({ embeds: [embed], allowedMentions: { users: [target.id, interaction.user.id], parse: [] } });
     }
     if (interaction.commandName === "dm-optin" || interaction.commandName === "dm-optout") {
@@ -2084,6 +2086,31 @@ const prefixEmbed = (title, description) => new EmbedBuilder()
   .setTimestamp();
 const mentionedId = (value, role = false) => value?.match(role ? /^<@&(\d+)>$/ : /^<@!?(\d+)>$/)?.[1] || null;
 
+async function applyRecruitPerks(guild, target) {
+  const roleId = "1568943817858744344";
+  const role = await guild.roles.fetch(roleId).catch(() => null);
+  const botMember = guild.members.me ?? await guild.members.fetchMe();
+  const results = { role: false, nickname: false, errors: [] };
+  if (!role) {
+    results.errors.push("Recruit role <@&" + roleId + "> was not found.");
+  } else if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles) || role.position >= botMember.roles.highest.position) {
+    results.errors.push("I cannot assign the recruit role. Check Manage Roles and move my highest role above the recruit role.");
+  } else {
+    await target.roles.add(role, "Paradoxplus recruitment reward");
+    results.role = true;
+  }
+  const desiredNickname = ("PX ϟ " + target.user.username).slice(0, 32);
+  if (!botMember.permissions.has(PermissionFlagsBits.ManageNicknames) && !botMember.permissions.has(PermissionFlagsBits.Administrator)) {
+    results.errors.push("I need Manage Nicknames to set the recruit's server nickname.");
+  } else if (target.roles.highest.position >= botMember.roles.highest.position && guild.ownerId !== target.id) {
+    results.errors.push("I cannot change this member's nickname because their highest role is equal to or above mine.");
+  } else {
+    await target.setNickname(desiredNickname, "Paradoxplus recruitment nickname");
+    results.nickname = true;
+  }
+  return results;
+}
+
 client.on(Events.MessageCreate, async message => {
   if (!message.guild || message.author.bot) return;
   const config = getGuildConfig(message.guild.id);
@@ -2160,6 +2187,41 @@ client.on(Events.MessageCreate, async message => {
       await saveDatabase();
       return send("✦ PREFIX UPDATED", "This server's command prefix is now `" + nextPrefix + "`.");
     }
+    if (command === "triggerlist") {
+      const rows = config.autoresponders || [];
+      return send("✦ TRIGGER LIST", rows.map((item, i) => (i + 1) + ". **" + item.trigger + "** → " + item.response).join("\n") || "No triggers are configured.");
+    }
+    if (command === "trigger") {
+      const sub = (args.shift() || "list").toLowerCase();
+      if (sub === "list") {
+        const rows = config.autoresponders || [];
+        return send("✦ TRIGGER LIST", rows.map((item, i) => (i + 1) + ". **" + item.trigger + "** → " + item.response).join("\n") || "No triggers are configured.");
+      }
+      if (!isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.ManageMessages) && !message.member.permissions.has(PermissionFlagsBits.ManageGuild) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return fail("You need Manage Messages, Manage Server, or Administrator to manage triggers.");
+      }
+      const raw = args.join(" ").trim();
+      if (sub === "add") {
+        const separator = raw.indexOf("|");
+        if (separator < 0) return fail("Usage: " + prefix + 'trigger add "hello" | Welcome!');
+        const trigger = raw.slice(0, separator).trim().replace(/^["']|["']$/g, "");
+        const response = raw.slice(separator + 1).trim();
+        if (trigger.length < 1 || trigger.length > 100 || !response || response.length > 1800) return fail("Trigger must be 1–100 characters and response 1–1,800 characters.");
+        config.autoresponders = config.autoresponders.filter(item => item.trigger.toLowerCase() !== trigger.toLowerCase());
+        config.autoresponders.push({ trigger, response });
+        await saveDatabase();
+        return send("✦ TRIGGER ADDED", "**Trigger:** " + trigger + "\n**Response:** " + response);
+      }
+      if (sub === "remove") {
+        const trigger = raw.replace(/^["']|["']$/g, "");
+        const before = config.autoresponders.length;
+        config.autoresponders = config.autoresponders.filter(item => item.trigger.toLowerCase() !== trigger.toLowerCase());
+        if (before === config.autoresponders.length) return fail("I couldn't find that trigger.");
+        await saveDatabase();
+        return send("✦ TRIGGER REMOVED", "Removed trigger: **" + trigger + "**");
+      }
+      return fail("Usage: " + prefix + "trigger add <trigger> | <response>\n" + prefix + "trigger remove <trigger>\n" + prefix + "trigger list");
+    }
     if (command === "ticket") {
       const sub = (args.shift() || "").toLowerCase();
       if (sub !== "panel") return fail("Usage: " + prefix + "ticket panel [#channel]");
@@ -2180,6 +2242,7 @@ client.on(Events.MessageCreate, async message => {
       if (target.user.bot) return fail("Bots cannot be recruited.");
       if (target.id === message.author.id) return fail("You cannot recruit yourself.");
       if (!isRecruitmentDatabaseReady()) return fail("Recruitment storage is unavailable. Check the PostgreSQL connection.");
+      const perks = await applyRecruitPerks(message.guild, target);
       const result = await recordRecruit({ guildId: message.guild.id, recruitId: target.id, recruiterId: message.author.id, source: "prefix" });
       if (result.duplicate) return fail("That member has already been recorded as a recruit in this server.");
       const embed = new EmbedBuilder()
@@ -2194,6 +2257,7 @@ client.on(Events.MessageCreate, async message => {
       if (!recruitChannel?.isTextBased() || !recruitChannel.permissionsFor(message.guild.members.me)?.has(PermissionFlagsBits.SendMessages)) {
         return fail("I cannot access the recruit announcement channel. Check View Channel and Send Messages permissions.");
       }
+      embed.addFields({ name: "Recruit perks", value: (perks.role ? "✅ Recruit role assigned" : "⚠️ Recruit role not assigned") + "\n" + (perks.nickname ? "✅ Server nickname updated" : "⚠️ Server nickname unchanged") + (perks.errors.length ? "\n" + perks.errors.join("\n") : ""), inline: false });
       await recruitChannel.send({ embeds: [embed], allowedMentions: { users: [target.id, message.author.id], parse: [] } });
       return message.react("✅");
     }
