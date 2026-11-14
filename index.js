@@ -2501,6 +2501,36 @@ client.on(Events.MessageCreate, async message => {
       await saveDatabase();
       return send("✦ MEMBER UNBANNED", "User ID `" + id + "` has been unbanned.");
     }
+    if (command === "mute") {
+      if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
+      const target = await prefixTarget(args[0]);
+      if (!target) return fail("Usage: " + prefix + "mute @member [duration] [reason] — default duration is 10 minutes.");
+      if (target.id === message.author.id || !canActOnTarget(message.member, target, message.guild) || !target.moderatable) return fail("You cannot timeout a member with an equal or higher role, or yourself.");
+      const durationToken = args[1] || "10m";
+      const durationMatch = durationToken.match(/^(\\d+)(s|m|h|d)?$/i);
+      if (!durationMatch) return fail("Duration must look like 10m, 2h, or 1d. Maximum is 28d.");
+      const amount = Number(durationMatch[1]);
+      const unit = (durationMatch[2] || "m").toLowerCase();
+      const multiplier = {s:1000,m:60000,h:3600000,d:86400000}[unit];
+      const durationMs = amount * multiplier;
+      if (!Number.isSafeInteger(durationMs) || durationMs < 1000 || durationMs > 28 * 86400000) return fail("Duration must be between 1 second and 28 days.");
+      const reason = args.slice(durationMatch ? 2 : 1).join(" ").trim() || "No reason provided";
+      await target.timeout(durationMs, "Muted by " + message.author.tag + ": " + reason);
+      addPrefixCase("TIMEOUT", target.id, reason + " (" + durationToken + ")");
+      await saveDatabase();
+      return send("✦ MEMBER MUTED", target.toString() + " has been timed out for **" + durationToken + "**.\nReason: " + reason);
+    }
+    if (command === "unmute") {
+      if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
+      const target = await prefixTarget(args[0]);
+      if (!target || !target.moderatable) return fail("Usage: " + prefix + "unmute @member — check the role hierarchy.");
+      if (!target.communicationDisabledUntilTimestamp) return fail("That member is not currently timed out.");
+      const reason = args.slice(1).join(" ").trim() || "Timeout removed";
+      await target.timeout(null, "Unmuted by " + message.author.tag + ": " + reason);
+      addPrefixCase("UNTIMEOUT", target.id, reason);
+      await saveDatabase();
+      return send("✦ MEMBER UNMUTED", "Removed the timeout from " + target.toString() + ".");
+    }
     if (command === "untimeout") {
       if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
       const target = await prefixTarget(args[0]);
