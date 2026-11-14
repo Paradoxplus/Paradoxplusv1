@@ -666,9 +666,10 @@ client.on(Events.InteractionCreate, async interaction => {
     if (!ownerId) return interaction.reply({ content: "This button can only be used inside a Paradoxplus ticket.", ephemeral: true });
     const config = getGuildConfig(interaction.guildId);
     const staffRole = config.ticketStaffRoleId;
+    const closingMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
     const isStaff = isBotOwner(interaction.user.id) ||
       interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels) ||
-      (staffRole && interaction.member?.roles?.cache?.has(staffRole));
+      (staffRole && closingMember?.roles.cache.has(staffRole));
     if (interaction.user.id !== ownerId && !isStaff) {
       return interaction.reply({ content: "Only the ticket creator or ticket staff can close this ticket.", ephemeral: true });
     }
@@ -698,10 +699,11 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (interaction.commandName === "ticket") {
       const sub = interaction.options.getSubcommand();
+      const ticketActor = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
       const allowed = isBotOwner(interaction.user.id) ||
         interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) ||
         interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels) ||
-        (config.ticketStaffRoleId && interaction.member?.roles?.cache?.has(config.ticketStaffRoleId));
+        (config.ticketStaffRoleId && ticketActor?.roles.cache.has(config.ticketStaffRoleId));
 
       if (sub === "panel") {
         if (!isBotOwner(interaction.user.id) &&
