@@ -1957,7 +1957,7 @@ client.on(Events.MessageCreate, async message => {
       "**MODERATION (slash):** `/kick`, `/ban`, `/softban`, `/timeout`, `/untimeout`, `/warn`, `/warnings`, `/unwarn`, `/clear-warnings`, `/strike`, `/strikes`, `/remove-strike`, `/modlog`, `/case`, `/case-reason`, `/note`, `/notes`, `/clear-notes`, `/banlist`",
       "**CLEANUP (slash):** `/purge`, `/purge-user`, `/purge-bots`, `/purge-links`, `/purge-invites`, `/purge-attachments`, `/purge-embeds`, `/purge-mentions`, `/purge-stickers`, `/purge-contains`, `/clear-reactions`",
       "**CHANNEL / VOICE (slash):** `/lock`, `/unlock`, `/hide`, `/show`, `/slowmode`, `/slowmode-off`, `/set-topic`, `/nickname`, `/nick-reset`, `/role-add`, `/role-remove`, `/voice-mute`, `/voice-unmute`, `/voice-deafen`, `/voice-undeafen`, `/disconnect`, `/move-member`",
-      `**TRIGGERS:** `${prefix}trigger add trigger phrase | reply`, `${prefix}trigger remove "trigger name"`, `${prefix}triggerlist``,
+      "**TRIGGERS:** " + prefix + "trigger add trigger phrase | reply, " + prefix + 'trigger remove "trigger name", ' + prefix + "triggerlist",
       "**SLASH COMMANDS:** `/warn`, `/warnings`, `/clear-warnings`, `/nickname`, `/role-add`, `/role-remove`, `/userinfo`, `/serverinfo`, `/modstats`, `/unban`, `/voice-mute`, `/voice-unmute`, `/disconnect`, `/inactive-reason`, `/serverpulse`, `/rankpredict`, `/staffactivity`, `/memberjourney`, `/spotlight`",
       "**SETUP:** `/rank-config` controls rank roles, ignored roles, logs, announcements, autodetection and backups.",
       "Prefix commands use `.` • Slash commands are available from Discord's command picker."
