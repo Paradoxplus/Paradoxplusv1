@@ -101,6 +101,7 @@ function getGuildConfig(guildId) {
   if (!Array.isArray(config.autoresponders)) config.autoresponders = [];
   if (typeof config.ticketStaffRoleId !== "string") config.ticketStaffRoleId = null;
   if (!Array.isArray(config.dmOptIns)) config.dmOptIns = [];
+  if (!Array.isArray(config.giveaways)) config.giveaways = [];
   if (!config.afkUsers || typeof config.afkUsers !== "object" || Array.isArray(config.afkUsers)) config.afkUsers = {};
   if (!Number.isInteger(config.recruitCount) || config.recruitCount < 0) config.recruitCount = 0;
   if (!Array.isArray(config.inactiveAppeals)) config.inactiveAppeals = [];
@@ -820,8 +821,92 @@ async function archiveTicketTranscript(channel, closedBy, reason) {
   return transcriptChannel;
 }
 
+function giveawayDurationMs(value) {
+  const match = String(value || "").trim().match(/^(\d+)(m|h|d)$/i);
+  if (!match) return null;
+  const amount = Number(match[1]);
+  const multiplier = { m: 60000, h: 3600000, d: 86400000 }[match[2].toLowerCase()];
+  const duration = amount * multiplier;
+  return Number.isSafeInteger(duration) && duration >= 60000 && duration <= 30 * 86400000 ? duration : null;
+}
+
+function giveawayEmbed(giveaway) {
+  const ended = Boolean(giveaway.endedAt);
+  const winners = Array.isArray(giveaway.winners) ? giveaway.winners : [];
+  return new EmbedBuilder()
+    .setColor(ended ? 0x747f8d : 0x7c5cff)
+    .setAuthor({ name: "PARADOXPLUS • GIVEAWAY", iconURL: client.user.displayAvatarURL() })
+    .setTitle((ended ? "🏁 " : "🎉 ") + giveaway.prize)
+    .setDescription(
+      (giveaway.description ? giveaway.description + "\n\n" : "") +
+      (ended ? "**Giveaway ended**" : "**Press the button below to enter!**") +
+      "\n\n**Hosted by:** <@" + giveaway.hostId + ">" +
+      "\n**Winners:** " + giveaway.winnerCount +
+      "\n**Entries:** " + (giveaway.entries?.length || 0) +
+      (ended ? "\n**Winner(s):** " + (winners.length ? winners.map(id => "<@" + id + ">").join(", ") : "No valid entries") : "\n**Ends:** <t:" + Math.floor(giveaway.endsAt / 1000) + ":R>") +
+      "\n\n**Giveaway ID:** " + giveaway.messageId
+    )
+    .setFooter({ text: "Paradoxplus Giveaway Manager • Fair random draw" })
+    .setTimestamp(new Date(giveaway.createdAt));
+}
+
+function giveawayEntryRow(messageId, disabled = false) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("px_giveaway_enter:" + messageId)
+      .setLabel(disabled ? "Giveaway Ended" : "Enter Giveaway")
+      .setEmoji(disabled ? "🏁" : "🎉")
+      .setStyle(disabled ? ButtonStyle.Secondary : ButtonStyle.Success)
+      .setDisabled(disabled)
+  );
+}
+
+async function finishGiveaway(guild, giveaway, reroll = false) {
+  const channel = guild.channels.cache.get(giveaway.channelId) ?? await guild.channels.fetch(giveaway.channelId).catch(() => null);
+  if (!channel || !channel.isTextBased()) throw new Error("Giveaway channel is unavailable.");
+  const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
+  if (!message) throw new Error("Giveaway announcement message is unavailable.");
+  const entries = [...new Set((giveaway.entries || []).filter(id => id && id !== client.user.id))];
+  const excluded = new Set(reroll ? (giveaway.winners || []) : []);
+  const pool = entries.filter(id => !excluded.has(id));
+  const winners = [];
+  while (pool.length && winners.length < giveaway.winnerCount) {
+    const index = Math.floor(Math.random() * pool.length);
+    winners.push(pool.splice(index, 1)[0]);
+  }
+  giveaway.winners = winners;
+  if (!reroll) giveaway.endedAt = Date.now();
+  await saveDatabase();
+  await message.edit({
+    embeds: [giveawayEmbed(giveaway)],
+    components: [giveawayEntryRow(giveaway.messageId, !reroll || Boolean(giveaway.endedAt))]
+  });
+  const announcement = winners.length
+    ? (reroll ? "🔄 **Giveaway rerolled!** " : "🎉 **Giveaway ended!** ") + winners.map(id => "<@" + id + ">").join(", ") + " won **" + giveaway.prize + "**!"
+    : (reroll ? "No new eligible entrants were available for a reroll." : "The giveaway ended with no valid entries.");
+  await channel.send({ content: announcement, allowedMentions: { users: winners, parse: [] } });
+  return winners;
+}
+
 client.on(Events.InteractionCreate, async interaction => {
   if (await handleMusicInteraction(interaction, client)) return;
+
+  // Persistent giveaway entry button.
+  if (interaction.isButton() && interaction.customId.startsWith("px_giveaway_enter:")) {
+    if (!interaction.inGuild()) return interaction.reply({ content: "Giveaways can only be entered inside a server.", ephemeral: true });
+    const messageId = interaction.customId.slice("px_giveaway_enter:".length);
+    const config = getGuildConfig(interaction.guildId);
+    const giveaway = config.giveaways.find(item => item.messageId === messageId);
+    if (!giveaway || giveaway.endedAt || Date.now() >= giveaway.endsAt) {
+      return interaction.reply({ content: "This giveaway has ended or is no longer available.", ephemeral: true });
+    }
+    if (giveaway.entries.includes(interaction.user.id)) {
+      return interaction.reply({ content: "You're already entered! Good luck 🎉", ephemeral: true });
+    }
+    giveaway.entries.push(interaction.user.id);
+    await saveDatabase();
+    return interaction.reply({ content: "🎉 You're entered in **" + giveaway.prize + "**. Good luck!", ephemeral: true });
+  }
 
   // Persistent ticket dropdown and close button handlers.
   if (interaction.isStringSelectMenu() && interaction.customId === "px_ticket_create") {
@@ -928,6 +1013,93 @@ client.on(Events.InteractionCreate, async interaction => {
 
   try {
     const config = getGuildConfig(interaction.guildId);
+
+    if (interaction.commandName === "giveaway") {
+      const sub = interaction.options.getSubcommand();
+      const canManage = isBotOwner(interaction.user.id) ||
+        interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) ||
+        interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ||
+        interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages);
+      if (sub !== "list" && !canManage) return replyError(interaction, "You need Manage Messages, Manage Server, or Administrator to manage giveaways.");
+
+      if (sub === "create") {
+        const prize = interaction.options.getString("prize", true).trim();
+        const durationText = interaction.options.getString("duration", true);
+        const duration = giveawayDurationMs(durationText);
+        const winnerCount = interaction.options.getInteger("winners", true);
+        const targetChannel = interaction.options.getChannel("channel") || interaction.channel;
+        const description = interaction.options.getString("description")?.trim() || "";
+        if (!duration) return replyError(interaction, "Duration must be between 1 minute and 30 days. Examples: 30m, 2h, 1d.");
+        if (!targetChannel || targetChannel.type !== ChannelType.GuildText || targetChannel.guildId !== interaction.guildId) {
+          return replyError(interaction, "Choose a text channel in this server.");
+        }
+        const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
+        if (!targetChannel.permissionsFor(botMember)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ReadMessageHistory])) {
+          return replyError(interaction, "I need View Channel, Send Messages, Embed Links, and Read Message History in the giveaway channel.");
+        }
+        if (!Array.isArray(config.giveaways)) config.giveaways = [];
+        const active = config.giveaways.filter(item => !item.endedAt).length;
+        if (active >= 20) return replyError(interaction, "This server already has 20 active giveaways. End one before creating another.");
+        await interaction.deferReply({ ephemeral: true });
+        const giveaway = {
+          messageId: null,
+          channelId: targetChannel.id,
+          hostId: interaction.user.id,
+          prize,
+          description,
+          winnerCount,
+          endsAt: Date.now() + duration,
+          createdAt: Date.now(),
+          entries: [],
+          winners: [],
+          endedAt: null
+        };
+        const announcement = await targetChannel.send({
+          embeds: [giveawayEmbed(giveaway)],
+          components: [giveawayEntryRow("pending")]
+        });
+        giveaway.messageId = announcement.id;
+        await announcement.edit({ embeds: [giveawayEmbed(giveaway)], components: [giveawayEntryRow(announcement.id)] });
+        config.giveaways.push(giveaway);
+        await saveDatabase();
+        return interaction.editReply("🎉 Giveaway created in " + targetChannel.toString() + "!\n**Prize:** " + prize + "\n**Duration:** " + durationText + "\n**Winners:** " + winnerCount + "\n**Giveaway ID:** " + announcement.id);
+      }
+
+      if (sub === "list") {
+        const rows = config.giveaways.slice(-10).reverse();
+        if (!rows.length) return interaction.reply({ content: "No giveaways have been created in this server yet.", ephemeral: true });
+        const lines = rows.map(item => (item.endedAt ? "🏁 Ended" : "🎉 Active") + " • **" + item.prize + "** • " + item.entries.length + " entries • ID: " + item.messageId);
+        return interaction.reply({ content: "**Recent giveaways**\n" + lines.join("\n"), ephemeral: true, allowedMentions: { parse: [] } });
+      }
+
+      const giveawayId = interaction.options.getString("giveaway_id", true).trim();
+      const giveaway = config.giveaways.find(item => item.messageId === giveawayId);
+      if (!giveaway) return replyError(interaction, "I couldn't find that giveaway ID in this server.");
+
+      if (sub === "end") {
+        if (giveaway.endedAt) return replyError(interaction, "That giveaway has already ended.");
+        await interaction.deferReply({ ephemeral: true });
+        try {
+          const winners = await finishGiveaway(interaction.guild, giveaway, false);
+          return interaction.editReply(winners.length ? "🏁 Giveaway ended. Winner(s): " + winners.map(id => "<@" + id + ">").join(", ") : "🏁 Giveaway ended, but there were no valid entries.");
+        } catch (error) {
+          console.error("[Giveaway] End failed:", error);
+          return interaction.editReply("I couldn't end that giveaway: " + error.message);
+        }
+      }
+
+      if (sub === "reroll") {
+        if (!giveaway.endedAt) return replyError(interaction, "End the giveaway before rerolling.");
+        await interaction.deferReply({ ephemeral: true });
+        try {
+          const winners = await finishGiveaway(interaction.guild, giveaway, true);
+          return interaction.editReply(winners.length ? "🔄 New winner(s): " + winners.map(id => "<@" + id + ">").join(", ") : "No new eligible entrants were available.");
+        } catch (error) {
+          console.error("[Giveaway] Reroll failed:", error);
+          return interaction.editReply("I couldn't reroll that giveaway: " + error.message);
+        }
+      }
+    }
 
     if (interaction.commandName === "ticket") {
       const sub = interaction.options.getSubcommand();
