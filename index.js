@@ -665,7 +665,7 @@ function buildTicketPanel(guild, botUser) {
     )
     .setThumbnail(guild.iconURL({ size: 256 }) || botUser.displayAvatarURL())
     .setImage("https://www.image2url.com/r2/default/gifs/1794386711876-4bbf4f54-5448-4384-960d-4424655e01a2.gif")
-    .setFooter({ text: "Powered By Zonex Devs" });
+    .setFooter({ text: "Powered By Paradox • Core" });
   return { embeds: [panel], components: [new ActionRowBuilder().addComponents(menu)] };
 }
 
