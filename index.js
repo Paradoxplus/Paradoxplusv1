@@ -1,7 +1,7 @@
 import "dotenv/config";
 import {
   Client, GatewayIntentBits, Partials, Events, PermissionFlagsBits,
-  EmbedBuilder, ChannelType
+  EmbedBuilder, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder
 } from "discord.js";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -99,6 +99,7 @@ function getGuildConfig(guildId) {
   if (!config.pulse.days || typeof config.pulse.days !== "object") config.pulse.days = {};
   if (!Array.isArray(config.ignoredRoleIds)) config.ignoredRoleIds = [];
   if (!Array.isArray(config.autoresponders)) config.autoresponders = [];
+  if (typeof config.ticketStaffRoleId !== "string") config.ticketStaffRoleId = null;
   if (!Array.isArray(config.dmOptIns)) config.dmOptIns = [];
   if (!Number.isInteger(config.recruitCount) || config.recruitCount < 0) config.recruitCount = 0;
   if (!Array.isArray(config.inactiveAppeals)) config.inactiveAppeals = [];
@@ -608,11 +609,151 @@ setupMusic(client, () => connectOwnerVoice(client));
 
 client.on(Events.InteractionCreate, async interaction => {
   if (await handleMusicInteraction(interaction, client)) return;
+
+  // Persistent ticket dropdown and close button handlers.
+  if (interaction.isStringSelectMenu() && interaction.customId === "px_ticket_create") {
+    if (!interaction.inGuild()) return interaction.reply({ content: "Tickets can only be opened inside a server.", ephemeral: true });
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      const config = getGuildConfig(interaction.guildId);
+      const existing = interaction.guild.channels.cache.find(channel =>
+        channel.type === ChannelType.GuildText &&
+        typeof channel.topic === "string" &&
+        channel.topic === "paradoxplus-ticket:" + interaction.user.id
+      );
+      if (existing) return interaction.editReply("You already have an open ticket: " + existing.toString());
+
+      const member = await interaction.guild.members.fetch(interaction.user.id);
+      const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
+      const overwrites = [
+        { id: interaction.guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+        { id: member.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks] },
+        { id: botMember.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageChannels] }
+      ];
+      if (config.ticketStaffRoleId && interaction.guild.roles.cache.has(config.ticketStaffRoleId)) {
+        overwrites.push({ id: config.ticketStaffRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
+      }
+      const username = interaction.user.username.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").slice(0, 70) || "member";
+      const channel = await interaction.guild.channels.create({
+        name: "ticket-" + username,
+        type: ChannelType.GuildText,
+        topic: "paradoxplus-ticket:" + interaction.user.id,
+        permissionOverwrites: overwrites,
+        reason: "Paradoxplus support ticket opened by " + interaction.user.tag
+      });
+      const ticketType = interaction.values[0];
+      const closeRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("px_ticket_close").setLabel("Close ticket").setEmoji("🔒").setStyle(ButtonStyle.Danger)
+      );
+      const intro = new EmbedBuilder()
+        .setColor(0x7c5cff)
+        .setAuthor({ name: "PARADOXPLUS • SUPPORT", iconURL: interaction.client.user.displayAvatarURL() })
+        .setTitle("✦ " + ticketType + " Ticket")
+        .setDescription("Welcome " + member.toString() + ". A staff member will be with you shortly.\n\nPlease explain your request clearly and keep all ticket discussion in this channel.")
+        .setFooter({ text: "ParadoxManagerV1 • Private Support" })
+        .setTimestamp();
+      await channel.send({ embeds: [intro], components: [closeRow], allowedMentions: { users: [member.id], parse: [] } });
+      return interaction.editReply("Your private ticket has been created: " + channel.toString());
+    } catch (error) {
+      console.error("[Tickets] Could not create ticket:", error);
+      return interaction.editReply("I couldn't create your ticket. Check that I have Manage Channels and View Channel permissions.");
+    }
+  }
+
+  if (interaction.isButton() && interaction.customId === "px_ticket_close") {
+    if (!interaction.inGuild() || !interaction.channel) return interaction.reply({ content: "This ticket is no longer available.", ephemeral: true });
+    const ownerId = interaction.channel.topic?.match(/^paradoxplus-ticket:(\d+)$/)?.[1];
+    if (!ownerId) return interaction.reply({ content: "This button can only be used inside a Paradoxplus ticket.", ephemeral: true });
+    const config = getGuildConfig(interaction.guildId);
+    const staffRole = config.ticketStaffRoleId;
+    const isStaff = isBotOwner(interaction.user.id) ||
+      interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels) ||
+      (staffRole && interaction.member?.roles?.cache?.has(staffRole));
+    if (interaction.user.id !== ownerId && !isStaff) {
+      return interaction.reply({ content: "Only the ticket creator or ticket staff can close this ticket.", ephemeral: true });
+    }
+    try {
+      await interaction.channel.permissionOverwrites.edit(ownerId, {
+        SendMessages: false,
+        AddReactions: false
+      });
+      if (!interaction.channel.name.startsWith("closed-")) {
+        await interaction.channel.setName(("closed-" + interaction.channel.name).slice(0, 100));
+      }
+      const disabledRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("px_ticket_closed").setLabel("Ticket Closed").setEmoji("🔒").setStyle(ButtonStyle.Secondary).setDisabled(true)
+      );
+      return interaction.update({ content: "🔒 Ticket closed. Staff can continue reviewing this channel.", components: [disabledRow] });
+    } catch (error) {
+      console.error("[Tickets] Could not close ticket:", error);
+      return interaction.reply({ content: "I couldn't close this ticket. Check my channel permissions.", ephemeral: true });
+    }
+  }
+
   if (!interaction.isChatInputCommand()) return;
   if (!interaction.inGuild()) return replyError(interaction, "This command only works inside a server.");
 
   try {
     const config = getGuildConfig(interaction.guildId);
+
+    if (interaction.commandName === "ticket") {
+      const sub = interaction.options.getSubcommand();
+      const allowed = isBotOwner(interaction.user.id) ||
+        interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) ||
+        interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels) ||
+        (config.ticketStaffRoleId && interaction.member?.roles?.cache?.has(config.ticketStaffRoleId));
+
+      if (sub === "panel") {
+        if (!isBotOwner(interaction.user.id) &&
+            !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) &&
+            !interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
+          return replyError(interaction, "You need Manage Channels or Administrator to publish the ticket panel.");
+        }
+        const staffRole = interaction.options.getRole("staff_role");
+        if (staffRole) {
+          config.ticketStaffRoleId = staffRole.id;
+          await saveDatabase();
+        }
+        const menu = new StringSelectMenuBuilder()
+          .setCustomId("px_ticket_create")
+          .setPlaceholder("Select a ticket category to get started")
+          .addOptions(
+            { label: "General Support", description: "Questions and general assistance", value: "General Support", emoji: "🎫" },
+            { label: "Report a Member", description: "Privately report a server issue", value: "Member Report", emoji: "🛡️" },
+            { label: "Partnership", description: "Discuss partnerships with Paradoxplus", value: "Partnership", emoji: "🤝" }
+          );
+        const row = new ActionRowBuilder().addComponents(menu);
+        const panel = new EmbedBuilder()
+          .setColor(0x7c5cff)
+          .setAuthor({ name: "PARADOXPLUS • SUPPORT CENTER", iconURL: interaction.client.user.displayAvatarURL() })
+          .setTitle("✦ Open a Support Ticket")
+          .setDescription("Need assistance? Select a category from the menu below and Paradoxplus will create a private ticket channel for you.\n\n**Please do not open duplicate tickets.**")
+          .setFooter({ text: "ParadoxManagerV1 • Private & Staff-Assisted" });
+        await interaction.channel.send({ embeds: [panel], components: [row] });
+        return interaction.reply({ content: "✅ Ticket dropdown panel posted in this channel.", ephemeral: true });
+      }
+
+      if (sub === "add") {
+        if (!allowed) return replyError(interaction, "Only ticket staff or server managers can add members to tickets.");
+        const ownerId = interaction.channel?.topic?.match(/^paradoxplus-ticket:(\d+)$/)?.[1];
+        if (!ownerId) return replyError(interaction, "Use /ticket add inside an open Paradoxplus ticket channel.");
+        const user = interaction.options.getUser("user", true);
+        if (user.bot) return replyError(interaction, "Bots cannot be added to support tickets.");
+        try {
+          await interaction.channel.permissionOverwrites.edit(user.id, {
+            ViewChannel: true,
+            SendMessages: true,
+            ReadMessageHistory: true,
+            AttachFiles: true,
+            EmbedLinks: true
+          }, { reason: "Added to ticket by " + interaction.user.tag });
+          return interaction.reply({ content: "✅ Added " + user.toString() + " to this ticket.", allowedMentions: { users: [user.id], parse: [] } });
+        } catch (error) {
+          console.error("[Tickets] Could not add member:", error);
+          return replyError(interaction, "I couldn't add that member. Check my Manage Channels permission.");
+        }
+      }
+    }
 
     if (interaction.commandName === "prefix") {
       if (!isBotOwner(interaction.user.id) && !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) && !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) return replyError(interaction, "You need Manage Server or Administrator to change the prefix.");
