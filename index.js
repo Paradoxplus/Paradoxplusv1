@@ -2261,7 +2261,8 @@ client.on(Events.MessageCreate, async message => {
             name: "🎫  TICKETS",
             value:
               "\`/ticket-panel channel:#channel\` — Publish the ticket portal\n" +
-              "\`/ticket panel\` — Publish in the current channel\n" +
+              "\`/ticket panel channel:#channel\` — Choose where the panel is posted (optional)\n" +
+              "Categories: Support • Member Report • Partnership • Alliance / Merge\n" +
               "\`/ticket add @member\` / \`remove @member\`\n" +
               "\`/ticket claim\` / \`unclaim\` — Staff ownership\n" +
               "\`/ticket priority\` / \`info\` / \`rename\`\n" +
