@@ -2371,7 +2371,14 @@ client.on(Events.MessageCreate, async message => {
   const prefix = typeof config.prefix === "string" && config.prefix.length >= 1 && config.prefix.length <= 5 ? config.prefix : DEFAULT_PREFIX;
   if (!message.content.startsWith(prefix)) return;
   const args = message.content.slice(prefix.length).trim().split(/\s+/);
-  const command = (args.shift() || "").toLowerCase();
+  let command = (args.shift() || "").toLowerCase();
+  if (command === "role") {
+    const subcommand = (args.shift() || "").toLowerCase();
+    if (subcommand === "add" || subcommand === "give") command = "role-add";
+    else if (subcommand === "remove" || subcommand === "take" || subcommand === "revoke") command = "role-remove";
+    else command = "role-help";
+  } else if (command === "addrole" || command === "giverole") command = "role-add";
+  else if (command === "removerole" || command === "takerole") command = "role-remove";
   if (!command) return;
   const send = (title, description) => message.reply({
     embeds: [prefixEmbed(title, description)],
@@ -2648,7 +2655,7 @@ client.on(Events.MessageCreate, async message => {
       message.member.permissions.has(PermissionFlagsBits.Administrator) ||
       message.member.permissions.has(permission);
     const prefixTarget = async token => {
-      const id = mentionedId(token) || (token && /^\\d{17,20}$/.test(token) ? token : null);
+      const id = mentionedId(token) || (token && /^\d{17,20}$/.test(token) ? token : null);
       return id ? (message.guild.members.cache.get(id) ?? await message.guild.members.fetch(id).catch(() => null)) : null;
     };
     const addPrefixCase = (action, targetId, reason) => {
@@ -2716,16 +2723,26 @@ client.on(Events.MessageCreate, async message => {
       await saveDatabase();
       return send("✦ NICKNAME UPDATED", "Updated " + target.toString() + ".");
     }
+    if (command === "role-help") return send("✦ ROLE COMMANDS", "`" + prefix + "role add @member @role` — Give a role\n`" + prefix + "role remove @member @role` — Remove a role\nAliases: `" + prefix + "role-add`, `" + prefix + "role-remove`.");
     if (["role-add","role-remove"].includes(command)) {
       if (!modPermission(PermissionFlagsBits.ManageRoles)) return fail("You need Manage Roles or Administrator.");
       const target = await prefixTarget(args[0]);
-      const roleId = args[1]?.match(/^<@&?(\\d+)>$/)?.[1] || (args[1] && /^\\d{17,20}$/.test(args[1]) ? args[1] : null);
+      const roleId = args[1]?.match(/^<@&?(\d+)>$/)?.[1] || (args[1] && /^\d{17,20}$/.test(args[1]) ? args[1] : null);
       const role = roleId ? await message.guild.roles.fetch(roleId).catch(() => null) : null;
       if (!target || !role) return fail("Usage: " + prefix + command + " @member @role");
       const bot = message.guild.members.me ?? await message.guild.members.fetchMe();
-      if (!canActOnTarget(message.member, target, message.guild) || role.managed || role.position >= message.member.roles.highest.position || role.position >= bot.roles.highest.position || !role.editable) return fail("That member or role is above my or your manageable role hierarchy.");
-      if (command === "role-add") await target.roles.add(role, "Role added by " + message.author.tag);
-      else await target.roles.remove(role, "Role removed by " + message.author.tag);
+      const actorIsAdmin = isBotOwner(message.author.id) || message.guild.ownerId === message.author.id || message.member.permissions.has(PermissionFlagsBits.Administrator);
+      if (!canActOnTarget(message.member, target, message.guild)) return fail("You cannot manage a member whose highest role is equal to or above yours.");
+      if (target.id === message.guild.ownerId || !target.manageable) return fail("I cannot manage that member. Move my bot role above the member's highest role.");
+      if (role.managed || (!actorIsAdmin && role.position >= message.member.roles.highest.position)) return fail("That role is above your highest role or is managed.");
+      if (!bot.permissions.has(PermissionFlagsBits.ManageRoles) || !role.editable || role.position >= bot.roles.highest.position) return fail("I cannot manage that role. Give me Manage Roles and move my bot role above it.");
+      if (command === "role-add") {
+        if (target.roles.cache.has(role.id)) return fail("That member already has this role.");
+        await target.roles.add(role, "Role added by " + message.author.tag);
+      } else {
+        if (!target.roles.cache.has(role.id)) return fail("That member does not have this role.");
+        await target.roles.remove(role, "Role removed by " + message.author.tag);
+      }
       addPrefixCase(command.toUpperCase().replace("-", "_"), target.id, role.name);
       await saveDatabase();
       return send("✦ ROLE UPDATED", (command === "role-add" ? "Added " : "Removed ") + role.toString() + (command === "role-add" ? " to " : " from ") + target.toString() + ".");
