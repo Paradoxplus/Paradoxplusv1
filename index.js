@@ -2087,38 +2087,32 @@ const prefixEmbed = (title, description) => new EmbedBuilder()
 const mentionedId = (value, role = false) => value?.match(role ? /^<@&(\d+)>$/ : /^<@!?(\d+)>$/)?.[1] || null;
 
 async function applyRecruitPerks(guild, target) {
-  const roleId = "1568943817858744344";
-  const role = await guild.roles.fetch(roleId).catch(() => null);
+  const roleIds = ["1568943817858744344", "1568943817858744347"];
   const botMember = guild.members.me ?? await guild.members.fetchMe();
   const results = { role: false, nickname: false, errors: [] };
-  if (!role) {
-    results.errors.push("Recruit role <@&" + roleId + "> was not found.");
-  } else if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles) || role.position >= botMember.roles.highest.position) {
-    results.errors.push("I cannot assign the recruit role. Check Manage Roles and move my highest role above the recruit role.");
-  } else {
-    try {
-      await target.roles.add(role, "Paradoxplus recruitment reward");
-      results.role = true;
-    } catch (error) {
-      results.errors.push("Role assignment failed: " + (error.message || "check Manage Roles and role hierarchy."));
+  let rolesAdded = 0;
+  for (const roleId of roleIds) {
+    const role = await guild.roles.fetch(roleId).catch(() => null);
+    if (!role) { results.errors.push('Recruit role <@&' + roleId + '> was not found.'); continue; }
+    if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles) || role.position >= botMember.roles.highest.position) {
+      results.errors.push('Cannot assign <@&' + roleId + '>; check Manage Roles and role hierarchy.');
+      continue;
     }
+    try { await target.roles.add(role, 'Paradoxplus recruitment reward'); rolesAdded++; }
+    catch (error) { results.errors.push('Role <@&' + roleId + '> assignment failed: ' + (error.message || 'check permissions.')); }
   }
+  results.role = rolesAdded === roleIds.length;
   const desiredNickname = ("PX ϟ " + target.user.username).slice(0, 32);
   if (!botMember.permissions.has(PermissionFlagsBits.ManageNicknames) && !botMember.permissions.has(PermissionFlagsBits.Administrator)) {
-    results.errors.push("I need Manage Nicknames to set the recruit's server nickname.");
+    results.errors.push('I need Manage Nicknames to set the recruit\'s server nickname.');
   } else if (target.roles.highest.position >= botMember.roles.highest.position && guild.ownerId !== target.id) {
-    results.errors.push("I cannot change this member's nickname because their highest role is equal to or above mine.");
+    results.errors.push('I cannot change this member\'s nickname because their highest role is equal to or above mine.');
   } else {
-    try {
-      await target.setNickname(desiredNickname, "Paradoxplus recruitment nickname");
-      results.nickname = true;
-    } catch (error) {
-      results.errors.push("Nickname update failed: " + (error.message || "check Manage Nicknames and role hierarchy."));
-    }
+    try { await target.setNickname(desiredNickname, 'Paradoxplus recruitment nickname'); results.nickname = true; }
+    catch (error) { results.errors.push('Nickname update failed: ' + (error.message || 'check Manage Nicknames and role hierarchy.')); }
   }
   return results;
 }
-
 client.on(Events.MessageCreate, async message => {
   if (!message.guild || message.author.bot) return;
   const config = getGuildConfig(message.guild.id);
@@ -2278,14 +2272,17 @@ client.on(Events.MessageCreate, async message => {
       const record = await removeRecruit(message.guild.id, id);
       if (!record) return fail("That member is not recorded as a recruit in this server.");
       const results = [];
-      const role = await message.guild.roles.fetch("1568943817858744344").catch(() => null);
+      const roleIds = ["1568943817858744344", "1568943817858744347"];
       const botMember = message.guild.members.me ?? await message.guild.members.fetchMe();
-      if (target && role && target.roles.cache.has(role.id)) {
-        if (botMember.permissions.has(PermissionFlagsBits.ManageRoles) && role.position < botMember.roles.highest.position) {
-          try { await target.roles.remove(role, "Paradoxplus unrecruit"); results.push("✅ Recruit role removed"); }
-          catch (error) { results.push("⚠️ Role removal failed: " + error.message); }
-        } else results.push("⚠️ Cannot remove recruit role; check Manage Roles and role hierarchy.");
-      } else results.push(target ? "ℹ️ Recruit role was not present" : "ℹ️ Member has left the server; database record removed");
+      for (const roleId of roleIds) {
+        const role = await message.guild.roles.fetch(roleId).catch(() => null);
+        if (!target) continue;
+        if (!role || !target.roles.cache.has(roleId)) { results.push("ℹ️ Recruit role <@&" + roleId + "> was not present"); continue; }
+        if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles) || role.position >= botMember.roles.highest.position) { results.push("⚠️ Cannot remove <@&" + roleId + ">; check Manage Roles and role hierarchy."); continue; }
+        try { await target.roles.remove(role, "Paradoxplus unrecruit"); results.push("✅ Removed <@&" + roleId + ">"); }
+        catch (error) { results.push("⚠️ Role removal failed for <@&" + roleId + ">: " + error.message); }
+      }
+      if (!target) results.push("ℹ️ Member has left the server; database record removed.");
       if (target && record.nickname_saved) {
         if (botMember.permissions.has(PermissionFlagsBits.ManageNicknames) || botMember.permissions.has(PermissionFlagsBits.Administrator)) {
           try { await target.setNickname(record.original_nickname, "Restore nickname after Paradoxplus unrecruit"); results.push("✅ Original server nickname restored"); }
