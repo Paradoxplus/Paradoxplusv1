@@ -714,17 +714,13 @@ client.on(Events.InteractionCreate, async interaction => {
         .setAuthor({ name: "PARADOXPLUS  /  PRIVATE SUPPORT", iconURL: interaction.client.user.displayAvatarURL() })
         .setTitle("✦  " + ticketType.toUpperCase() + "  /  SUPPORT ROOM")
         .setDescription(
-          "Welcome " + member.toString() + " — your private support room is ready.\n\n" +
-          "A member of the Paradoxplus team will assist you as soon as possible. While you wait, please share a clear explanation of your request and any useful context.\n\n" +
-          "━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-          "🔹 **KEEP IT ORGANIZED**  •  Keep messages related to this request.\n" +
-          "🔹 **BE SPECIFIC**  •  Details help staff resolve things faster.\n" +
-          "🔹 **PRIVATE ROOM**  •  This channel is visible only to you and authorized staff."
+          "Welcome " + member.toString() + " — your private ticket is open.\n" +
+          "Please explain your request and include any useful details. Staff will assist you soon."
         )
         .addFields(
-          { name: "👤  TICKET OWNER", value: member.toString(), inline: true },
-          { name: "📂  DEPARTMENT", value: ticketType, inline: true },
-          { name: "🛡️  STATUS", value: "🟢 Open • Awaiting staff", inline: true }
+          { name: "OWNER", value: member.toString(), inline: true },
+          { name: "DEPARTMENT", value: ticketType, inline: true },
+          { name: "STATUS", value: "🟢 Open", inline: true }
         )
         .setThumbnail(member.user.displayAvatarURL({ size: 256 }))
         .setFooter({ text: "PARADOXPLUS • ParadoxManagerV1  /  Use the button below when your issue is resolved" })
@@ -789,6 +785,8 @@ client.on(Events.InteractionCreate, async interaction => {
             !interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
           return replyError(interaction, "You need Manage Channels or Administrator to publish the ticket panel.");
         }
+        const targetChannel = interaction.options.getChannel("channel") || interaction.channel;
+        if (targetChannel.type !== ChannelType.GuildText) return replyError(interaction, "Choose a text channel for the ticket panel.");
         const staffRole = interaction.options.getRole("staff_role");
         if (staffRole) {
           config.ticketStaffRoleId = staffRole.id;
@@ -800,7 +798,8 @@ client.on(Events.InteractionCreate, async interaction => {
           .addOptions(
             { label: "General Support", description: "Questions and general assistance", value: "General Support", emoji: "🎫" },
             { label: "Report a Member", description: "Privately report a server issue", value: "Member Report", emoji: "🛡️" },
-            { label: "Partnership", description: "Discuss partnerships with Paradoxplus", value: "Partnership", emoji: "🤝" }
+            { label: "Partnership", description: "Discuss partnerships with Paradoxplus", value: "Partnership", emoji: "🤝" },
+            { label: "Alliance / Merge", description: "Alliances, server merges, and network cooperation", value: "Alliance / Merge", emoji: "🌐" }
           );
         const row = new ActionRowBuilder().addComponents(menu);
         const panel = new EmbedBuilder()
@@ -822,8 +821,11 @@ client.on(Events.InteractionCreate, async interaction => {
           .setThumbnail(interaction.guild.iconURL({ size: 256 }) || interaction.client.user.displayAvatarURL())
           .setFooter({ text: "PARADOXPLUS • SUPPORT EXPERIENCE  /  Powered by ParadoxManagerV1" })
           .setTimestamp();
-        await interaction.channel.send({ embeds: [panel], components: [row] });
-        return interaction.reply({ content: "✅ Premium ticket portal published in this channel.", ephemeral: true });
+        const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
+        const permissions = targetChannel.permissionsFor(botMember);
+        if (!permissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) return replyError(interaction, "I need View Channel, Send Messages, and Embed Links permissions in that channel.");
+        await targetChannel.send({ embeds: [panel], components: [row] });
+        return interaction.reply({ content: "✅ Ticket portal published in " + targetChannel.toString() + ".", ephemeral: true });
       }
 
       const ticketData = getTicketData(interaction.channel);
@@ -995,7 +997,8 @@ client.on(Events.InteractionCreate, async interaction => {
         .addOptions(
           { label: "General Support", description: "Questions, help, and general assistance", value: "General Support", emoji: "🎫" },
           { label: "Report a Member", description: "Send a private report to the staff team", value: "Member Report", emoji: "🛡️" },
-          { label: "Partnership", description: "Business, alliance, and partnership enquiries", value: "Partnership", emoji: "🤝" }
+          { label: "Partnership", description: "Business and partnership enquiries", value: "Partnership", emoji: "🤝" },
+          { label: "Alliance / Merge", description: "Alliances, server merges, and network cooperation", value: "Alliance / Merge", emoji: "🌐" }
         );
       const row = new ActionRowBuilder().addComponents(menu);
       const panel = new EmbedBuilder()
@@ -1003,16 +1006,11 @@ client.on(Events.InteractionCreate, async interaction => {
         .setAuthor({ name: "✦ PARADOXPLUS  /  SUPPORT DIVISION", iconURL: interaction.client.user.displayAvatarURL() })
         .setTitle("🎫  THE SUPPORT PORTAL")
         .setDescription(
-          "Welcome to **Paradoxplus Support**.\n" +
-          "Our team is ready to help you get things sorted — choose the department that best matches your request below.\n\n" +
-          "━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-          "✧ **PRIVATE BY DESIGN**  •  Only you and authorized staff can view your ticket.\n" +
-          "✧ **DIRECT ASSISTANCE**  •  Your request goes straight into a dedicated channel.\n" +
-          "✧ **ONE REQUEST AT A TIME**  •  Please keep one open ticket per issue."
+          "**Paradoxplus Support** — choose the department that best fits your request.\n\n" +
+          "🔒 Private channel • 👥 Staff assistance • One open ticket per issue"
         )
         .addFields(
-          { name: "🎟️  OPEN A TICKET", value: "Select a department from the menu below to create your private support room.", inline: false },
-          { name: "⚡  RESPONSE TIP", value: "Include the details, screenshots, and relevant context staff need to help you.", inline: false }
+          { name: "OPEN A TICKET", value: "Select a department below and share the details staff need.", inline: false }
         )
         .setThumbnail(interaction.guild.iconURL({ size: 256 }) || interaction.client.user.displayAvatarURL())
         .setFooter({ text: "PARADOXPLUS • SUPPORT EXPERIENCE  /  Powered by ParadoxManagerV1" })
