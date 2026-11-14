@@ -706,6 +706,12 @@ async function archiveTicketTranscript(channel, closedBy, reason) {
   const guild = channel.guild;
   const config = getGuildConfig(guild.id);
   const botId = channel.client.user.id;
+  const supportCategoryId = "1568943820995961012";
+  const supportCategory = guild.channels.cache.get(supportCategoryId)
+    ?? await guild.channels.fetch(supportCategoryId).catch(() => null);
+  if (!supportCategory || supportCategory.type !== ChannelType.GuildCategory) {
+    throw new Error("The configured support area is missing or is not a category.");
+  }
   let transcriptChannel = guild.channels.cache.find(ch => ch.type === ChannelType.GuildText && ch.name === "ticket-transcripts");
   if (!transcriptChannel) {
     const overwrites = [
@@ -720,10 +726,17 @@ async function archiveTicketTranscript(channel, closedBy, reason) {
       name: "ticket-transcripts",
       type: ChannelType.GuildText,
       topic: "Paradoxplus automatically archived ticket transcripts",
+      parent: supportCategory.id,
       permissionOverwrites: overwrites,
       reason: "Create private ticket transcript archive"
     });
   } else {
+    if (transcriptChannel.parentId !== supportCategory.id) {
+      await transcriptChannel.setParent(supportCategory.id, {
+        lockPermissions: false,
+        reason: "Keep ticket transcripts inside the Paradoxplus support area"
+      });
+    }
     await transcriptChannel.permissionOverwrites.edit(guild.roles.everyone.id, { ViewChannel: false }).catch(() => null);
     await transcriptChannel.permissionOverwrites.edit(botId, {
       ViewChannel: true, SendMessages: true, ReadMessageHistory: true, AttachFiles: true, EmbedLinks: true
