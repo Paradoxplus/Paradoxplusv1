@@ -2211,21 +2211,97 @@ client.on(Events.MessageCreate, async message => {
 
       return fail("Use " + prefix + "triggerlist, " + prefix + "trigger add trigger phrase | reply, or " + prefix + 'trigger remove "trigger name".');
     }
-    if (command === "rankhelp" || command === "help") return send("✦ PARADOXPLUS COMMAND CENTER", [
-      "**WELCOME:** `.welcome set #channel`, `.welcome remove`",
-      "**RECRUITMENT:** `.recruit @member`, `.recruits [@member]`, `.recruitleaderboard [daily|weekly|monthly|all]`",
-      "**MEMBER:** `.rank [@member]`, `.rankpanel`, `.rankhistory @member`, `.ranksearch name`, `.rankstats`, `.rankleaderboard`",
-      "**MUSIC:** `.play song`, `.pause`, `.resume`, `.skip`, `.stop`, `.queue`, `.nowplaying`, `.volume 1-100`, `.loop off|track|queue`, `.shuffle`, `.remove position`, `.clear`",
-      "**RANK STAFF:** `.promote @member [reason]`, `.demote @member [reason]`, `.setrank @member @rank [reason]`",
-      "**STRIKES:** `.strike @member reason`, `.strikes [@member]`, `.remove-strike @member amount reason`",
-      "**MODERATION (slash):** `/kick`, `/ban`, `/softban`, `/timeout`, `/untimeout`, `/warn`, `/warnings`, `/unwarn`, `/clear-warnings`, `/strike`, `/strikes`, `/remove-strike`, `/modlog`, `/case`, `/case-reason`, `/note`, `/notes`, `/clear-notes`, `/banlist`",
-      "**CLEANUP (slash):** `/purge`, `/purge-user`, `/purge-bots`, `/purge-links`, `/purge-invites`, `/purge-attachments`, `/purge-embeds`, `/purge-mentions`, `/purge-stickers`, `/purge-contains`, `/clear-reactions`",
-      "**CHANNEL / VOICE (slash):** `/lock`, `/unlock`, `/hide`, `/show`, `/slowmode`, `/slowmode-off`, `/set-topic`, `/nickname`, `/nick-reset`, `/role-add`, `/role-remove`, `/voice-mute`, `/voice-unmute`, `/voice-deafen`, `/voice-undeafen`, `/disconnect`, `/move-member`",
-      "**TRIGGERS:** " + prefix + "trigger add trigger phrase | reply, " + prefix + 'trigger remove "trigger name", ' + prefix + "triggerlist",
-      "**SLASH COMMANDS:** `/warn`, `/warnings`, `/clear-warnings`, `/nickname`, `/role-add`, `/role-remove`, `/userinfo`, `/serverinfo`, `/modstats`, `/unban`, `/voice-mute`, `/voice-unmute`, `/disconnect`, `/inactive-reason`, `/serverpulse`, `/rankpredict`, `/staffactivity`, `/memberjourney`, `/spotlight`",
-      "**SETUP:** `/rank-config` controls rank roles, ignored roles, logs, announcements, autodetection and backups.",
-      "Prefix commands use `.` • Slash commands are available from Discord's command picker."
-    ].join("\n"));
+    if (command === "rankhelp" || command === "help") {
+      const help = new EmbedBuilder()
+        .setColor(0x7c5cff)
+        .setAuthor({ name: "ＰＡＲＡＤＯＸＰＬＵＳ  •  COMMAND DIRECTORY", iconURL: client.user.displayAvatarURL() })
+        .setTitle("✦  COMMAND CENTER")
+        .setDescription(
+          "A clean guide to Paradoxplus commands.\n" +
+          " **Prefix:** \`" + prefix + "\`  •  **Slash commands:** use Discord's `/` command picker.\n" +
+          "━━━━━━━━━━━━━━━━━━━━━━━━"
+        )
+        .addFields(
+          {
+            name: "🌐  COMMUNITY",
+            value:
+              "\`" + prefix + "welcome set #channel\` — Set welcome channel\n" +
+              "\`" + prefix + "welcome remove\` — Disable welcomes\n" +
+              "\`" + prefix + "welcome test\` — DM yourself a preview\n" +
+              "\`" + prefix + "recruit @member\` — Record a recruit\n" +
+              "\`" + prefix + "recruits [@member]\` — View recruit stats\n" +
+              "\`" + prefix + "recruitleaderboard [daily|weekly|monthly|all]\` — Recruit rankings\n" +
+              "\`" + prefix + "dm-optin / dm-optout\` — Manage server DMs",
+            inline: false
+          },
+          {
+            name: "🏅  MEMBER RANKS",
+            value:
+              "\`" + prefix + "rank [@member]\` — Check a member's rank\n" +
+              "\`" + prefix + "rankpanel\` — View rank hierarchy\n" +
+              "\`" + prefix + "rankhistory @member\` — Rank history\n" +
+              "\`" + prefix + "ranksearch name\` — Find a member\n" +
+              "\`" + prefix + "rankstats\` — Rank statistics\n" +
+              "\`" + prefix + "rankleaderboard\` — Rank leaderboard",
+            inline: false
+          },
+          {
+            name: "🛡️  STAFF & MODERATION",
+            value:
+              "\`/promote\`, \`/demote\`, \`/setrank\` — Manage ranks\n" +
+              "\`" + prefix + "kick / ban / timeout\` — Prefix moderation\n" +
+              "\`/kick\`, \`/ban\`, \`/softban\`, \`/unban\`, \`/timeout\`, \`/untimeout\`\n" +
+              "\`/warn\`, \`/warnings\`, \`/unwarn\`, \`/clear-warnings\`\n" +
+              "\`/strike\`, \`/strikes\`, \`/remove-strike\`\n" +
+              "\`/modlog\`, \`/case\`, \`/case-reason\`, \`/banlist\`\n" +
+              "\`/note\`, \`/notes\`, \`/clear-notes\`",
+            inline: false
+          },
+          {
+            name: "🎫  TICKETS",
+            value:
+              "\`/ticket-panel channel:#channel\` — Publish the ticket portal\n" +
+              "\`/ticket panel\` — Publish in the current channel\n" +
+              "\`/ticket add @member\` / \`remove @member\`\n" +
+              "\`/ticket claim\` / \`unclaim\` — Staff ownership\n" +
+              "\`/ticket priority\` / \`info\` / \`rename\`\n" +
+              "\`/ticket close\` / \`reopen\` / \`transcript\`",
+            inline: false
+          },
+          {
+            name: "🎵  MUSIC",
+            value:
+              "\`" + prefix + "play song\`, \`pause\`, \`resume\`, \`skip\`, \`stop\`\n" +
+              "\`" + prefix + "queue\`, \`nowplaying\`, \`previous\`, \`playnext song\`\n" +
+              "\`" + prefix + "volume 1-100\`, \`loop off|track|queue\`, \`shuffle\`\n" +
+              "\`" + prefix + "remove position\`, \`clear\`, \`seek seconds\`, \`filter preset\`, \`autoplay on|off\`",
+            inline: false
+          },
+          {
+            name: "⚙️  SERVER TOOLS",
+            value:
+              "\`/lock\`, \`/unlock\`, \`/hide\`, \`/show\`, \`/slowmode\`, \`/slowmode-off\`\n" +
+              "\`/set-topic\`, \`/nickname\`, \`/nick-reset\`, \`/role-add\`, \`/role-remove\`\n" +
+              "\`/purge\`, \`/purge-user\`, \`/purge-bots\`, \`/purge-links\`, \`/purge-invites\`\n" +
+              "\`/purge-attachments\`, \`/purge-embeds\`, \`/purge-mentions\`, \`/purge-stickers\`, \`/purge-contains\`\n" +
+              "\`/userinfo\`, \`/serverinfo\`, \`/serverpulse\`, \`/modstats\`, \`/staffactivity\`, \`/memberjourney\`, \`/spotlight\`",
+            inline: false
+          },
+          {
+            name: "✨  TRIGGERS & QUICK HELP",
+            value:
+              "\`" + prefix + "triggerlist\` — View saved triggers\n" +
+              "\`" + prefix + "trigger add phrase | reply\` — Add a trigger\n" +
+              "\`" + prefix + "trigger remove \"phrase\"\` — Remove a trigger\n" +
+              "\`" + prefix + "ping\` — Check bot latency\n" +
+              "\`" + prefix + "help\` — Show this command guide",
+            inline: false
+          }
+        )
+        .setFooter({ text: "PARADOXPLUS  •  ParadoxManagerV1  •  Commands vary by permissions" })
+        .setTimestamp();
+      return message.reply({ embeds: [help], allowedMentions: { repliedUser: false, parse: [] } });
+    }
     if (command === "strikes") {
       const id = mentionedId(args[0]) || message.author.id;
       if (id !== message.author.id && !isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.ModerateMembers) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) return fail("Only staff can inspect another member's strike record.");
