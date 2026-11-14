@@ -491,6 +491,18 @@ async function syncMemberCounter(guild) {
   return memberCounterSync;
 }
 
+client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+  const config = getGuildConfig(newMember.guild.id);
+  if (!Array.isArray(config.permanentMutes)) config.permanentMutes = [];
+  const record = config.permanentMutes.find(item => item.memberId === newMember.id);
+  if (!record) return;
+  const hadTimeout = Boolean(oldMember.communicationDisabledUntilTimestamp && oldMember.communicationDisabledUntilTimestamp > Date.now());
+  const hasTimeout = Boolean(newMember.communicationDisabledUntilTimestamp && newMember.communicationDisabledUntilTimestamp > Date.now());
+  if (hadTimeout || hasTimeout) return;
+  if (!newMember.moderatable) { console.warn("[PermanentMute] Cannot renew timeout for", newMember.id, "because role hierarchy or permissions prevent it."); return; }
+  try { await newMember.timeout(28 * 24 * 60 * 60 * 1000, "Permanent mute auto-renewal: " + (record.reason || "No reason provided")); console.log("[PermanentMute] Renewed permanent mute for", newMember.id); }
+  catch (error) { console.error("[PermanentMute] Failed to renew mute for", newMember.id, error); }
+});
 client.on(Events.GuildMemberAdd, async member => {
   const config = getGuildConfig(member.guild.id);
   pulseDay(config).joins++;
@@ -2504,32 +2516,30 @@ client.on(Events.MessageCreate, async message => {
     if (command === "mute") {
       if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
       const target = await prefixTarget(args[0]);
-      if (!target) return fail("Usage: " + prefix + "mute @member [duration] [reason] — default duration is 10 minutes.");
-      if (target.id === message.author.id || !canActOnTarget(message.member, target, message.guild) || !target.moderatable) return fail("You cannot timeout a member with an equal or higher role, or yourself.");
-      const durationToken = args[1] || "10m";
-      const durationMatch = durationToken.match(/^(\d+)(s|m|h|d)?$/i);
-      if (!durationMatch) return fail("Duration must look like 10m, 2h, or 1d. Maximum is 28d.");
-      const amount = Number(durationMatch[1]);
-      const unit = (durationMatch[2] || "m").toLowerCase();
-      const multiplier = {s:1000,m:60000,h:3600000,d:86400000}[unit];
-      const durationMs = amount * multiplier;
-      if (!Number.isSafeInteger(durationMs) || durationMs < 1000 || durationMs > 28 * 86400000) return fail("Duration must be between 1 second and 28 days.");
-      const reason = args.slice(durationMatch ? 2 : 1).join(" ").trim() || "No reason provided";
-      await target.timeout(durationMs, "Muted by " + message.author.tag + ": " + reason);
-      addPrefixCase("TIMEOUT", target.id, reason + " (" + durationToken + ")");
+      if (!target) return fail("Usage: " + prefix + "mute @member [reason]");
+      if (target.id === message.author.id || !canActOnTarget(message.member, target, message.guild) || !target.moderatable) return fail("You cannot mute a member with an equal or higher role, or yourself.");
+      if (!Array.isArray(config.permanentMutes)) config.permanentMutes = [];
+      const reason = args.slice(1).join(" ").trim() || "No reason provided";
+      const existing = config.permanentMutes.find(item => item.memberId === target.id);
+      if (!existing) config.permanentMutes.push({ memberId: target.id, moderatorId: message.author.id, reason, createdAt: new Date().toISOString() });
+      try { await target.timeout(28 * 24 * 60 * 60 * 1000, "Permanent mute (auto-renewed): " + reason); }
+      catch (error) { if (!existing) config.permanentMutes = config.permanentMutes.filter(item => item.memberId !== target.id); return fail("I could not apply the mute. Check my Moderate Members permission and role hierarchy. " + error.message); }
+      addPrefixCase("PERMANENT_MUTE", target.id, reason);
       await saveDatabase();
-      return send("✦ MEMBER MUTED", target.toString() + " has been timed out for **" + durationToken + "**.\nReason: " + reason);
+      return send("✦ PERMANENT MUTE APPLIED", target.toString() + " is now permanently muted. The timeout will be renewed automatically when it expires.\nReason: " + reason);
     }
     if (command === "unmute") {
       if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
       const target = await prefixTarget(args[0]);
-      if (!target || !target.moderatable) return fail("Usage: " + prefix + "unmute @member — check the role hierarchy.");
-      if (!target.communicationDisabledUntilTimestamp) return fail("That member is not currently timed out.");
-      const reason = args.slice(1).join(" ").trim() || "Timeout removed";
-      await target.timeout(null, "Unmuted by " + message.author.tag + ": " + reason);
-      addPrefixCase("UNTIMEOUT", target.id, reason);
+      if (!target) return fail("Usage: " + prefix + "unmute @member");
+      if (!Array.isArray(config.permanentMutes)) config.permanentMutes = [];
+      const wasPermanent = config.permanentMutes.some(item => item.memberId === target.id);
+      config.permanentMutes = config.permanentMutes.filter(item => item.memberId !== target.id);
+      if (target.communicationDisabledUntilTimestamp && target.moderatable) await target.timeout(null, "Permanent mute removed by " + message.author.tag);
+      if (!wasPermanent && !target.communicationDisabledUntilTimestamp) return fail("That member is not muted.");
+      addPrefixCase("UNMUTE", target.id, "Permanent mute removed");
       await saveDatabase();
-      return send("✦ MEMBER UNMUTED", "Removed the timeout from " + target.toString() + ".");
+      return send("✦ MEMBER UNMUTED", "Removed the permanent mute from " + target.toString() + ".");
     }
     if (command === "untimeout") {
       if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
