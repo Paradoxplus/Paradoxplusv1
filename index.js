@@ -794,7 +794,14 @@ client.on(Events.InteractionCreate, async interaction => {
       const disabledRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("px_ticket_closed").setLabel("Ticket Closed").setEmoji("🔒").setStyle(ButtonStyle.Secondary).setDisabled(true)
       );
-      return interaction.update({ content: "🔒 Ticket closed. Staff can continue reviewing this channel.", components: [disabledRow] });
+      await interaction.update({ content: "🔒 Ticket closed. This channel will be permanently deleted in 5 seconds.", components: [disabledRow] });
+      const channelToDelete = interaction.channel;
+      setTimeout(() => {
+        channelToDelete.delete("Paradoxplus ticket automatically deleted after closure").catch(error => {
+          console.error("[Tickets] Could not auto-delete closed ticket:", error);
+        });
+      }, 5000);
+      return;
     } catch (error) {
       console.error("[Tickets] Could not close ticket:", error);
       return interaction.reply({ content: "I couldn't close this ticket. Check my channel permissions.", ephemeral: true });
@@ -919,10 +926,17 @@ client.on(Events.InteractionCreate, async interaction => {
         if (!interaction.channel.name.startsWith("closed-")) {
           await interaction.channel.setName(("closed-" + interaction.channel.name).slice(0, 100));
         }
-        return interaction.reply({
-          content: "🔒 Ticket closed by " + interaction.user.toString() + (reason ? "\\n**Reason:** " + reason.slice(0, 500) : ""),
+        await interaction.reply({
+          content: "🔒 Ticket closed by " + interaction.user.toString() + (reason ? "\\n**Reason:** " + reason.slice(0, 500) : "") + "\\nThis channel will be permanently deleted in 5 seconds.",
           allowedMentions: { users: [interaction.user.id], parse: [] }
         });
+        const channelToDelete = interaction.channel;
+        setTimeout(() => {
+          channelToDelete.delete("Paradoxplus ticket automatically deleted after closure").catch(error => {
+            console.error("[Tickets] Could not auto-delete closed ticket:", error);
+          });
+        }, 5000);
+        return;
       }
 
       if (sub === "reopen") {
