@@ -9,40 +9,6 @@ import {
 } from "discord.js";
 
 const commands = [
-  new SlashCommandBuilder().setName("play").setDescription("Search and play a song.")
-    .addStringOption(o=>o.setName("query").setDescription("Song title, artist, or supported link").setMinLength(2).setMaxLength(100).setRequired(true)),
-  new SlashCommandBuilder().setName("playnext").setDescription("Add a song to play immediately after the current track.")
-    .addStringOption(o=>o.setName("query").setDescription("Song title or artist").setMinLength(2).setMaxLength(100).setRequired(true)),
-  new SlashCommandBuilder().setName("seek").setDescription("Jump to a position in the current track.")
-    .addIntegerOption(o=>o.setName("seconds").setDescription("Position in seconds").setMinValue(0).setMaxValue(7200).setRequired(true)),
-  new SlashCommandBuilder().setName("autoplay").setDescription("Automatically find related tracks when the queue ends.")
-    .addBooleanOption(o=>o.setName("enabled").setDescription("Turn autoplay on or off").setRequired(true)),
-  new SlashCommandBuilder().setName("filter").setDescription("Apply an audio effect or equalizer preset.")
-    .addStringOption(o=>o.setName("preset").setDescription("Audio preset").setRequired(true).addChoices(
-      {name:"Off",value:"off"},{name:"Nightcore",value:"nightcore"},{name:"Vaporwave",value:"vaporwave"},
-      {name:"Karaoke",value:"karaoke"},{name:"Bassboost Low",value:"bassboost-low"},
-      {name:"Bassboost Medium",value:"bassboost-medium"},{name:"Bassboost High",value:"bassboost-high"},
-      {name:"Better Music",value:"better-music"},{name:"Pop",value:"pop"},{name:"Rock",value:"rock"},
-      {name:"Classic",value:"classic"},{name:"Electronic",value:"electronic"},
-      {name:"Full Sound",value:"full-sound"},{name:"Gaming",value:"gaming"}
-    )),
-  new SlashCommandBuilder().setName("previous").setDescription("Replay the previous track."),
-  new SlashCommandBuilder().setName("pause").setDescription("Pause music playback."),
-  new SlashCommandBuilder().setName("resume").setDescription("Resume music playback."),
-  new SlashCommandBuilder().setName("skip").setDescription("Skip the current track."),
-  new SlashCommandBuilder().setName("stop").setDescription("Stop playback and leave voice."),
-  new SlashCommandBuilder().setName("queue").setDescription("Show the music queue."),
-  new SlashCommandBuilder().setName("nowplaying").setDescription("Show the currently playing track."),
-  new SlashCommandBuilder().setName("volume").setDescription("Set music volume (1–100%).")
-    .addIntegerOption(o=>o.setName("amount").setDescription("Volume percentage").setMinValue(1).setMaxValue(100).setRequired(true)),
-  new SlashCommandBuilder().setName("loop").setDescription("Set the repeat mode.")
-    .addStringOption(o=>o.setName("mode").setDescription("Repeat mode").setRequired(true)
-      .addChoices({name:"Off",value:"off"},{name:"Track",value:"track"},{name:"Queue",value:"queue"})),
-  new SlashCommandBuilder().setName("shuffle").setDescription("Shuffle upcoming tracks."),
-  new SlashCommandBuilder().setName("remove").setDescription("Remove a track from the queue.")
-    .addIntegerOption(o=>o.setName("position").setDescription("Queue position, starting at 1").setMinValue(1).setRequired(true)),
-  new SlashCommandBuilder().setName("clear").setDescription("Clear upcoming tracks."),
-
   new SlashCommandBuilder().setName("giveaway").setDescription("Create, end, reroll, and view server giveaways.")
     .addSubcommand(sc=>sc.setName("create").setDescription("Start a button-entry giveaway.")
       .addStringOption(o=>o.setName("prize").setDescription("What members can win").setMaxLength(100).setRequired(true))
