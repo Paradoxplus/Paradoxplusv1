@@ -1892,9 +1892,12 @@ client.on(Events.InteractionCreate, async interaction => {
         "<:ou_clown:1569290049588039721> <:arrow_yellow:1571561291640742010> [ <@&1568943817762017406> ]\n" +
         "<:yt:1569261094244196392> <:arrow_yellow:1571561291640742010> [ <@&1568943817762017405> ]\n" +
         "<a:RedCrown:1571561291712168038> <:arrow_yellow:1571561291640742010> [ <@&1568943817762017404> ]";
+      const panelEmbed = new EmbedBuilder()
+        .setColor(0x7c5cff)
+        .setDescription(content);
       await interaction.deferReply({ ephemeral: true });
       try {
-        const panelMessage = await targetChannel.send({ content, allowedMentions: { parse: [] } });
+        const panelMessage = await targetChannel.send({ embeds: [panelEmbed], allowedMentions: { parse: [] } });
         await panelMessage.react("<:ou_clown:1569290049588039721>");
         await panelMessage.react("<:yt:1569261094244196392>");
         await panelMessage.react("<a:RedCrown:1571561291712168038>");
