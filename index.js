@@ -945,14 +945,27 @@ client.on(Events.GuildMemberAdd, async member => {
   const embed = new EmbedBuilder()
     .setColor(0x7c5cff)
     .setAuthor({ name: "Paradoxplus", iconURL: client.user.displayAvatarURL() })
-.setTitle("✦ WELCOME TO PARADOXX")
-    .setDescription(
-      "A new legend just entered the realm.\n\n" +
-      "Welcome aboard, " + member.toString() + "!\n" +
-      "You're our **" + count.toLocaleString() + getOrdinalSuffix(count) + " member**.\n\n" +
-      "Make yourself at home, meet the community, and enjoy your stay.\n\n" +
-      "╰┈➤ **PARADOXX • WHERE LEGENDS CONNECT**"
-    )
+.setTitle("<a:1415376887265628250:1571576390044754000> Welcome " + member.toString() + " to " + member.guild.name + " ! <a:1415376887265628250:1571576390044754000>")
+
+  .setDescription(
+
+    "**Hey there " + member.toString() + "**\n" +
+
+    "**We're hyped to have you here — enjoy your stay!**\n\n" +
+
+    "> - <:arrow_yellow:1571561291640742010> [allies](https://discord.com/channels/1568943817762017400/1568943820509290519)\n" +
+
+    "> - <:arrow_yellow:1571561291640742010> [war logs](https://discord.com/channels/1568943817762017400/1568943823860797580)\n" +
+
+    "> - <:arrow_yellow:1571561291640742010> [rosters](https://discord.com/channels/1568943817762017400/1568943819888525389)\n" +
+
+    "> - <:arrow_yellow:1571561291640742010> [tvt](https://discord.com/channels/1568943817762017400/1568943820509290516)\n" +
+
+    "> - <:arrow_yellow:1571561291640742010> [clowns](https://discord.com/channels/1568943817762017400/1568943819888525384)\n" +
+
+    "> - <:arrow_yellow:1571561291640742010> [memories](https://discord.com/channels/1568943817762017400/1568943819888525386)"
+
+  )
     .setThumbnail(member.user.displayAvatarURL({ extension: "png", size: 256 }))
     .setImage(bannerUrl)
     .setFooter({ text: "Paradox • Core  •  Member #" + count })
@@ -3285,14 +3298,27 @@ client.on(Events.MessageCreate, async message => {
         const embed = new EmbedBuilder()
           .setColor(0x7c5cff)
           .setAuthor({ name: "Paradoxplus", iconURL: client.user.displayAvatarURL() })
-          .setTitle("✦ WELCOME TO PARADOXX")
-          .setDescription(
-            "A new legend just entered the realm.\n\n" +
-            "Welcome aboard, " + message.member.toString() + "!\n" +
-            "You're our **" + count.toLocaleString() + getOrdinalSuffix(count) + " member**.\n\n" +
-            "Make yourself at home, meet the community, and enjoy your stay.\n\n" +
-            "╰┈➤ **PARADOXX • WHERE LEGENDS CONNECT**"
-          )
+          .setTitle("<a:1415376887265628250:1571576390044754000> Welcome " + message.member.toString() + " to " + message.guild.name + " ! <a:1415376887265628250:1571576390044754000>")
+
+            .setDescription(
+
+              "**Hey there " + message.member.toString() + "**\n" +
+
+              "**We're hyped to have you here — enjoy your stay!**\n\n" +
+
+              "> - <:arrow_yellow:1571561291640742010> [allies](https://discord.com/channels/1568943817762017400/1568943820509290519)\n" +
+
+              "> - <:arrow_yellow:1571561291640742010> [war logs](https://discord.com/channels/1568943817762017400/1568943823860797580)\n" +
+
+              "> - <:arrow_yellow:1571561291640742010> [rosters](https://discord.com/channels/1568943817762017400/1568943819888525389)\n" +
+
+              "> - <:arrow_yellow:1571561291640742010> [tvt](https://discord.com/channels/1568943817762017400/1568943820509290516)\n" +
+
+              "> - <:arrow_yellow:1571561291640742010> [clowns](https://discord.com/channels/1568943817762017400/1568943819888525384)\n" +
+
+              "> - <:arrow_yellow:1571561291640742010> [memories](https://discord.com/channels/1568943817762017400/1568943819888525386)"
+
+            )
           .setThumbnail(message.author.displayAvatarURL({ extension: "png", size: 256 }))
           .setImage(bannerUrl)
           .setFooter({ text: "Paradox • Core  •  Member #" + count })
