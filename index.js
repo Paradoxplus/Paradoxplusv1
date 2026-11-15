@@ -621,6 +621,10 @@ async function restoreDeletedChannel(channel) {
 
 
 async function restoreArchivedMessages(deletedChannel, restoredChannel) {
+  if (typeof restoredChannel?.send !== "function") {
+    console.log("[MessageArchive] Restored channel type does not support direct message replay:", restoredChannel?.id);
+    return 0;
+  }
   const rows = await getArchivedChannelMessages(deletedChannel.guild.id, deletedChannel.id, false, 1000);
   if (!rows.length) {
     console.log("[MessageArchive] No archived messages available to replay for", deletedChannel.name, deletedChannel.id);
@@ -631,7 +635,7 @@ async function restoreArchivedMessages(deletedChannel, restoredChannel) {
   for (const row of rows) {
     const createdAt = row.created_at ? new Date(row.created_at) : null;
     const timestamp = createdAt && !Number.isNaN(createdAt.getTime())
-      ? " · " + createdAt.toISOString().replace("T", " ").replace(/\\.\\d{3}Z$/, " UTC")
+      ? " · " + createdAt.toISOString().replace("T", " ").slice(0, 19).replace("T", " ") + " UTC"
       : "";
     const parts = ["**" + (row.author_tag || "Unknown author") + "**" + timestamp];
     if (row.content) parts.push(row.content);
