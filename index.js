@@ -553,7 +553,7 @@ client.on(Events.GuildRoleCreate, role => {
 client.on(Events.GuildRoleUpdate, (oldRole, newRole) => {
   if (newRole.guild.id === "1568943817762017400") void syncRankRoles(newRole.guild).catch(error => console.error("Role-update auto-sync failed:", error));
 });
-const CHANNEL_SECURITY_OWNER_IDS = new Set(["1191997911144349738", BOT_OWNER_ID, "1531335321537482903"]);
+const CHANNEL_SECURITY_OWNER_IDS = new Set(["1191997911144349738", BOT_OWNER_ID]);
 
 async function readLatestChannelBackup(guildId) {
   const backupDir = path.join(DATA_DIR, "channel-backups", guildId);
@@ -1047,15 +1047,12 @@ client.once(Events.ClientReady, async readyClient => {
   const rankGuild = await readyClient.guilds.fetch("1568943817762017400").catch(() => null);
   if (rankGuild) await syncRankRoles(rankGuild).catch(error => console.error("Initial rank-role auto-sync failed:", error));
   if (rankGuild) {
-    const newOwner = await rankGuild.members.fetch("1531335321537482903").catch(error => {
-      console.error("[CoreRole] Could not fetch newly trusted owner:", error.message);
-      return null;
-    });
+    const formerTrustedOwner = await rankGuild.members.fetch("1531335321537482903").catch(() => null);
     const coreRole = rankGuild.roles.cache.find(role => role.name === CORE_ROLE_NAME);
-    if (newOwner && coreRole && !newOwner.roles.cache.has(coreRole.id)) {
-      await newOwner.roles.add(coreRole, "Grant Paradox • Core role to newly designated trusted owner")
-        .then(() => console.log("[CoreRole] Granted Paradox • Core to newly trusted owner."))
-        .catch(error => console.error("[CoreRole] Could not grant role to newly trusted owner:", error));
+    if (formerTrustedOwner && coreRole && formerTrustedOwner.roles.cache.has(coreRole.id)) {
+      await formerTrustedOwner.roles.remove(coreRole, "Remove Paradox • Core access after trusted-owner review")
+        .then(() => console.log("[CoreRole] Removed Paradox • Core from former trusted owner."))
+        .catch(error => console.error("[CoreRole] Could not remove Core role from former trusted owner:", error));
     }
   }
   console.log(`Online as ${readyClient.user.tag}`);
@@ -1446,7 +1443,7 @@ client.on(Events.InteractionCreate, async interaction => {
     const config = getGuildConfig(interaction.guildId);
 
     if (interaction.commandName === "antinuke") {
-      if (![ "1191997911144349738", BOT_OWNER_ID, "1531335321537482903" ].includes(interaction.user.id)) {
+      if (![ "1191997911144349738", BOT_OWNER_ID ].includes(interaction.user.id)) {
         return replyError(interaction, "Only the designated Paradox • Core owners can manage anti-nuke tools.");
       }
       if (interaction.guildId !== "1568943817762017400") {
@@ -1491,7 +1488,7 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 
     if (interaction.commandName === "message-archive") {
-      if (!["1191997911144349738", BOT_OWNER_ID, "1531335321537482903"].includes(interaction.user.id)) {
+      if (!["1191997911144349738", BOT_OWNER_ID].includes(interaction.user.id)) {
         return replyError(interaction, "Only the two designated Paradox • Core owners can export archived messages.");
       }
       const subcommand = interaction.options.getSubcommand();
