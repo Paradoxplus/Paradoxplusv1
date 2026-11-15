@@ -104,3 +104,38 @@ export async function getRecruitLeaderboard(guildId, period = "all") {
 export function isRecruitmentDatabaseReady() {
   return ready;
 }
+
+
+export async function exportDatabaseSnapshot() {
+  requireDatabase();
+  const listed = await pool.query(`
+    SELECT table_schema, table_name
+    FROM information_schema.tables
+    WHERE table_type = 'BASE TABLE'
+      AND table_schema NOT IN ('pg_catalog', 'information_schema')
+    ORDER BY table_schema, table_name
+  `);
+  const tables = [];
+  for (const item of listed.rows) {
+    const schema = String(item.table_schema).replace(/"/g, '""');
+    const name = String(item.table_name).replace(/"/g, '""');
+    const columns = await pool.query(`
+      SELECT column_name, data_type, udt_name, is_nullable, column_default, ordinal_position
+      FROM information_schema.columns
+      WHERE table_schema = $1 AND table_name = $2
+      ORDER BY ordinal_position
+    `, [item.table_schema, item.table_name]);
+    const rows = await pool.query(`SELECT * FROM "${schema}"."${name}"`);
+    tables.push({
+      schema: item.table_schema,
+      name: item.table_name,
+      columns: columns.rows,
+      rows: rows.rows
+    });
+  }
+  return {
+    format: "paradoxplus-postgresql-json-v1",
+    exportedAt: new Date().toISOString(),
+    tables
+  };
+}
