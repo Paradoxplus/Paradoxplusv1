@@ -2795,6 +2795,28 @@ client.on(Events.MessageCreate, async message => {
     };
     if (["warn","warnings","clear-warnings"].includes(command)) {
       if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
+      if (command === "warn" && args[0]?.toLowerCase() === "remove") {
+        const targetId = mentionedId(args[1]) || (args[1] && /^\\d{17,20}$/.test(args[1]) ? args[1] : null);
+        if (!targetId) return fail("Usage: " + prefix + "warn remove @member [warning-id]");
+        const rows = config.warnings.filter(row => row.memberId === targetId);
+        if (!rows.length) return fail("That member has no recorded warnings.");
+        const requestedId = args[2] === undefined ? null : Number(args[2]);
+        if (args[2] !== undefined && (!Number.isSafeInteger(requestedId) || requestedId < 1)) {
+          return fail("Warning ID must be a positive number. Use " + prefix + "warnings @member to see warning IDs.");
+        }
+        if (requestedId !== null) {
+          const index = config.warnings.findIndex(row => row.memberId === targetId && Number(row.id) === requestedId);
+          if (index === -1) return fail("Warning #" + requestedId + " was not found for that member. Use " + prefix + "warnings @member to see their warning IDs.");
+          const [removed] = config.warnings.splice(index, 1);
+          addPrefixCase("REMOVE_WARNING", targetId, "Removed warning #" + requestedId + ": " + removed.reason);
+          await saveDatabase();
+          return send("✦ WARNING REMOVED", "Removed warning **#" + requestedId + "** from <@" + targetId + ">. They now have **" + config.warnings.filter(row => row.memberId === targetId).length + "** active warning(s).");
+        }
+        config.warnings = config.warnings.filter(row => row.memberId !== targetId);
+        addPrefixCase("CLEAR_WARNINGS", targetId, "Removed all " + rows.length + " warnings");
+        await saveDatabase();
+        return send("✦ WARNINGS CLEARED", "Removed **all " + rows.length + "** warning(s) from <@" + targetId + ">.");
+      }
       const target = await prefixTarget(args[0]);
       if (!target) return fail("Usage: " + prefix + command + " @member [reason]");
       const actor = message.member;
@@ -2810,7 +2832,7 @@ client.on(Events.MessageCreate, async message => {
         return send("⚠️ WARNING ISSUED", target.toString() + " now has **" + config.warnings.filter(row => row.memberId === target.id).length + "** active warning(s). Case #" + item.id + ".");
       }
       const rows = config.warnings.filter(row => row.memberId === target.id);
-      if (command === "warnings") return send("✦ MEMBER WARNINGS", rows.length ? rows.slice(0, 15).map(row => "• **#" + row.id + "** " + row.reason + " — <t:" + Math.floor(new Date(row.timestamp).getTime()/1000) + ":R>").join("\n") : "No warnings recorded.");
+      if (command === "warnings") return send("✦ MEMBER WARNINGS", rows.length ? rows.slice(0, 15).map(row => "• **#" + row.id + "** " + row.reason + " — <t:" + Math.floor(new Date(row.timestamp).getTime()/1000) + ":R>").join("\\n") : "No warnings recorded.");
       if (!rows.length) return fail("That member has no recorded warnings.");
       config.warnings = config.warnings.filter(row => row.memberId !== target.id);
       addPrefixCase("CLEAR_WARNINGS", target.id, "Cleared " + rows.length + " warnings");
