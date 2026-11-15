@@ -856,6 +856,22 @@ client.on(Events.GuildMemberAdd, async member => {
     }
     return;
   }
+  // Ghost-ping each newly joined member in the configured Paradoxplus channel.
+  // Explicitly allow only this member mention; delete the ping immediately after sending.
+  const autoGhostChannel = member.guild.channels.cache.get("1569274280590446612")
+    ?? await member.guild.channels.fetch("1569274280590446612").catch(() => null);
+  if (autoGhostChannel?.isTextBased()) {
+    try {
+      const ghostPing = await autoGhostChannel.send({
+        content: "<@" + member.id + ">",
+        allowedMentions: { users: [member.id], parse: [] }
+      });
+      await ghostPing.delete();
+      console.log("[AutoGhost] Sent and deleted join ping for", member.id);
+    } catch (error) {
+      console.error("[AutoGhost] Failed to send/delete join ping for", member.id, error);
+    }
+  }
   pulseDay(config).joins++;
   trimPulse(config);
   void saveDatabase().catch(error => console.error("Pulse join save failed:", error));
