@@ -2898,12 +2898,26 @@ client.on(Events.MessageCreate, async message => {
     }
     if (command === "unban") {
       if (!modPermission(PermissionFlagsBits.BanMembers)) return fail("You need Ban Members or Administrator.");
-      const id = args[0];
-      if (!id || !/^\\d{17,20}$/.test(id)) return fail("Usage: " + prefix + "unban <user-id>");
+      const id = (args[0] || "").trim();
+      if (!/^[0-9]{17,20}$/.test(id)) return fail("Usage: " + prefix + "unban <user-id> [custom DM message]");
+      const customMessage = args.slice(1).join(" ").trim() || "You have been unbanned from **" + message.guild.name + "**. You may rejoin the server.";
+      if (customMessage.length > 2000) return fail("The DM message must be 2,000 characters or fewer.");
+      const unbannedUser = await client.users.fetch(id).catch(() => null);
       await message.guild.bans.remove(id, "Unban by " + message.author.tag);
-      addPrefixCase("UNBAN", id, args.slice(1).join(" ") || null);
+      addPrefixCase("UNBAN", id, customMessage);
       await saveDatabase();
-      return send("✦ MEMBER UNBANNED", "User ID `" + id + "` has been unbanned.");
+      let dmSent = false;
+      if (unbannedUser) {
+        try {
+          await unbannedUser.send({ content: customMessage, allowedMentions: { parse: [] } });
+          dmSent = true;
+        } catch (error) {
+          console.warn("Unban notification DM failed for " + id + ":", error.message || error);
+        }
+      }
+      return send("✦ MEMBER UNBANNED", "User ID `" + id + "` has been unbanned.\n" +
+        (dmSent ? "✉️ Your custom DM was sent successfully." : "⚠️ The unban succeeded, but I couldn't deliver the DM (the user may have DMs disabled).") +
+        "\n\n**Custom DM:**\n" + customMessage);
     }
     if (command === "mute") {
       if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
