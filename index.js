@@ -603,7 +603,7 @@ client.on(Events.GuildMemberAdd, async member => {
     )
     .setThumbnail(member.user.displayAvatarURL({ extension: "png", size: 256 }))
     .setImage(bannerUrl)
-    .setFooter({ text: "ParadoxManagerV1  •  Member #" + count })
+    .setFooter({ text: "Paradox • Core  •  Member #" + count })
     .setTimestamp();
   await channel.send({
     embeds: [embed],
@@ -2463,7 +2463,7 @@ client.on(Events.MessageCreate, async message => {
           )
           .setThumbnail(message.author.displayAvatarURL({ extension: "png", size: 256 }))
           .setImage(bannerUrl)
-          .setFooter({ text: "ParadoxManagerV1  •  Member #" + count })
+          .setFooter({ text: "Paradox • Core  •  Member #" + count })
           .setTimestamp();
         try {
           await message.author.send({ embeds: [embed], allowedMentions: { parse: [] } });
