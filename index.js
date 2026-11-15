@@ -1849,15 +1849,14 @@ client.on(Events.InteractionCreate, async interaction => {
         return interaction.editReply("I couldn't load the full member list. No nicknames were changed.");
       }
 
-      const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
       let changed = 0;
       let alreadyTagged = 0;
-      let skipped = 0;
       let failed = 0;
       let processed = 0;
+      const failures = [];
       const targets = [...members.values()].filter(member => !member.user.bot && member.id !== interaction.guild.ownerId);
 
-      await interaction.editReply("🏷️ Starting PX ϟ tagging for **" + targets.length + "** eligible members. This may take a while because Discord rate-limits nickname changes.");
+      await interaction.editReply("🏷️ Starting PX ϟ tagging for **" + targets.length + "** eligible members. Discord will decide which nicknames the bot is permitted to edit.");
       for (const member of targets) {
         processed++;
         const currentName = member.nickname || member.user.globalName || member.user.username;
@@ -1865,24 +1864,35 @@ client.on(Events.InteractionCreate, async interaction => {
           alreadyTagged++;
           continue;
         }
-        if (!member.manageable || member.roles.highest.comparePositionTo(botMember.roles.highest) >= 0) {
-          skipped++;
-          continue;
-        }
+
         const nextName = (prefix + currentName).slice(0, 32);
         try {
+          // Do not pre-skip using cached hierarchy/manageable flags. Attempt the API
+          // call for every eligible member and let Discord return the authoritative result.
           await member.setNickname(nextName, "Apply the PX ϟ server-wide member tag");
           changed++;
         } catch (error) {
           failed++;
-          console.error("[TagAll] Nickname update failed for " + member.id + ":", error.message);
+          const code = error?.code ?? error?.rawError?.code ?? "unknown";
+          const reason = String(error?.message || "Unknown Discord API error").replace(/\s+/g, " ").slice(0, 120);
+          failures.push({ id: member.id, name: currentName, code, reason });
+          console.error("[TagAll] Nickname update failed for " + member.id + " (code " + code + "):", reason);
         }
-        if (processed % 20 === 0) {
-          await interaction.editReply("🏷️ **PX ϟ tagging in progress**\nProcessed: **" + processed + "/" + targets.length + "**\nChanged: **" + changed + "** • Already tagged: **" + alreadyTagged + "** • Skipped: **" + skipped + "** • Failed: **" + failed + "**");
+
+        if (processed % 10 === 0 || processed === targets.length) {
+          await interaction.editReply("🏷️ **PX ϟ tagging in progress**\nProcessed: **" + processed + "/" + targets.length + "**\nChanged: **" + changed + "** • Already tagged: **" + alreadyTagged + "** • Discord rejected: **" + failed + "**");
         }
       }
 
-      return interaction.editReply("✅ **PX ϟ tagging finished**\nChanged: **" + changed + "**\nAlready tagged: **" + alreadyTagged + "**\nSkipped (role hierarchy/permissions): **" + skipped + "**\nFailed: **" + failed + "**\nBots and the server owner were excluded.");
+      const failureDetails = failures.slice(0, 8).map(item =>
+        "• " + item.name + " (<@" + item.id + ">) — code " + item.code + ": " + item.reason
+      );
+      const moreFailures = failures.length > 8 ? "\n…and **" + (failures.length - 8) + "** more. Check Railway logs for the full list." : "";
+      const detailsText = failureDetails.length
+        ? "\n\n**Members Discord would not let me edit:**\n" + failureDetails.join("\n") + moreFailures
+        : "";
+      const result = "✅ **PX ϟ tagging finished**\nChanged: **" + changed + "**\nAlready tagged: **" + alreadyTagged + "**\nDiscord rejected: **" + failed + "**\nBots and the server owner were excluded." + detailsText;
+      return interaction.editReply(result.slice(0, 1950));
     }
 
     if (interaction.commandName === "prefix") {
