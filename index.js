@@ -282,17 +282,18 @@ async function applyRank(interaction, target, desiredRank, action, reason) {
 
   const oldRank = getHighestConfiguredRank(target, config.ranks, interaction.guild.roles.cache);
   const newRole = interaction.guild.roles.cache.get(desiredRank.id) ?? await interaction.guild.roles.fetch(desiredRank.id).catch(() => null);
-  const oldRole = oldRank && oldRank.id !== desiredRank.id
-    ? interaction.guild.roles.cache.get(oldRank.id)
-    : null;
+  const previousRankRoles = config.ranks
+    .filter(rank => rank.id !== desiredRank.id && target.roles.cache.has(rank.id))
+    .map(rank => interaction.guild.roles.cache.get(rank.id))
+    .filter(Boolean);
 
   if (!newRole) return replyError(interaction, "That rank role no longer exists. Update the hierarchy with `/rank-config`.");
-  if (!newRole.editable || (oldRole && !oldRole.editable)) {
-    return replyError(interaction, "I can't manage the rank role. Move my bot role above it in Server Settings → Roles.");
+  if (!newRole.editable || previousRankRoles.some(role => !role.editable)) {
+    return replyError(interaction, "I can't manage one or more rank roles. Move my bot role above every configured rank in Server Settings → Roles.");
   }
 
-  // Add the new rank first, then remove ONLY the member's current highest rank.
-  // Never replace the member's full role list or remove unrelated roles.
+  // Add the destination rank first, then remove every other configured rank.
+  // Unrelated roles (staff, perks, colors, etc.) are never touched.
   try {
     if (!target.roles.cache.has(newRole.id)) {
       await target.roles.add(
@@ -300,10 +301,10 @@ async function applyRank(interaction, target, desiredRank, action, reason) {
         `Assign configured rank by ${interaction.user.tag}`
       );
     }
-    if (oldRole && target.roles.cache.has(oldRole.id)) {
+    if (previousRankRoles.length) {
       await target.roles.remove(
-        oldRole,
-        `Replace previous rank for ${action.toLowerCase()} by ${interaction.user.tag}`
+        previousRankRoles,
+        `Replace previous configured rank roles for ${action.toLowerCase()} by ${interaction.user.tag}`
       );
     }
   } catch (error) {
@@ -356,7 +357,6 @@ async function applyRank(interaction, target, desiredRank, action, reason) {
   }
   return response;
 }
-
 
 async function issueStrike(guild, config, target, moderator, reason, sendEmbed) {
   if (!Array.isArray(config.strikes)) config.strikes = [];
