@@ -2442,9 +2442,9 @@ client.on(Events.MessageCreate, async message => {
         if (!config.autobanList.length) return send("🛡️ AutoBan List", "The autoban list is currently empty.");
         const rows = config.autobanList.slice(0, 25).map((entry, index) =>
           "**" + (index + 1) + ".** <@" + entry.userId + "> — `" + entry.userId + "`" +
-          (entry.reason ? "\\nReason: " + String(entry.reason).slice(0, 180) : "")
+          (entry.reason ? "\nReason: " + String(entry.reason).slice(0, 180) : "")
         );
-        return send("🛡️ AutoBan List", rows.join("\\n") + (config.autobanList.length > 25 ? "\\n…and " + (config.autobanList.length - 25) + " more." : ""));
+        return send("🛡️ AutoBan List", rows.join("\n") + (config.autobanList.length > 25 ? "\n…and " + (config.autobanList.length - 25) + " more." : ""));
       }
       if (sub === "add") {
         const token = args.shift() || "";
@@ -2473,7 +2473,7 @@ client.on(Events.MessageCreate, async message => {
             return fail("Discord rejected the immediate ban, so I removed the autoban entry. Check my Ban Members permission and role position.");
           }
         }
-        return send("🛡️ Added to AutoBan", "<@" + userId + "> is now on the permanent autoban list.\n" + immediate + "\\n**Reason:** " + reason);
+        return send("🛡️ Added to AutoBan", "<@" + userId + "> is now on the permanent autoban list.\n" + immediate + "\n**Reason:** " + reason);
       }
       if (sub === "remove" || sub === "delete") {
         const token = args.shift() || "";
@@ -2485,7 +2485,7 @@ client.on(Events.MessageCreate, async message => {
         await saveDatabase();
         return send("✅ Removed from AutoBan", "<@" + userId + "> will no longer be automatically banned when joining. This does not unban them if they are currently banned.");
       }
-      return fail("Owner-only commands:\\n`?autoban add @user-or-ID [reason]`\\n`?autoban remove @user-or-ID`\\n`?autoban list`");
+      return fail("Owner-only commands:\n`?autoban add @user-or-ID [reason]`\n`?autoban remove @user-or-ID`\n`?autoban list`");
     }
     if (command === "backup") {
       if (!isBotOwner(message.author.id)) return fail("This backup command is restricted to the bot owner.");
