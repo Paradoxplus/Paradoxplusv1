@@ -990,7 +990,9 @@ async function createGuildChannelBackup(guild, reason = "hourly") {
 
   const backupDir = path.join(DATA_DIR, "channel-backups", guild.id);
   await fs.mkdir(backupDir, { recursive: true });
-  const filename = `${Date.now()}-${reason}.json`;
+  // Keep user-provided reasons in the snapshot, but never let them alter the filesystem path.
+  const safeReason = String(reason).toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "backup";
+  const filename = `${Date.now()}-${safeReason}.json`;
   const finalPath = path.join(backupDir, filename);
   const tempPath = `${finalPath}.tmp`;
   await fs.writeFile(tempPath, JSON.stringify(snapshot), "utf8");
