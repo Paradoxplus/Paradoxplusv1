@@ -7,7 +7,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { startDashboard } from "./dashboard.js";
 import { joinVoiceChannel, VoiceConnectionStatus, entersState, getVoiceConnection } from "@discordjs/voice";
-import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot, importDatabaseSnapshot, archiveDiscordMessage, getArchivedChannelMessages, pruneMessageArchive } from "./recruitment.js";
+import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot, importDatabaseSnapshot, archiveDiscordMessage, getArchivedChannelMessages } from "./recruitment.js";
 
  
 // Discord does not support loading custom fonts, so use Unicode sans-serif bold
@@ -457,7 +457,7 @@ client.on(Events.MessageCreate, message => {
 const MESSAGE_ARCHIVE_GUILD_ID = "1568943817762017400";
 
 // Archive messages in PostgreSQL before Discord can remove them. The archive
-// intentionally covers this server only and expires records after seven days.
+// intentionally covers this server only and retains records permanently.
 client.on(Events.MessageCreate, message => {
   if (!message.guild || message.guild.id !== MESSAGE_ARCHIVE_GUILD_ID || message.author?.bot) return;
   void archiveDiscordMessage(message, "create")
@@ -1135,12 +1135,7 @@ client.once(Events.ClientReady, async readyClient => {
   console.log(`Online as ${readyClient.user.tag}`);
   console.log(`Serving ${readyClient.guilds.cache.size} server(s).`);
   startHourlyChannelBackups(readyClient);
-  void pruneMessageArchive()
-    .then(count => console.log(`[MessageArchive] Pruned ${count} records older than seven days.`))
-    .catch(error => console.error("[MessageArchive] Retention cleanup failed:", error));
-  setInterval(() => {
-    void pruneMessageArchive().catch(error => console.error("[MessageArchive] Retention cleanup failed:", error));
-  }, 6 * 60 * 60 * 1000);
+  console.log("[MessageArchive] Permanent retention enabled; archived messages are not automatically deleted.");
   void connectOwnerVoice(readyClient);
 });
 
@@ -1617,13 +1612,13 @@ client.on(Events.InteractionCreate, async interaction => {
       await interaction.deferReply({ ephemeral: true });
       try {
         const rows = await getArchivedChannelMessages(interaction.guildId, channelId, deletedOnly, 1000);
-        if (!rows.length) return interaction.editReply("No archived messages were found for that channel in the last seven days.");
+        if (!rows.length) return interaction.editReply("No archived messages were found for that channel.");
         const lines = [
           "PARADOX • CORE MESSAGE ARCHIVE",
           "Server: " + interaction.guild.name + " (" + interaction.guildId + ")",
           "Channel ID: " + channelId,
           "Exported: " + new Date().toISOString(),
-          "Retention: seven days",
+          "Retention: permanent (no automatic expiry)",
           "Messages included: " + rows.length,
           "----------------------------------------",
           ""
@@ -1649,7 +1644,7 @@ client.on(Events.InteractionCreate, async interaction => {
           name: "paradox-message-archive-" + channelId + ".txt"
         });
         return interaction.editReply({
-          content: "Archive export ready. It contains up to 1,000 messages from the last seven days. Attachment links may expire if Discord invalidates their original URLs.",
+          content: "Archive export ready. It contains up to 1,000 archived messages. Attachment links may expire if Discord invalidates their original URLs.",
           files: [file]
         });
       } catch (error) {
