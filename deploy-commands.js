@@ -43,9 +43,10 @@ const commands = [
     .addSubcommand(sc=>sc.setName("transcript").setDescription("Export the ticket conversation as a text file.")),
   new SlashCommandBuilder().setName("ticket-panel").setDescription("Publish the Paradoxplus ticket portal in a selected channel.")
     .addChannelOption(o=>o.setName("channel").setDescription("Text channel where the ticket panel should be posted").addChannelTypes(ChannelType.GuildText).setRequired(true)),
-  new SlashCommandBuilder().setName("tag").setDescription("Apply the PX ϟ nickname prefix to all server members.")
-    .addSubcommand(sc => sc.setName("all").setDescription("Tag every eligible member with PX ϟ.")
-      .addBooleanOption(o => o.setName("confirm").setDescription("Confirm the server-wide nickname change").setRequired(true))),
+  new SlashCommandBuilder().setName("tag").setDescription("Apply the PX ϟ nickname prefix to members with a selected role.")
+    .addSubcommand(sc => sc.setName("all").setDescription("Tag members who have the selected team role.")
+      .addRoleOption(o => o.setName("role").setDescription("Only members with this role will be tagged").setRequired(true))
+      .addBooleanOption(o => o.setName("confirm").setDescription("Confirm tagging members with this role").setRequired(true))),
   new SlashCommandBuilder().setName("prefix").setDescription("Change this server’s text command prefix.")
     .addStringOption(o=>o.setName("new_prefix").setDescription("New prefix (1–5 characters, no spaces)").setMinLength(1).setMaxLength(5).setRequired(true)),
   new SlashCommandBuilder().setName("recruit").setDescription("Record a new Paradoxplus recruit.")
