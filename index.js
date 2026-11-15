@@ -945,10 +945,11 @@ client.on(Events.GuildMemberAdd, async member => {
   const embed = new EmbedBuilder()
     .setColor(0x7c5cff)
     .setAuthor({ name: "Paradoxplus", iconURL: client.user.displayAvatarURL() })
-.setTitle("<a:1415376887265628250:1571576390044754000> Welcome " + member.toString() + " to " + member.guild.name + " ! <a:1415376887265628250:1571576390044754000>")
+.setTitle("WELCOME")
 
   .setDescription(
 
+    "<a:1415376887265628250:1571576390044754000> Welcome " + member.toString() + " to " + member.guild.name + " ! <a:1415376887265628250:1571576390044754000>\n\n" +
     "**Hey there " + member.toString() + "**\n" +
 
     "**We're hyped to have you here — enjoy your stay!**\n\n" +
@@ -3298,11 +3299,12 @@ client.on(Events.MessageCreate, async message => {
         const embed = new EmbedBuilder()
           .setColor(0x7c5cff)
           .setAuthor({ name: "Paradoxplus", iconURL: client.user.displayAvatarURL() })
-          .setTitle("<a:1415376887265628250:1571576390044754000> Welcome " + message.member.toString() + " to " + message.guild.name + " ! <a:1415376887265628250:1571576390044754000>")
+          .setTitle("WELCOME")
 
             .setDescription(
 
-              "**Hey there " + message.member.toString() + "**\n" +
+              "<a:1415376887265628250:1571576390044754000> Welcome " + message.member.toString() + " to " + message.guild.name + " ! <a:1415376887265628250:1571576390044754000>\n\n" +
+            "**Hey there " + message.member.toString() + "**\n" +
 
               "**We're hyped to have you here — enjoy your stay!**\n\n" +
 
