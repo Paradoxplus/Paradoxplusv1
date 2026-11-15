@@ -22,6 +22,37 @@ function premiumTypography(value) {
     return char;
   });
 }
+
+function buildServerInfoEmbed(guild, requester) {
+  const channels = guild.channels.cache;
+  const textCount = channels.filter(channel =>
+    [ChannelType.GuildText, ChannelType.GuildAnnouncement, ChannelType.GuildForum, ChannelType.GuildMedia].includes(channel.type)
+  ).size;
+  const voiceCount = channels.filter(channel =>
+    [ChannelType.GuildVoice, ChannelType.GuildStageVoice].includes(channel.type)
+  ).size;
+  const categoryCount = channels.filter(channel => channel.type === ChannelType.GuildCategory).size;
+  const verificationNames = ["None", "Low", "Medium", "High", "Very High"];
+  const verification = verificationNames[guild.verificationLevel] || "Unknown";
+  const createdAt = Math.floor(guild.createdTimestamp / 1000);
+  const requestedAt = Math.floor(Date.now() / 1000);
+  const logo = guild.iconURL({ size: 256 });
+  return new EmbedBuilder()
+    .setColor(0x7c5cff)
+    .setAuthor({ name: "PARADOX • CORE", ...(logo ? { iconURL: logo } : {}) })
+    .setTitle("Server Information")
+    .setDescription("**PARADOX - Beyond The Ordinary**")
+    .setThumbnail(logo)
+    .addFields(
+      { name: "General Info", value: "**Name:** " + guild.name + "\n**Server ID:** " + guild.id + "\n**Owner:** <@" + guild.ownerId + ">\n**Created:** <t:" + createdAt + ":R> • <t:" + createdAt + ":F>", inline: false },
+      { name: "Members & Roles", value: "**Members:** " + guild.memberCount + "\n**Roles:** " + guild.roles.cache.size + "\n**Verification Level:** " + verification, inline: true },
+      { name: "Boost Status", value: "**Level:** " + guild.premiumTier + "\n**Boosts:** " + (guild.premiumSubscriptionCount ?? 0) + "\n**AFK Timeout:** " + guild.afkTimeout + " sec", inline: true },
+      { name: "Channels", value: "**Text:** " + textCount + "\n**Voice:** " + voiceCount + "\n**Categories:** " + categoryCount, inline: false }
+    )
+    .setFooter({ text: "Paradox • Core  |  Requested by " + requester.tag + " • Today at" })
+    .setTimestamp(new Date());
+}
+
 const originalSetTitle = EmbedBuilder.prototype.setTitle;
 EmbedBuilder.prototype.setTitle = function(title) {
   return originalSetTitle.call(this, title == null ? title : premiumTypography(title));
@@ -1866,13 +1897,8 @@ client.on(Events.InteractionCreate, async interaction => {
         return interaction.reply({embeds:[embed],ephemeral:true,allowedMentions:{parse:[]}});
       }
       if(cmd==="serverinfo"){
-        const g=interaction.guild;
-        const embed=new EmbedBuilder().setColor(0x7c5cff).setTitle(`Server info • ${g.name}`).setThumbnail(g.iconURL()).addFields(
-          {name:"Server ID",value:g.id},{name:"Owner",value:`<@!${g.ownerId}>`},
-          {name:"Members",value:String(g.memberCount),inline:true},{name:"Channels",value:String(g.channels.cache.size),inline:true},
-          {name:"Roles",value:String(g.roles.cache.size),inline:true},{name:"Created",value:`<t:${Math.floor(g.createdTimestamp/1000)}:D>`}
-        );
-        return interaction.reply({embeds:[embed],ephemeral:true});
+        const embed = buildServerInfoEmbed(interaction.guild, interaction.user);
+        return interaction.reply({ embeds: [embed], ephemeral: false, allowedMentions: { parse: [] } });
       }
       if(cmd==="modstats"){
         if(!has(PermissionFlagsBits.ModerateMembers))return replyError(interaction,"You need Moderate Members or Administrator.");
@@ -2777,12 +2803,7 @@ client.on(Events.MessageCreate, async message => {
         return message.reply({ embeds: [embed], allowedMentions: { parse: [] } });
       }
       if (command === "serverinfo") {
-        const guild = message.guild;
-        const embed = new EmbedBuilder().setColor(0x7c5cff).setTitle("Server overview").setThumbnail(guild.iconURL()).addFields(
-          { name: "Server", value: guild.name }, { name: "Owner", value: "<@" + guild.ownerId + ">" },
-          { name: "Members", value: String(guild.memberCount), inline: true }, { name: "Channels", value: String(guild.channels.cache.size), inline: true },
-          { name: "Roles", value: String(guild.roles.cache.size), inline: true }, { name: "Created", value: "<t:" + Math.floor(guild.createdTimestamp/1000) + ":D>" }
-        );
+        const embed = buildServerInfoEmbed(message.guild, message.author);
         return message.reply({ embeds: [embed], allowedMentions: { parse: [] } });
       }
       const counts = {};
