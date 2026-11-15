@@ -7,7 +7,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { startDashboard } from "./dashboard.js";
 import { joinVoiceChannel, VoiceConnectionStatus, entersState, getVoiceConnection } from "@discordjs/voice";
-import { setupMusic, handleMusicInteraction, handleMusicPrefix } from "./music.js";
 import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot, importDatabaseSnapshot } from "./recruitment.js";
 
  
@@ -632,7 +631,6 @@ let ownerVoiceRetryTimer = null;
 let ownerVoiceConnecting = false;
 
 async function connectOwnerVoice(readyClient) {
-  if (readyClient.lavalink?.getPlayer(OWNER_VOICE_GUILD_ID)) return;
   if (ownerVoiceConnecting) return;
   ownerVoiceConnecting = true;
   try {
@@ -700,7 +698,6 @@ client.once(Events.ClientReady, async readyClient => {
   void connectOwnerVoice(readyClient);
 });
 
-setupMusic(client, () => connectOwnerVoice(client));
 
 function getTicketData(channel) {
   const match = channel?.topic?.match(/^paradoxplus-ticket:(\d+)(?:\|(.*))?$/);
@@ -952,8 +949,6 @@ setInterval(async () => {
 }, 30000);
 
 client.on(Events.InteractionCreate, async interaction => {
-  if (await handleMusicInteraction(interaction, client)) return;
-
   // Persistent giveaway entry button.
   if (interaction.isButton() && interaction.customId.startsWith("px_giveaway_enter:")) {
     if (!interaction.inGuild()) return interaction.reply({ content: "Giveaways can only be entered inside a server.", ephemeral: true });
@@ -2520,7 +2515,6 @@ client.on(Events.MessageCreate, async message => {
         return fail("Restore failed: " + String(error.message || error).slice(0, 900) + ". Check Railway logs before retrying.");
       }
     }
-    if (await handleMusicPrefix(message, command, args, client)) return;
     if (command === "afk") {
       if (args[0]?.toLowerCase() === "off" || args[0]?.toLowerCase() === "remove") {
         if (!config.afkUsers[message.author.id]) return fail("You are not currently marked as AFK.");
@@ -3227,15 +3221,6 @@ client.on(Events.MessageCreate, async message => {
               "\`/ticket claim\` / \`unclaim\` — Staff ownership\n" +
               "\`/ticket priority\` / \`info\` / \`rename\`\n" +
               "\`/ticket close\` / \`reopen\` / \`transcript\`",
-            inline: false
-          },
-          {
-            name: "🎵  MUSIC",
-            value:
-              "\`" + prefix + "play song\`, \`pause\`, \`resume\`, \`skip\`, \`stop\`\n" +
-              "\`" + prefix + "queue\`, \`nowplaying\`, \`previous\`, \`playnext song\`\n" +
-              "\`" + prefix + "volume 1-100\`, \`loop off|track|queue\`, \`shuffle\`\n" +
-              "\`" + prefix + "remove position\`, \`clear\`, \`seek seconds\`, \`filter preset\`, \`autoplay on|off\`",
             inline: false
           },
           {
