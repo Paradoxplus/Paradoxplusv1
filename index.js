@@ -1,6 +1,6 @@
 import "dotenv/config";
 import {
-  Client, GatewayIntentBits, Partials, Events, PermissionFlagsBits,
+  Client, GatewayIntentBits, Partials, Events, AuditLogEvent, PermissionFlagsBits,
   EmbedBuilder, AttachmentBuilder, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder
 } from "discord.js";
 import fs from "node:fs/promises";
@@ -520,8 +520,62 @@ client.on(Events.GuildRoleCreate, role => {
 client.on(Events.GuildRoleUpdate, (oldRole, newRole) => {
   if (newRole.guild.id === "1568943817762017400") void syncRankRoles(newRole.guild).catch(error => console.error("Role-update auto-sync failed:", error));
 });
-client.on(Events.GuildRoleDelete, role => {
-  if (role.guild.id === "1568943817762017400") void syncRankRoles(role.guild).catch(error => console.error("Role-delete auto-sync failed:", error));
+client.on(Events.GuildRoleDelete, async role => {
+  if (role.guild.id !== "1568943817762017400") return;
+  void syncRankRoles(role.guild).catch(error => console.error("Role-delete auto-sync failed:", error));
+  if (role.name !== "Paradox • Core") return;
+
+  const guild = role.guild;
+  console.error("[ROLE-PROTECTION] Paradox • Core role was deleted. Attempting recovery and enforcement.");
+  let recreatedRole = null;
+  try {
+    recreatedRole = await guild.roles.create({
+      name: role.name,
+      color: role.hexColor,
+      hoist: role.hoist,
+      permissions: role.permissions.bitfield,
+      mentionable: role.mentionable,
+      reason: "Automatic recovery: protected Paradox • Core role was deleted"
+    });
+    await recreatedRole.setPosition(Math.min(role.position, guild.roles.highest.position - 1)).catch(error => {
+      console.error("[ROLE-PROTECTION] Could not restore the original role position:", error);
+    });
+    console.log("[ROLE-PROTECTION] Recreated protected role:", recreatedRole.id);
+  } catch (error) {
+    console.error("[ROLE-PROTECTION] Failed to recreate protected role:", error);
+  }
+
+  // Audit-log entries can appear shortly after the gateway event.
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  try {
+    const audit = await guild.fetchAuditLogs({ type: AuditLogEvent.RoleDelete, limit: 8 });
+    const entry = audit.entries.find(item =>
+      item.targetId === role.id &&
+      Date.now() - item.createdTimestamp < 20000
+    );
+    const executorId = entry?.executorId;
+    if (!executorId) {
+      console.error("[ROLE-PROTECTION] Could not identify the role deleter; no ban was attempted.");
+      return;
+    }
+    if (executorId === guild.ownerId) {
+      console.error("[ROLE-PROTECTION] The server owner deleted the protected role. Discord does not allow bots to ban the server owner.");
+      return;
+    }
+    if (executorId === client.user.id) return;
+
+    const executor = await guild.members.fetch(executorId).catch(() => null);
+    if (!executor) {
+      console.error("[ROLE-PROTECTION] Deleter is no longer in the server; cannot ban them.");
+      return;
+    }
+    await executor.ban({
+      reason: "Paradox • Core role protection: deleting the protected role"
+    });
+    console.log("[ROLE-PROTECTION] Banned role deleter:", executorId);
+  } catch (error) {
+    console.error("[ROLE-PROTECTION] Could not identify or ban the role deleter:", error);
+  }
 });
 
 
