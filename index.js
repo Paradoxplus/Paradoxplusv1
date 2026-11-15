@@ -77,8 +77,8 @@ const DATA_DIR = path.resolve("data");
 const DATA_FILE = path.join(DATA_DIR, "guild-config.json");
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates],
-  partials: [Partials.GuildMember, Partials.Message]
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates],
+  partials: [Partials.GuildMember, Partials.Message, Partials.Reaction, Partials.User, Partials.Channel]
 });
 
 let database = { guilds: {} };
@@ -133,6 +133,7 @@ function getGuildConfig(guildId) {
   if (typeof config.ticketStaffRoleId !== "string") config.ticketStaffRoleId = null;
   if (!Array.isArray(config.dmOptIns)) config.dmOptIns = [];
   if (!Array.isArray(config.giveaways)) config.giveaways = [];
+  if (!config.selfRolePanel || typeof config.selfRolePanel !== "object") config.selfRolePanel = null;
   if (!config.afkUsers || typeof config.afkUsers !== "object" || Array.isArray(config.afkUsers)) config.afkUsers = {};
   if (!Number.isInteger(config.recruitCount) || config.recruitCount < 0) config.recruitCount = 0;
   if (!Array.isArray(config.inactiveAppeals)) config.inactiveAppeals = [];
@@ -1317,6 +1318,47 @@ setInterval(async () => {
   }
 }, 30000);
 
+
+// Self-role reaction panel. Only the configured panel message in the main server is actionable.
+const SELF_ROLE_GUILD_ID = "1568943817762017400";
+const SELF_ROLE_MAP = {
+  "1569290049588039721": "1568943817762017406",
+  "1569261094244196392": "1568943817762017405",
+  "1571561291712168038": "1568943817762017404"
+};
+async function handleSelfRoleReaction(reaction, user, shouldAdd) {
+  if (user.bot) return;
+  try {
+    if (reaction.partial) await reaction.fetch();
+    const message = reaction.message;
+    if (!message.guild || message.guild.id !== SELF_ROLE_GUILD_ID) return;
+    const config = getGuildConfig(message.guild.id);
+    if (!config.selfRolePanel || config.selfRolePanel.messageId !== message.id) return;
+    const roleId = SELF_ROLE_MAP[reaction.emoji.id];
+    if (!roleId) return;
+    const role = message.guild.roles.cache.get(roleId) ?? await message.guild.roles.fetch(roleId).catch(() => null);
+    if (!role) {
+      console.warn("[SelfRoles] Configured role no longer exists:", roleId);
+      return;
+    }
+    const member = await message.guild.members.fetch(user.id).catch(() => null);
+    if (!member) return;
+    if (shouldAdd) {
+      if (!member.roles.cache.has(roleId)) await member.roles.add(role, "Self-role reaction panel");
+    } else if (member.roles.cache.has(roleId)) {
+      await member.roles.remove(role, "Self-role reaction panel");
+    }
+  } catch (error) {
+    console.error("[SelfRoles] Could not " + (shouldAdd ? "add" : "remove") + " role from reaction:", error);
+  }
+}
+client.on(Events.MessageReactionAdd, (reaction, user) => {
+  void handleSelfRoleReaction(reaction, user, true);
+});
+client.on(Events.MessageReactionRemove, (reaction, user) => {
+  void handleSelfRoleReaction(reaction, user, false);
+});
+
 client.on(Events.InteractionCreate, async interaction => {
   // Persistent giveaway entry button.
   if (interaction.isButton() && interaction.customId.startsWith("px_giveaway_enter:")) {
@@ -1825,6 +1867,45 @@ client.on(Events.InteractionCreate, async interaction => {
       const panelPayload = buildTicketPanel(interaction.guild, interaction.client.user);
       await targetChannel.send(panelPayload);
       return interaction.reply({ content: "✅ Premium ticket portal published in " + targetChannel.toString() + ".", ephemeral: true });
+    }
+
+    if (interaction.commandName === "selfroles") {
+      if (interaction.guildId !== "1568943817762017400") {
+        return replyError(interaction, "This self-role panel is configured for the Paradoxplus main server only.");
+      }
+      const canPublish = isBotOwner(interaction.user.id) ||
+        interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) ||
+        interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels);
+      if (!canPublish) return replyError(interaction, "You need Manage Channels or Administrator to publish the self-role panel.");
+      const targetChannel = interaction.options.getChannel("channel", true);
+      if (targetChannel.guildId !== interaction.guildId || targetChannel.type !== ChannelType.GuildText) {
+        return replyError(interaction, "Choose a text channel from this server.");
+      }
+      const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
+      const permissions = targetChannel.permissionsFor(botMember);
+      if (!permissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.AddReactions, PermissionFlagsBits.ManageRoles, PermissionFlagsBits.EmbedLinks])) {
+        return replyError(interaction, "I need View Channel, Send Messages, Read Message History, Add Reactions, Embed Links, and Manage Roles in that channel.");
+      }
+      const missingRoles = Object.values(SELF_ROLE_MAP).filter(roleId => !interaction.guild.roles.cache.has(roleId));
+      if (missingRoles.length) return replyError(interaction, "One or more configured self-roles no longer exist: " + missingRoles.join(", "));
+      const content = "# **<a:rflx_s:1571536117042258100> <a:rflx_e:1571536117147115621> <a:rflx_l:1571536117457494047> <a:rflx_f:1571536117088657509>   <a:rflx_r:1492771876882092043> <a:rflx_o:1492771893860630580> <a:rflx_l:1492756806328520765> <a:rflx_e:1492771918292586607> <a:rflx_s:1492771885769949214> **\n\n" +
+        "<:ou_clown:1569290049588039721> <:arrow_yellow:1571561291640742010> [ <@&1568943817762017406> ]\n" +
+        "<:yt:1569261094244196392> <:arrow_yellow:1571561291640742010> [ <@&1568943817762017405> ]\n" +
+        "<a:RedCrown:1571561291712168038> <:arrow_yellow:1571561291640742010> [ <@&1568943817762017404> ]";
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const panelMessage = await targetChannel.send({ content, allowedMentions: { parse: [] } });
+        await panelMessage.react("<:ou_clown:1569290049588039721>");
+        await panelMessage.react("<:yt:1569261094244196392>");
+        await panelMessage.react("<a:RedCrown:1571561291712168038>");
+        const config = getGuildConfig(interaction.guildId);
+        config.selfRolePanel = { channelId: targetChannel.id, messageId: panelMessage.id, updatedAt: new Date().toISOString() };
+        await saveDatabase();
+        return interaction.editReply("✅ Self-role panel published in " + targetChannel.toString() + ". Members can click the three emojis to add or remove their matching roles.");
+      } catch (error) {
+        console.error("[SelfRoles] Could not publish panel:", error);
+        return interaction.editReply("I couldn't publish the panel or add its reactions. Check the channel permissions and that the custom emojis are available to the bot.");
+      }
     }
 
     if (interaction.commandName === "tag") {
