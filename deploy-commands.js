@@ -43,6 +43,8 @@ const commands = [
     .addSubcommand(sc=>sc.setName("transcript").setDescription("Export the ticket conversation as a text file.")),
   new SlashCommandBuilder().setName("ticket-panel").setDescription("Publish the Paradoxplus ticket portal in a selected channel.")
     .addChannelOption(o=>o.setName("channel").setDescription("Text channel where the ticket panel should be posted").addChannelTypes(ChannelType.GuildText).setRequired(true)),
+  new SlashCommandBuilder().setName("selfroles").setDescription("Publish the Paradoxplus reaction-based self-role panel.")
+    .addChannelOption(o => o.setName("channel").setDescription("Text channel where members can choose self-roles").addChannelTypes(ChannelType.GuildText).setRequired(true)),
   new SlashCommandBuilder().setName("tag").setDescription("Apply the PX ϟ nickname prefix to members with a selected role.")
     .addSubcommand(sc => sc.setName("all").setDescription("Tag members who have the selected team role.")
       .addRoleOption(o => o.setName("role").setDescription("Only members with this role will be tagged").setRequired(true))
