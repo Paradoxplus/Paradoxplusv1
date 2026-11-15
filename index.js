@@ -619,6 +619,53 @@ async function restoreDeletedChannel(channel) {
   return restored;
 }
 
+
+async function restoreArchivedMessages(deletedChannel, restoredChannel) {
+  const rows = await getArchivedChannelMessages(deletedChannel.guild.id, deletedChannel.id, false, 1000);
+  if (!rows.length) {
+    console.log("[MessageArchive] No archived messages available to replay for", deletedChannel.name, deletedChannel.id);
+    return 0;
+  }
+
+  let restoredCount = 0;
+  for (const row of rows) {
+    const createdAt = row.created_at ? new Date(row.created_at) : null;
+    const timestamp = createdAt && !Number.isNaN(createdAt.getTime())
+      ? " · " + createdAt.toISOString().replace("T", " ").replace(/\\.\\d{3}Z$/, " UTC")
+      : "";
+    const parts = ["**" + (row.author_tag || "Unknown author") + "**" + timestamp];
+    if (row.content) parts.push(row.content);
+
+    for (const attachment of (Array.isArray(row.attachments) ? row.attachments : [])) {
+      if (attachment.url) parts.push("Attachment: " + (attachment.name || "file") + " — " + attachment.url);
+    }
+    for (const embed of (Array.isArray(row.embeds) ? row.embeds : [])) {
+      if (embed.title) parts.push("Embed title: " + String(embed.title));
+      if (embed.description) parts.push("Embed: " + String(embed.description));
+      if (Array.isArray(embed.fields)) {
+        for (const field of embed.fields) {
+          if (field?.name || field?.value) parts.push(String(field?.name || "Field") + ": " + String(field?.value || ""));
+        }
+      }
+    }
+    for (const sticker of (Array.isArray(row.stickers) ? row.stickers : [])) {
+      parts.push("Sticker: " + (sticker.name || "sticker") + (sticker.url ? " — " + sticker.url : ""));
+    }
+
+    let transcript = parts.join("\n");
+    if (!transcript.trim()) transcript = "[Archived message had no recoverable text or attachments.]";
+    if (transcript.length > 1950) transcript = transcript.slice(0, 1947) + "...";
+    await restoredChannel.send({
+      content: transcript,
+      allowedMentions: { parse: [] }
+    });
+    restoredCount++;
+  }
+
+  console.log("[MessageArchive] Replayed " + restoredCount + " archived messages into restored channel " + restoredChannel.id);
+  return restoredCount;
+}
+
 client.on(Events.ChannelDelete, async channel => {
   if (!channel?.guild || channel.guild.id !== "1568943817762017400" || channel.isThread?.()) return;
   const guild = channel.guild;
@@ -646,11 +693,20 @@ client.on(Events.ChannelDelete, async channel => {
     return;
   }
 
-  // Recover even if audit attribution is delayed or unavailable; never ban an unidentified actor.
+  // Recover the channel first, then replay its archived messages into the replacement channel.
+  let restoredChannel = null;
   try {
-    await restoreDeletedChannel(channel);
+    restoredChannel = await restoreDeletedChannel(channel);
   } catch (error) {
     console.error("[CHANNEL-ANTI-NUKE] Channel restoration failed:", error);
+  }
+
+  if (restoredChannel) {
+    try {
+      await restoreArchivedMessages(channel, restoredChannel);
+    } catch (error) {
+      console.error("[MessageArchive] Automatic message replay failed:", error);
+    }
   }
 
   if (!executorId) {
