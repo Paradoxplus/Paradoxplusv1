@@ -52,7 +52,6 @@ export async function initRecruitmentDatabase() {
     )`);
     await pool.query("CREATE INDEX IF NOT EXISTS message_archive_guild_channel_date_idx ON message_archive (guild_id, channel_id, created_at DESC)");
     await pool.query("CREATE INDEX IF NOT EXISTS message_archive_deleted_idx ON message_archive (guild_id, channel_id, deleted_at) WHERE deleted_at IS NOT NULL");
-    await pool.query("DELETE FROM message_archive WHERE archived_at < NOW() - INTERVAL '7 days'");
 
     ready = true;
     console.log("[Recruitment] PostgreSQL connected; recruitment tables are ready.");
@@ -279,7 +278,6 @@ export async function getArchivedChannelMessages(guildId, channelId, deletedOnly
      FROM message_archive
      WHERE guild_id = $1 AND channel_id = $2
        AND ($3::boolean = FALSE OR deleted_at IS NOT NULL)
-       AND archived_at >= NOW() - INTERVAL '7 days'
      ORDER BY created_at ASC NULLS LAST
      LIMIT $4`,
     [guildId, channelId, deletedOnly, safeLimit]
@@ -289,6 +287,6 @@ export async function getArchivedChannelMessages(guildId, channelId, deletedOnly
 
 export async function pruneMessageArchive() {
   requireDatabase();
-  const result = await pool.query("DELETE FROM message_archive WHERE archived_at < NOW() - INTERVAL '7 days'");
-  return result.rowCount;
+  // Message archive retention is permanent; this function intentionally deletes nothing.
+  return 0;
 }
