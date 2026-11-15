@@ -3024,7 +3024,7 @@ client.on(Events.MessageCreate, async message => {
       return fail("Subcommands: add, remove, ignore, unignore, ignored, list, logs, clear-logs, announce, clear-announcements, backup.");
     }
     if(["rank-history","rank-search","rank-stats","rank-leaderboard","rank-panel","rank-help","rankpredict","serverpulse","staffactivity","memberjourney","spotlight"].includes(command)){
-      if(command==="rank-help")return send("RANK COMMANDS",prefix+"rank, rankhistory, ranksearch, rankstats, rankleaderboard, rankpanel, rank-config, promote, demote, setrank.");
+      if(command==="rank-help")return send("RANK COMMANDS",prefix+"rank, rankhistory, ranksearch, rankstats, rankleaderboard, rankpanel, rank-config, promote, demote [number-of-ranks-down], setrank.");
       if(command==="rank-panel")return send("RANK HIERARCHY",config.ranks.map((r,i)=>(i+1)+". <@&"+r.id+">").join("\n")||"No ranks configured.");
       if(command==="rank-history"){const m=await prefixMember(args[0]);if(!m)return fail("Usage: "+prefix+"rank-history @member");const rows=config.history.filter(x=>x.memberId===m.id).slice(0,10);return send("RANK HISTORY • "+m.user.tag,rows.map(x=>"• "+x.action+": "+(x.oldRankId?"<@&"+x.oldRankId+">":"Unranked")+" → "+(x.newRankId?"<@&"+x.newRankId+">":"Unranked")+" — <t:"+Math.floor(new Date(x.timestamp).getTime()/1000)+":R>").join("\n")||"No history.");}
       if(command==="rank-search"){const q=args.join(" ").toLowerCase();if(!q)return fail("Usage: "+prefix+"rank-search <name>");const members=await getGuildMembers(message.guild);const rows=members.filter(m=>m.user.username.toLowerCase().includes(q)||m.displayName.toLowerCase().includes(q)).first(10);return send("RANK SEARCH",rows.map(m=>{const r=getHighestConfiguredRank(m,config.ranks,message.guild.roles.cache);return "• "+m.user.tag+" — "+(r?"<@&"+r.id+">":"Unranked");}).join("\n")||"No matches.");}
@@ -3372,9 +3372,23 @@ client.on(Events.MessageCreate, async message => {
         desired = ranks[i+1];
       } else {
         if (!current) return fail("That member has no configured rank.");
-        const i = ranks.findIndex(r=>r.id===current.id);
-        if (i <= 0) return fail("Already at the lowest configured rank.");
-        desired = ranks[i-1];
+        const orderedRanks = [...ranks].sort((a, b) => {
+          const roleA = message.guild.roles.cache.get(a.id);
+          const roleB = message.guild.roles.cache.get(b.id);
+          if (roleA && roleB) return roleA.position - roleB.position;
+          return (a.position || 0) - (b.position || 0);
+        });
+        const currentIndex = orderedRanks.findIndex(r => r.id === current.id);
+        const requestedSteps = args[1] === undefined ? 1 : Number(args[1]);
+        if (!Number.isSafeInteger(requestedSteps) || requestedSteps < 1) {
+          return fail("Usage: " + prefix + "demote @member [number-of-ranks-down] [reason]");
+        }
+        const destinationIndex = currentIndex - requestedSteps;
+        if (destinationIndex < 0) {
+          return fail("That member cannot be demoted " + requestedSteps + " rank(s). They are only " + currentIndex + " rank(s) above the lowest configured rank.");
+        }
+        desired = orderedRanks[destinationIndex];
+        reasonArgs = args[1] === undefined ? args.slice(1) : args.slice(2);
       }
       const adapter = {
         guild: message.guild, guildId: message.guild.id, user: message.author, client,
