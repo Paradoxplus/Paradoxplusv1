@@ -7,7 +7,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { startDashboard } from "./dashboard.js";
 import { joinVoiceChannel, VoiceConnectionStatus, entersState, getVoiceConnection } from "@discordjs/voice";
-import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot, importDatabaseSnapshot } from "./recruitment.js";
+import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot, importDatabaseSnapshot, archiveDiscordMessage, getArchivedChannelMessages, pruneMessageArchive } from "./recruitment.js";
 
  
 // Discord does not support loading custom fonts, so use Unicode sans-serif bold
@@ -78,7 +78,7 @@ const DATA_FILE = path.join(DATA_DIR, "guild-config.json");
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates],
-  partials: [Partials.GuildMember]
+  partials: [Partials.GuildMember, Partials.Message]
 });
 
 let database = { guilds: {} };
@@ -450,6 +450,39 @@ client.on(Events.MessageCreate, message => {
   if (pulseMessageBuffer >= 20) {
     pulseMessageBuffer = 0;
     void saveDatabase().catch(error => console.error("Pulse save failed:", error));
+  }
+});
+
+const MESSAGE_ARCHIVE_GUILD_ID = "1568943817762017400";
+
+// Archive messages in PostgreSQL before Discord can remove them. The archive
+// intentionally covers this server only and expires records after seven days.
+client.on(Events.MessageCreate, message => {
+  if (!message.guild || message.guild.id !== MESSAGE_ARCHIVE_GUILD_ID || message.author?.bot) return;
+  void archiveDiscordMessage(message, "create")
+    .catch(error => console.error("[MessageArchive] Could not archive new message:", error));
+});
+
+client.on(Events.MessageUpdate, async (_oldMessage, newMessage) => {
+  if (newMessage.guildId !== MESSAGE_ARCHIVE_GUILD_ID) return;
+  const message = newMessage.partial ? await newMessage.fetch().catch(() => newMessage) : newMessage;
+  if (message.author?.bot) return;
+  void archiveDiscordMessage(message, "edit")
+    .catch(error => console.error("[MessageArchive] Could not archive edited message:", error));
+});
+
+client.on(Events.MessageDelete, async deletedMessage => {
+  if (deletedMessage.guildId !== MESSAGE_ARCHIVE_GUILD_ID) return;
+  const message = deletedMessage.partial ? await deletedMessage.fetch().catch(() => deletedMessage) : deletedMessage;
+  void archiveDiscordMessage(message, "delete")
+    .catch(error => console.error("[MessageArchive] Could not mark deleted message:", error));
+});
+
+client.on(Events.MessageBulkDelete, messages => {
+  for (const message of messages.values()) {
+    if (message.guildId !== MESSAGE_ARCHIVE_GUILD_ID) continue;
+    void archiveDiscordMessage(message, "delete")
+      .catch(error => console.error("[MessageArchive] Could not mark bulk-deleted message:", error));
   }
 });
 // Built-in and configurable autoresponders.
@@ -955,6 +988,12 @@ client.once(Events.ClientReady, async readyClient => {
   console.log(`Online as ${readyClient.user.tag}`);
   console.log(`Serving ${readyClient.guilds.cache.size} server(s).`);
   startHourlyChannelBackups(readyClient);
+  void pruneMessageArchive()
+    .then(count => console.log(`[MessageArchive] Pruned ${count} records older than seven days.`))
+    .catch(error => console.error("[MessageArchive] Retention cleanup failed:", error));
+  setInterval(() => {
+    void pruneMessageArchive().catch(error => console.error("[MessageArchive] Retention cleanup failed:", error));
+  }, 6 * 60 * 60 * 1000);
   void connectOwnerVoice(readyClient);
 });
 
@@ -1332,6 +1371,59 @@ client.on(Events.InteractionCreate, async interaction => {
 
   try {
     const config = getGuildConfig(interaction.guildId);
+
+    if (interaction.commandName === "message-archive") {
+      if (!["1191997911144349738", BOT_OWNER_ID].includes(interaction.user.id)) {
+        return replyError(interaction, "Only the two designated Paradox • Core owners can export archived messages.");
+      }
+      const subcommand = interaction.options.getSubcommand();
+      if (subcommand !== "export") return replyError(interaction, "Unknown message archive action.");
+      const channelId = interaction.options.getString("channel_id", true).trim();
+      if (!/^\\d{17,20}$/.test(channelId)) return replyError(interaction, "Enter a valid Discord channel ID.");
+      const deletedOnly = interaction.options.getBoolean("deleted_only") ?? false;
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const rows = await getArchivedChannelMessages(interaction.guildId, channelId, deletedOnly, 1000);
+        if (!rows.length) return interaction.editReply("No archived messages were found for that channel in the last seven days.");
+        const lines = [
+          "PARADOX • CORE MESSAGE ARCHIVE",
+          "Server: " + interaction.guild.name + " (" + interaction.guildId + ")",
+          "Channel ID: " + channelId,
+          "Exported: " + new Date().toISOString(),
+          "Retention: seven days",
+          "Messages included: " + rows.length,
+          "----------------------------------------",
+          ""
+        ];
+        for (const row of rows) {
+          const timestamp = row.created_at ? new Date(row.created_at).toISOString() : "Unknown time";
+          lines.push("[" + timestamp + "] " + (row.author_tag || "Unknown author") + " (" + (row.author_id || "unknown") + ")" + (row.deleted_at ? " [DELETED]" : ""));
+          lines.push(row.content || "[No text content]");
+          for (const attachment of (Array.isArray(row.attachments) ? row.attachments : [])) {
+            lines.push("Attachment: " + (attachment.name || "file") + (attachment.url ? " — " + attachment.url : ""));
+          }
+          for (const embed of (Array.isArray(row.embeds) ? row.embeds : [])) {
+            if (embed.title) lines.push("Embed title: " + embed.title);
+            if (embed.description) lines.push("Embed: " + String(embed.description).slice(0, 1500));
+          }
+          lines.push("");
+        }
+        let transcript = lines.join("\\n");
+        if (Buffer.byteLength(transcript, "utf8") > 7_500_000) {
+          transcript = transcript.slice(0, 7_000_000) + "\\n[Export truncated to fit Discord's file upload limit.]";
+        }
+        const file = new AttachmentBuilder(Buffer.from(transcript, "utf8"), {
+          name: "paradox-message-archive-" + channelId + ".txt"
+        });
+        return interaction.editReply({
+          content: "Archive export ready. It contains up to 1,000 messages from the last seven days. Attachment links may expire if Discord invalidates their original URLs.",
+          files: [file]
+        });
+      } catch (error) {
+        console.error("[MessageArchive] Export failed:", error);
+        return interaction.editReply("The archive export failed. Check the PostgreSQL connection and bot logs.");
+      }
+    }
 
     if (interaction.commandName === "giveaway") {
       const sub = interaction.options.getSubcommand();
