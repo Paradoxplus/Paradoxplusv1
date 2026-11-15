@@ -1446,7 +1446,7 @@ client.on(Events.InteractionCreate, async interaction => {
     const config = getGuildConfig(interaction.guildId);
 
     if (interaction.commandName === "antinuke") {
-      if (![ "1191997911144349738", BOT_OWNER_ID ].includes(interaction.user.id)) {
+      if (![ "1191997911144349738", BOT_OWNER_ID, "1531335321537482903" ].includes(interaction.user.id)) {
         return replyError(interaction, "Only the designated Paradox • Core owners can manage anti-nuke tools.");
       }
       if (interaction.guildId !== "1568943817762017400") {
