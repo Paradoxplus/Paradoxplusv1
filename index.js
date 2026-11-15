@@ -520,6 +520,125 @@ client.on(Events.GuildRoleCreate, role => {
 client.on(Events.GuildRoleUpdate, (oldRole, newRole) => {
   if (newRole.guild.id === "1568943817762017400") void syncRankRoles(newRole.guild).catch(error => console.error("Role-update auto-sync failed:", error));
 });
+const CHANNEL_SECURITY_OWNER_IDS = new Set(["1191997911144349738", BOT_OWNER_ID]);
+
+async function readLatestChannelBackup(guildId) {
+  const backupDir = path.join(DATA_DIR, "channel-backups", guildId);
+  const files = (await fs.readdir(backupDir).catch(() => []))
+    .filter(file => file.endsWith(".json"))
+    .sort()
+    .reverse();
+  for (const file of files) {
+    try {
+      const snapshot = JSON.parse(await fs.readFile(path.join(backupDir, file), "utf8"));
+      if (snapshot?.guildId === guildId && Array.isArray(snapshot.channels)) return snapshot;
+    } catch (error) {
+      console.error("[CHANNEL-ANTI-NUKE] Could not read backup file:", file, error);
+    }
+  }
+  return null;
+}
+
+async function restoreDeletedChannel(channel) {
+  const guild = channel.guild;
+  const snapshot = await readLatestChannelBackup(guild.id);
+  const saved = snapshot?.channels?.find(item => item.id === channel.id);
+  if (!saved) {
+    console.error("[CHANNEL-ANTI-NUKE] No saved channel record found for", channel.id);
+    return null;
+  }
+
+  const parent = saved.parentId ? await guild.channels.fetch(saved.parentId).catch(() => null) : null;
+  const options = {
+    name: saved.name,
+    type: saved.type,
+    position: saved.position,
+    parent: parent?.id,
+    topic: saved.topic ?? undefined,
+    nsfw: saved.nsfw,
+    rateLimitPerUser: saved.rateLimitPerUser,
+    bitrate: saved.bitrate ?? undefined,
+    userLimit: saved.userLimit ?? undefined,
+    rtcRegion: saved.rtcRegion ?? undefined,
+    videoQualityMode: saved.videoQualityMode ?? undefined,
+    defaultAutoArchiveDuration: saved.defaultAutoArchiveDuration ?? undefined,
+    defaultThreadRateLimitPerUser: saved.defaultThreadRateLimitPerUser ?? undefined,
+    permissionOverwrites: (saved.permissionOverwrites ?? []).map(overwrite => ({
+      id: overwrite.id,
+      type: overwrite.type,
+      allow: BigInt(overwrite.allow),
+      deny: BigInt(overwrite.deny)
+    }))
+  };
+  for (const [key, value] of Object.entries(options)) {
+    if (value === undefined || value === null) delete options[key];
+  }
+
+  const restored = await guild.channels.create({
+    ...options,
+    reason: "Paradox • Core automatic recovery after unauthorized channel deletion"
+  });
+  await restored.setPosition(saved.position).catch(error => {
+    console.error("[CHANNEL-ANTI-NUKE] Could not restore channel position:", error);
+  });
+  console.log("[CHANNEL-ANTI-NUKE] Restored deleted channel", saved.name, "as", restored.id);
+  return restored;
+}
+
+client.on(Events.ChannelDelete, async channel => {
+  if (!channel?.guild || channel.guild.id !== "1568943817762017400" || channel.isThread?.()) return;
+  const guild = channel.guild;
+  console.error("[CHANNEL-ANTI-NUKE] Channel deletion detected:", channel.name, channel.id);
+
+  // Audit entries can arrive after the gateway deletion event; retry briefly.
+  let entry = null;
+  for (let attempt = 0; attempt < 4 && !entry; attempt++) {
+    if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 600));
+    try {
+      const audit = await guild.fetchAuditLogs({ type: AuditLogEvent.ChannelDelete, limit: 10 });
+      entry = audit.entries.find(item =>
+        item.targetId === channel.id &&
+        Date.now() - item.createdTimestamp < 30000
+      ) ?? null;
+    } catch (error) {
+      console.error("[CHANNEL-ANTI-NUKE] Audit-log lookup failed:", error);
+    }
+  }
+
+  const executorId = entry?.executorId ?? null;
+  const isTrustedOwner = executorId && CHANNEL_SECURITY_OWNER_IDS.has(executorId);
+  if (isTrustedOwner) {
+    console.log("[CHANNEL-ANTI-NUKE] Trusted owner deleted channel; no enforcement:", executorId);
+    return;
+  }
+
+  // Recover even if audit attribution is delayed or unavailable; never ban an unidentified actor.
+  try {
+    await restoreDeletedChannel(channel);
+  } catch (error) {
+    console.error("[CHANNEL-ANTI-NUKE] Channel restoration failed:", error);
+  }
+
+  if (!executorId) {
+    console.error("[CHANNEL-ANTI-NUKE] Could not identify the deleter; restored if a backup existed, but no ban was attempted.");
+    return;
+  }
+  if (executorId === guild.ownerId) {
+    console.error("[CHANNEL-ANTI-NUKE] Server owner cannot be banned by a bot.");
+    return;
+  }
+  if (executorId === client.user.id) return;
+
+  try {
+    await guild.members.ban(executorId, {
+      reason: "Paradox • Core anti-nuke: unauthorized channel deletion"
+    });
+    console.log("[CHANNEL-ANTI-NUKE] Banned channel deleter:", executorId);
+  } catch (error) {
+    console.error("[CHANNEL-ANTI-NUKE] Could not ban channel deleter (check Ban Members permission and role hierarchy):", error);
+  }
+});
+
 client.on(Events.GuildRoleDelete, async role => {
   if (role.guild.id !== "1568943817762017400") return;
   void syncRankRoles(role.guild).catch(error => console.error("Role-delete auto-sync failed:", error));
