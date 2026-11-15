@@ -796,10 +796,13 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
           console.warn("[CoreRoleGuard] Audit log lookup failed:", error.message);
           return null;
         });
-        const entry = logs?.entries.find(item =>
-          item.target?.id === newMember.id &&
-          Date.now() - item.createdTimestamp < 15000
-        );
+        const entry = logs?.entries.find(item => {
+          const addedRoles = item.changes?.find(change => change.key === "$add")?.new;
+          return item.target?.id === newMember.id &&
+            Date.now() - item.createdTimestamp < 15000 &&
+            Array.isArray(addedRoles) &&
+            addedRoles.some(addedRole => addedRole.id === role.id);
+        });
         if (entry?.executor?.id) executor = entry.executor;
         if (!executor && attempt < 5) await new Promise(resolve => setTimeout(resolve, 700));
       }
