@@ -372,6 +372,12 @@ const commands = [
     .addChannelOption(o=>o.setName("channel").setDescription("Text channel").setRequired(true).addChannelTypes(ChannelType.GuildText,ChannelType.GuildAnnouncement))
     .addStringOption(o=>o.setName("topic").setDescription("New topic").setMaxLength(1024).setRequired(true)),
 
+
+  new SlashCommandBuilder().setName("message-archive").setDescription("Export archived messages from a channel (two-owner access only).")
+    .addSubcommand(sc=>sc.setName("export").setDescription("Export the last seven days of archived messages.")
+      .addStringOption(o=>o.setName("channel_id").setDescription("Channel ID to export").setRequired(true))
+      .addBooleanOption(o=>o.setName("deleted_only").setDescription("Only include messages that were deleted"))),
+
 ].map(c => c.toJSON());
 
 const token = process.env.DISCORD_TOKEN;
