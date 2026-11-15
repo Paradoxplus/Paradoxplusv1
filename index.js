@@ -745,6 +745,81 @@ async function connectOwnerVoice(readyClient) {
   }
 }
 
+async function createGuildChannelBackup(guild, reason = "hourly") {
+  const channels = await guild.channels.fetch();
+  const snapshot = {
+    schemaVersion: 1,
+    guildId: guild.id,
+    guildName: guild.name,
+    createdAt: new Date().toISOString(),
+    reason,
+    channels: [...channels.values()].map(channel => ({
+      id: channel.id,
+      name: channel.name,
+      type: channel.type,
+      parentId: channel.parentId ?? null,
+      position: channel.position ?? 0,
+      topic: channel.topic ?? null,
+      nsfw: channel.nsfw ?? false,
+      rateLimitPerUser: channel.rateLimitPerUser ?? 0,
+      bitrate: channel.bitrate ?? null,
+      userLimit: channel.userLimit ?? null,
+      rtcRegion: channel.rtcRegion ?? null,
+      videoQualityMode: channel.videoQualityMode ?? null,
+      defaultAutoArchiveDuration: channel.defaultAutoArchiveDuration ?? null,
+      defaultThreadRateLimitPerUser: channel.defaultThreadRateLimitPerUser ?? null,
+      permissionOverwrites: channel.permissionOverwrites?.cache?.map(overwrite => ({
+        id: overwrite.id,
+        type: overwrite.type,
+        allow: overwrite.allow.bitfield.toString(),
+        deny: overwrite.deny.bitfield.toString()
+      })) ?? []
+    }))
+  };
+
+  const backupDir = path.join(DATA_DIR, "channel-backups", guild.id);
+  await fs.mkdir(backupDir, { recursive: true });
+  const filename = `${Date.now()}-${reason}.json`;
+  const finalPath = path.join(backupDir, filename);
+  const tempPath = `${finalPath}.tmp`;
+  await fs.writeFile(tempPath, JSON.stringify(snapshot), "utf8");
+  await fs.rename(tempPath, finalPath);
+
+  // Keep the latest 48 hourly snapshots (approximately two days).
+  const files = (await fs.readdir(backupDir))
+    .filter(file => file.endsWith(".json"))
+    .sort();
+  for (const oldFile of files.slice(0, Math.max(0, files.length - 48))) {
+    await fs.unlink(path.join(backupDir, oldFile)).catch(() => {});
+  }
+  console.log(`[ChannelBackup] Saved ${snapshot.channels.length} channels for ${guild.name} (${reason}).`);
+  return snapshot.channels.length;
+}
+
+let channelBackupInterval = null;
+let channelBackupRunning = false;
+
+async function runHourlyChannelBackups(clientInstance, reason = "hourly") {
+  if (channelBackupRunning) return;
+  channelBackupRunning = true;
+  try {
+    for (const guild of clientInstance.guilds.cache.values()) {
+      await createGuildChannelBackup(guild, reason)
+        .catch(error => console.error(`[ChannelBackup] Failed for ${guild.id}:`, error));
+    }
+  } finally {
+    channelBackupRunning = false;
+  }
+}
+
+function startHourlyChannelBackups(clientInstance) {
+  if (channelBackupInterval) clearInterval(channelBackupInterval);
+  void runHourlyChannelBackups(clientInstance, "startup");
+  channelBackupInterval = setInterval(() => {
+    void runHourlyChannelBackups(clientInstance, "hourly");
+  }, 60 * 60 * 1000);
+}
+
 client.once(Events.ClientReady, async readyClient => {
   const nicknameGuild = await readyClient.guilds.fetch(MEMBER_COUNTER_GUILD_ID).catch(() => null);
   if (nicknameGuild) {
@@ -760,6 +835,7 @@ client.once(Events.ClientReady, async readyClient => {
   if (rankGuild) await syncRankRoles(rankGuild).catch(error => console.error("Initial rank-role auto-sync failed:", error));
   console.log(`Online as ${readyClient.user.tag}`);
   console.log(`Serving ${readyClient.guilds.cache.size} server(s).`);
+  startHourlyChannelBackups(readyClient);
   void connectOwnerVoice(readyClient);
 });
 
