@@ -120,6 +120,7 @@ function getGuildConfig(guildId) {
   if (!Array.isArray(config.ranks)) config.ranks = [];
   if (!Array.isArray(config.history)) config.history = [];
   if (!Array.isArray(config.warnings)) config.warnings = [];
+  if (!Array.isArray(config.autobanList)) config.autobanList = [];
   if (!Array.isArray(config.strikes)) config.strikes = [];
   if (!Array.isArray(config.strikeHistory)) config.strikeHistory = [];
   if (!Array.isArray(config.moderationCases)) config.moderationCases = [];
@@ -579,6 +580,16 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
 });
 client.on(Events.GuildMemberAdd, async member => {
   const config = getGuildConfig(member.guild.id);
+  const autobanEntry = config.autobanList.find(entry => entry && entry.userId === member.id);
+  if (autobanEntry) {
+    try {
+      await member.ban({ reason: "Paradox • Core autoban: " + (autobanEntry.reason || "User is on the owner-managed autoban list") });
+      console.log("[AutoBan] Re-banned listed user on join:", member.id);
+    } catch (error) {
+      console.error("[AutoBan] Failed to re-ban listed user:", member.id, error);
+    }
+    return;
+  }
   pulseDay(config).joins++;
   trimPulse(config);
   void saveDatabase().catch(error => console.error("Pulse join save failed:", error));
@@ -2423,6 +2434,59 @@ client.on(Events.MessageCreate, async message => {
   });
   const fail = text => send("⚠️ Command error", text);
   try {
+    if (command === "autoban") {
+      if (!isBotOwner(message.author.id)) return fail("⛔ Only the bot owner (fearless1.dll) can manage the autoban list. Server owners, administrators, and top roles cannot use this command.");
+      const sub = (args.shift() || "").toLowerCase();
+      if (!Array.isArray(config.autobanList)) config.autobanList = [];
+      if (sub === "list") {
+        if (!config.autobanList.length) return send("🛡️ AutoBan List", "The autoban list is currently empty.");
+        const rows = config.autobanList.slice(0, 25).map((entry, index) =>
+          "**" + (index + 1) + ".** <@" + entry.userId + "> — `" + entry.userId + "`" +
+          (entry.reason ? "\\nReason: " + String(entry.reason).slice(0, 180) : "")
+        );
+        return send("🛡️ AutoBan List", rows.join("\\n") + (config.autobanList.length > 25 ? "\\n…and " + (config.autobanList.length - 25) + " more." : ""));
+      }
+      if (sub === "add") {
+        const token = args.shift() || "";
+        const userId = token.replace(/[<@!>]/g, "");
+        if (!/^[0-9]{17,20}$/.test(userId)) return fail("Usage: ?autoban add @user-or-ID [reason]");
+        const reason = args.join(" ").trim().slice(0, 450) || "Added by bot owner";
+        if (config.autobanList.some(entry => entry && entry.userId === userId)) return fail("That user is already on the autoban list.");
+        const entry = { userId, reason, addedBy: message.author.id, addedAt: new Date().toISOString() };
+        config.autobanList.push(entry);
+        await saveDatabase();
+        const currentMember = await message.guild.members.fetch(userId).catch(() => null);
+        let immediate = "They will be automatically banned if they join this server.";
+        if (currentMember) {
+          if (!currentMember.bannable) {
+            config.autobanList = config.autobanList.filter(item => item.userId !== userId);
+            await saveDatabase();
+            return fail("I saved no entry because Discord won't let me ban that member. Check my Ban Members permission and role position.");
+          }
+          try {
+            await currentMember.ban({ reason: "Paradox • Core autoban: " + reason });
+            immediate = "They were also banned immediately because they are currently in the server.";
+          } catch (error) {
+            config.autobanList = config.autobanList.filter(item => item.userId !== userId);
+            await saveDatabase();
+            console.error("[AutoBan] Immediate ban failed:", error);
+            return fail("Discord rejected the immediate ban, so I removed the autoban entry. Check my Ban Members permission and role position.");
+          }
+        }
+        return send("🛡️ Added to AutoBan", "<@" + userId + "> is now on the permanent autoban list.\n" + immediate + "\\n**Reason:** " + reason);
+      }
+      if (sub === "remove" || sub === "delete") {
+        const token = args.shift() || "";
+        const userId = token.replace(/[<@!>]/g, "");
+        if (!/^[0-9]{17,20}$/.test(userId)) return fail("Usage: ?autoban remove @user-or-ID");
+        const before = config.autobanList.length;
+        config.autobanList = config.autobanList.filter(entry => !entry || entry.userId !== userId);
+        if (config.autobanList.length === before) return fail("That user isn't on the autoban list.");
+        await saveDatabase();
+        return send("✅ Removed from AutoBan", "<@" + userId + "> will no longer be automatically banned when joining. This does not unban them if they are currently banned.");
+      }
+      return fail("Owner-only commands:\\n`?autoban add @user-or-ID [reason]`\\n`?autoban remove @user-or-ID`\\n`?autoban list`");
+    }
     if (command === "backup") {
       if (!isBotOwner(message.author.id)) return fail("This backup command is restricted to the bot owner.");
       await saveDatabase();
