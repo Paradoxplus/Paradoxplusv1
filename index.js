@@ -2429,7 +2429,7 @@ client.on(Events.MessageCreate, async message => {
   const fail = text => send("⚠️ Command error", text);
   try {
     if (command === "backup") {
-      if (!BotOwner(message.author.id)) return fail("This backup command is restricted to the bot owner.");
+      if (!isBotOwner(message.author.id)) return fail("This backup command is restricted to the bot owner.");
       await saveDatabase();
       const volumeFiles = [];
       async function collectBackupFiles(directory, relative = "") {
@@ -2469,10 +2469,10 @@ client.on(Events.MessageCreate, async message => {
       }
       if (!files.length) return fail("No volume files were found to back up.");
       await message.author.send({
-        content: "PARADOX • CORE BACKUP\\nPersistent volume files: " + volumeFiles.length +
-          "\\nDatabase: " + databaseStatus +
-          "\\nCreated: " + new Date().toISOString() +
-          "\\nKeep these files somewhere outside Railway. Environment variables and Discord tokens are intentionally excluded.",
+        content: "PARADOX • CORE BACKUP\nPersistent volume files: " + volumeFiles.length +
+          "\nDatabase: " + databaseStatus +
+          "\nCreated: " + new Date().toISOString() +
+          "\nKeep these files somewhere outside Railway. Environment variables and Discord tokens are intentionally excluded.",
         files
       });
       return send("✦ BACKUP SENT", "Your backup files have been sent to your Discord DMs. Check that the attachments arrived and save them outside Railway.");
