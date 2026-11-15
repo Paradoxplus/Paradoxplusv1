@@ -1829,12 +1829,13 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (interaction.commandName === "tag") {
       if (!isBotOwner(interaction.user.id)) {
-        return replyError(interaction, "Only the Paradox • Core bot owner can run a server-wide nickname tag.");
+        return replyError(interaction, "Only the Paradox • Core bot owner can run a team-wide nickname tag.");
       }
       if (interaction.guildId !== "1568943817762017400") {
         return replyError(interaction, "This command is configured for the Paradoxplus main server only.");
       }
       if (interaction.options.getSubcommand() !== "all") return;
+      const selectedRole = interaction.options.getRole("role", true);
       if (!interaction.options.getBoolean("confirm", true)) {
         return replyError(interaction, "No changes were made. Run /tag all again with confirm set to true.");
       }
@@ -1854,9 +1855,13 @@ client.on(Events.InteractionCreate, async interaction => {
       let failed = 0;
       let processed = 0;
       const failures = [];
-      const targets = [...members.values()].filter(member => !member.user.bot && member.id !== interaction.guild.ownerId);
+      const targets = [...members.values()].filter(member =>
+        !member.user.bot &&
+        member.id !== interaction.guild.ownerId &&
+        member.roles.cache.has(selectedRole.id)
+      );
 
-      await interaction.editReply("🏷️ Starting PX ϟ tagging for **" + targets.length + "** eligible members. Discord will decide which nicknames the bot is permitted to edit.");
+      await interaction.editReply("🏷️ Starting PX ϟ tagging for **" + targets.length + "** members with " + selectedRole.toString() + ". Members without that role will not be changed.");
       for (const member of targets) {
         processed++;
         const currentName = member.nickname || member.user.globalName || member.user.username;
@@ -1867,9 +1872,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
         const nextName = (prefix + currentName).slice(0, 32);
         try {
-          // Do not pre-skip using cached hierarchy/manageable flags. Attempt the API
-          // call for every eligible member and let Discord return the authoritative result.
-          await member.setNickname(nextName, "Apply the PX ϟ server-wide member tag");
+          await member.setNickname(nextName, "Apply the PX ϟ team tag to members with role " + selectedRole.name);
           changed++;
         } catch (error) {
           failed++;
@@ -1880,7 +1883,7 @@ client.on(Events.InteractionCreate, async interaction => {
         }
 
         if (processed % 10 === 0 || processed === targets.length) {
-          await interaction.editReply("🏷️ **PX ϟ tagging in progress**\nProcessed: **" + processed + "/" + targets.length + "**\nChanged: **" + changed + "** • Already tagged: **" + alreadyTagged + "** • Discord rejected: **" + failed + "**");
+          await interaction.editReply("🏷️ **PX ϟ team tagging in progress**\nRole: " + selectedRole.toString() + "\nProcessed: **" + processed + "/" + targets.length + "**\nChanged: **" + changed + "** • Already tagged: **" + alreadyTagged + "** • Discord rejected: **" + failed + "**");
         }
       }
 
@@ -1891,7 +1894,7 @@ client.on(Events.InteractionCreate, async interaction => {
       const detailsText = failureDetails.length
         ? "\n\n**Members Discord would not let me edit:**\n" + failureDetails.join("\n") + moreFailures
         : "";
-      const result = "✅ **PX ϟ tagging finished**\nChanged: **" + changed + "**\nAlready tagged: **" + alreadyTagged + "**\nDiscord rejected: **" + failed + "**\nBots and the server owner were excluded." + detailsText;
+      const result = "✅ **PX ϟ team tagging finished**\nRole: " + selectedRole.toString() + "\nEligible members: **" + targets.length + "**\nChanged: **" + changed + "**\nAlready tagged: **" + alreadyTagged + "**\nDiscord rejected: **" + failed + "**\nMembers without the selected role were untouched; bots and the server owner were excluded." + detailsText;
       return interaction.editReply(result.slice(0, 1950));
     }
 
