@@ -2796,7 +2796,7 @@ client.on(Events.MessageCreate, async message => {
     if (["warn","warnings","clear-warnings"].includes(command)) {
       if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
       if (command === "warn" && args[0]?.toLowerCase() === "remove") {
-        const targetId = mentionedId(args[1]) || (args[1] && /^\\d{17,20}$/.test(args[1]) ? args[1] : null);
+        const targetId = mentionedId(args[1]) || (args[1] && /^\d{17,20}$/.test(args[1]) ? args[1] : null);
         if (!targetId) return fail("Usage: " + prefix + "warn remove @member [warning-id]");
         const rows = config.warnings.filter(row => row.memberId === targetId);
         if (!rows.length) return fail("That member has no recorded warnings.");
@@ -2832,7 +2832,7 @@ client.on(Events.MessageCreate, async message => {
         return send("⚠️ WARNING ISSUED", target.toString() + " now has **" + config.warnings.filter(row => row.memberId === target.id).length + "** active warning(s). Case #" + item.id + ".");
       }
       const rows = config.warnings.filter(row => row.memberId === target.id);
-      if (command === "warnings") return send("✦ MEMBER WARNINGS", rows.length ? rows.slice(0, 15).map(row => "• **#" + row.id + "** " + row.reason + " — <t:" + Math.floor(new Date(row.timestamp).getTime()/1000) + ":R>").join("\\n") : "No warnings recorded.");
+      if (command === "warnings") return send("✦ MEMBER WARNINGS", rows.length ? rows.slice(0, 15).map(row => "• **#" + row.id + "** " + row.reason + " — <t:" + Math.floor(new Date(row.timestamp).getTime()/1000) + ":R>").join("\n") : "No warnings recorded.");
       if (!rows.length) return fail("That member has no recorded warnings.");
       config.warnings = config.warnings.filter(row => row.memberId !== target.id);
       addPrefixCase("CLEAR_WARNINGS", target.id, "Cleared " + rows.length + " warnings");
@@ -3041,7 +3041,7 @@ client.on(Events.MessageCreate, async message => {
     if (command === "clear-reactions") {
       if (!modPermission(PermissionFlagsBits.ManageMessages)) return fail("You need Manage Messages or Administrator.");
       const id = args[0];
-      if (!id || !/^\\d{17,20}$/.test(id)) return fail("Usage: " + prefix + "clear-reactions <message-id>");
+      if (!id || !/^\d{17,20}$/.test(id)) return fail("Usage: " + prefix + "clear-reactions <message-id>");
       const targetMessage = await message.channel.messages.fetch(id).catch(() => null);
       if (!targetMessage) return fail("Message not found in this channel.");
       await targetMessage.reactions.removeAll();
