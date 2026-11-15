@@ -373,6 +373,9 @@ const commands = [
     .addStringOption(o=>o.setName("topic").setDescription("New topic").setMaxLength(1024).setRequired(true)),
 
 
+  new SlashCommandBuilder().setName("antinuke").setDescription("View and run Paradox • Core anti-nuke protection.")
+    .addSubcommand(sc=>sc.setName("status").setDescription("View active anti-nuke protections and backup status."))
+    .addSubcommand(sc=>sc.setName("backup-now").setDescription("Create an immediate channel-configuration backup.")),
   new SlashCommandBuilder().setName("message-archive").setDescription("Export archived messages from a channel (two-owner access only).")
     .addSubcommand(sc=>sc.setName("export").setDescription("Export the last seven days of archived messages.")
       .addStringOption(o=>o.setName("channel_id").setDescription("Channel ID to export").setRequired(true))
