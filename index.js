@@ -8,7 +8,7 @@ import path from "node:path";
 import { startDashboard } from "./dashboard.js";
 import { joinVoiceChannel, VoiceConnectionStatus, entersState, getVoiceConnection } from "@discordjs/voice";
 import { setupMusic, handleMusicInteraction, handleMusicPrefix } from "./music.js";
-import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady } from "./recruitment.js";
+import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot } from "./recruitment.js";
 
  
 // Discord does not support loading custom fonts, so use Unicode sans-serif bold
@@ -2428,6 +2428,55 @@ client.on(Events.MessageCreate, async message => {
   });
   const fail = text => send("⚠️ Command error", text);
   try {
+    if (command === "backup") {
+      if (!BotOwner(message.author.id)) return fail("This backup command is restricted to the bot owner.");
+      await saveDatabase();
+      const volumeFiles = [];
+      async function collectBackupFiles(directory, relative = "") {
+        const entries = await fs.readdir(directory, { withFileTypes: true });
+        for (const entry of entries) {
+          const absolute = path.join(directory, entry.name);
+          const rel = path.join(relative, entry.name);
+          if (entry.isDirectory()) {
+            await collectBackupFiles(absolute, rel);
+          } else if (entry.isFile()) {
+            const stat = await fs.stat(absolute);
+            if (stat.size > 8 * 1024 * 1024) {
+              throw new Error("Volume file is larger than the safe Discord attachment limit: " + rel);
+            }
+            volumeFiles.push({
+              name: "volume-" + rel.replace(/[\\/]/g, "_"),
+              data: await fs.readFile(absolute)
+            });
+          }
+        }
+      }
+      await collectBackupFiles(DATA_DIR);
+      const files = volumeFiles.map(file => new AttachmentBuilder(file.data, { name: file.name }));
+      let databaseStatus = "PostgreSQL export unavailable.";
+      try {
+        const snapshot = await exportDatabaseSnapshot();
+        const dbBuffer = Buffer.from(JSON.stringify(snapshot, null, 2), "utf8");
+        if (dbBuffer.length > 8 * 1024 * 1024) {
+          throw new Error("PostgreSQL export exceeds the safe Discord attachment limit.");
+        }
+        files.push(new AttachmentBuilder(dbBuffer, { name: "paradoxplus-postgresql-backup.json" }));
+        databaseStatus = "PostgreSQL tables and rows exported.";
+      } catch (error) {
+        files.push(new AttachmentBuilder(Buffer.from(String(error.message || error), "utf8"), {
+          name: "postgres-backup-status.txt"
+        }));
+      }
+      if (!files.length) return fail("No volume files were found to back up.");
+      await message.author.send({
+        content: "PARADOX • CORE BACKUP\\nPersistent volume files: " + volumeFiles.length +
+          "\\nDatabase: " + databaseStatus +
+          "\\nCreated: " + new Date().toISOString() +
+          "\\nKeep these files somewhere outside Railway. Environment variables and Discord tokens are intentionally excluded.",
+        files
+      });
+      return send("✦ BACKUP SENT", "Your backup files have been sent to your Discord DMs. Check that the attachments arrived and save them outside Railway.");
+    }
     if (await handleMusicPrefix(message, command, args, client)) return;
     if (command === "afk") {
       if (args[0]?.toLowerCase() === "off" || args[0]?.toLowerCase() === "remove") {
