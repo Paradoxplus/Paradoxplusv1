@@ -772,6 +772,62 @@ async function syncMemberCounter(guild) {
   return memberCounterSync;
 }
 
+// Paradox • Core is a bot-managed security role: only this bot may grant it.
+const CORE_ROLE_NAME = "Paradox • Core";
+const CORE_ROLE_GUILD_ID = "1568943817762017400";
+const coreRoleChecks = new Set();
+
+client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+  if (newMember.guild.id !== CORE_ROLE_GUILD_ID) return;
+  const addedCoreRoles = newMember.roles.cache.filter(role =>
+    role.name === CORE_ROLE_NAME && !oldMember.roles.cache.has(role.id)
+  );
+  for (const role of addedCoreRoles.values()) {
+    const checkKey = newMember.id + ":" + role.id;
+    if (coreRoleChecks.has(checkKey)) continue;
+    coreRoleChecks.add(checkKey);
+    try {
+      let executor = null;
+      for (let attempt = 0; attempt < 6 && !executor; attempt++) {
+        const logs = await newMember.guild.fetchAuditLogs({
+          type: AuditLogEvent.MemberRoleUpdate,
+          limit: 10
+        }).catch(error => {
+          console.warn("[CoreRoleGuard] Audit log lookup failed:", error.message);
+          return null;
+        });
+        const entry = logs?.entries.find(item =>
+          item.target?.id === newMember.id &&
+          Date.now() - item.createdTimestamp < 15000
+        );
+        if (entry?.executor?.id) executor = entry.executor;
+        if (!executor && attempt < 5) await new Promise(resolve => setTimeout(resolve, 700));
+      }
+
+      if (executor?.id === client.user.id) {
+        console.log("[CoreRoleGuard] Bot-authorized assignment accepted for", newMember.id);
+        continue;
+      }
+
+      const freshMember = await newMember.guild.members.fetch(newMember.id).catch(() => null);
+      if (freshMember?.roles.cache.has(role.id)) {
+        await freshMember.roles.remove(role.id, executor
+          ? "Paradox • Core is restricted to bot-only assignment; unauthorized grant reverted."
+          : "Paradox • Core is restricted to bot-only assignment; grant actor could not be verified.");
+      }
+      console.warn("[CoreRoleGuard] Reverted unauthorized Paradox • Core grant.", {
+        memberId: newMember.id,
+        executorId: executor?.id ?? null,
+        roleId: role.id
+      });
+    } catch (error) {
+      console.error("[CoreRoleGuard] Could not revert unauthorized role grant:", error);
+    } finally {
+      coreRoleChecks.delete(checkKey);
+    }
+  }
+});
+
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   const config = getGuildConfig(newMember.guild.id);
   if (!Array.isArray(config.permanentMutes)) config.permanentMutes = [];
@@ -1379,7 +1435,7 @@ client.on(Events.InteractionCreate, async interaction => {
       const subcommand = interaction.options.getSubcommand();
       if (subcommand !== "export") return replyError(interaction, "Unknown message archive action.");
       const channelId = interaction.options.getString("channel_id", true).trim();
-      if (!/^\\d{17,20}$/.test(channelId)) return replyError(interaction, "Enter a valid Discord channel ID.");
+      if (!/^\d{17,20}$/.test(channelId)) return replyError(interaction, "Enter a valid Discord channel ID.");
       const deletedOnly = interaction.options.getBoolean("deleted_only") ?? false;
       await interaction.deferReply({ ephemeral: true });
       try {
@@ -1408,9 +1464,9 @@ client.on(Events.InteractionCreate, async interaction => {
           }
           lines.push("");
         }
-        let transcript = lines.join("\\n");
+        let transcript = lines.join("\n");
         if (Buffer.byteLength(transcript, "utf8") > 7_500_000) {
-          transcript = transcript.slice(0, 7_000_000) + "\\n[Export truncated to fit Discord's file upload limit.]";
+          transcript = transcript.slice(0, 7_000_000) + "\n[Export truncated to fit Discord upload limit.]";
         }
         const file = new AttachmentBuilder(Buffer.from(transcript, "utf8"), {
           name: "paradox-message-archive-" + channelId + ".txt"
