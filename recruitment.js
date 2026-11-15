@@ -32,6 +32,28 @@ export async function initRecruitmentDatabase() {
     await pool.query("ALTER TABLE recruitment_records ADD COLUMN IF NOT EXISTS nickname_saved BOOLEAN NOT NULL DEFAULT FALSE");
     await pool.query("CREATE INDEX IF NOT EXISTS recruitment_records_guild_date_idx ON recruitment_records (guild_id, recruited_at DESC)");
     await pool.query("CREATE INDEX IF NOT EXISTS recruitment_records_recruiter_idx ON recruitment_records (guild_id, recruiter_id, recruited_at DESC)");
+    await pool.query(`CREATE TABLE IF NOT EXISTS message_archive (
+      message_id TEXT PRIMARY KEY,
+      guild_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      channel_name TEXT,
+      author_id TEXT,
+      author_tag TEXT,
+      content TEXT NOT NULL DEFAULT '',
+      attachments JSONB NOT NULL DEFAULT '[]'::jsonb,
+      embeds JSONB NOT NULL DEFAULT '[]'::jsonb,
+      stickers JSONB NOT NULL DEFAULT '[]'::jsonb,
+      created_at TIMESTAMPTZ,
+      edited_at TIMESTAMPTZ,
+      archived_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      deleted_at TIMESTAMPTZ,
+      message_url TEXT,
+      event_type TEXT NOT NULL DEFAULT 'create'
+    )`);
+    await pool.query("CREATE INDEX IF NOT EXISTS message_archive_guild_channel_date_idx ON message_archive (guild_id, channel_id, created_at DESC)");
+    await pool.query("CREATE INDEX IF NOT EXISTS message_archive_deleted_idx ON message_archive (guild_id, channel_id, deleted_at) WHERE deleted_at IS NOT NULL");
+    await pool.query("DELETE FROM message_archive WHERE archived_at < NOW() - INTERVAL '7 days'");
+
     ready = true;
     console.log("[Recruitment] PostgreSQL connected; recruitment tables are ready.");
     return true;
@@ -174,4 +196,99 @@ export async function exportDatabaseSnapshot() {
     exportedAt: new Date().toISOString(),
     tables
   };
+}
+
+
+function serializeArchivedMessage(message) {
+  return {
+    messageId: message.id,
+    guildId: message.guildId,
+    channelId: message.channelId,
+    channelName: message.channel?.name ?? null,
+    authorId: message.author?.id ?? null,
+    authorTag: message.author?.tag ?? message.author?.username ?? null,
+    content: typeof message.content === "string" ? message.content : "",
+    attachments: [...(message.attachments?.values?.() ?? [])].map(item => ({
+      id: item.id,
+      name: item.name ?? null,
+      url: item.url ?? null,
+      contentType: item.contentType ?? null,
+      size: item.size ?? null,
+      width: item.width ?? null,
+      height: item.height ?? null,
+      spoiler: Boolean(item.spoiler)
+    })),
+    embeds: [...(message.embeds ?? [])].map(embed => {
+      try { return embed.toJSON(); } catch { return {}; }
+    }),
+    stickers: [...(message.stickers?.values?.() ?? [])].map(sticker => ({
+      id: sticker.id,
+      name: sticker.name,
+      url: sticker.url ?? null
+    })),
+    createdAt: message.createdAt ?? null,
+    editedAt: message.editedAt ?? null,
+    messageUrl: message.url ?? null
+  };
+}
+
+export async function archiveDiscordMessage(message, eventType = "create") {
+  requireDatabase();
+  if (!message?.guildId || !message?.id) return false;
+  const data = serializeArchivedMessage(message);
+  if (eventType === "delete" && !message.author) {
+    const result = await pool.query(
+      "UPDATE message_archive SET deleted_at = NOW(), event_type = 'delete' WHERE message_id = $1 AND guild_id = $2",
+      [message.id, message.guildId]
+    );
+    return result.rowCount > 0;
+  }
+  await pool.query(
+    `INSERT INTO message_archive
+      (message_id, guild_id, channel_id, channel_name, author_id, author_tag, content, attachments, embeds, stickers, created_at, edited_at, archived_at, deleted_at, message_url, event_type)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11,$12,NOW(),CASE WHEN $13 = 'delete' THEN NOW() ELSE NULL END,$14,$13)
+     ON CONFLICT (message_id) DO UPDATE SET
+       channel_name = COALESCE(EXCLUDED.channel_name, message_archive.channel_name),
+       author_id = COALESCE(EXCLUDED.author_id, message_archive.author_id),
+       author_tag = COALESCE(EXCLUDED.author_tag, message_archive.author_tag),
+       content = CASE WHEN EXCLUDED.content <> '' THEN EXCLUDED.content ELSE message_archive.content END,
+       attachments = CASE WHEN EXCLUDED.attachments <> '[]'::jsonb THEN EXCLUDED.attachments ELSE message_archive.attachments END,
+       embeds = CASE WHEN EXCLUDED.embeds <> '[]'::jsonb THEN EXCLUDED.embeds ELSE message_archive.embeds END,
+       stickers = CASE WHEN EXCLUDED.stickers <> '[]'::jsonb THEN EXCLUDED.stickers ELSE message_archive.stickers END,
+       edited_at = COALESCE(EXCLUDED.edited_at, message_archive.edited_at),
+       deleted_at = CASE WHEN EXCLUDED.event_type = 'delete' THEN NOW() ELSE message_archive.deleted_at END,
+       message_url = COALESCE(EXCLUDED.message_url, message_archive.message_url),
+       event_type = EXCLUDED.event_type`,
+    [
+      data.messageId, data.guildId, data.channelId, data.channelName,
+      data.authorId, data.authorTag, data.content,
+      JSON.stringify(data.attachments), JSON.stringify(data.embeds),
+      JSON.stringify(data.stickers), data.createdAt, data.editedAt,
+      eventType, data.messageUrl
+    ]
+  );
+  return true;
+}
+
+export async function getArchivedChannelMessages(guildId, channelId, deletedOnly = false, limit = 1000) {
+  requireDatabase();
+  const safeLimit = Math.max(1, Math.min(1000, Number(limit) || 1000));
+  const result = await pool.query(
+    `SELECT message_id, author_id, author_tag, content, attachments, embeds, stickers,
+            created_at, edited_at, deleted_at, message_url
+     FROM message_archive
+     WHERE guild_id = $1 AND channel_id = $2
+       AND ($3::boolean = FALSE OR deleted_at IS NOT NULL)
+       AND archived_at >= NOW() - INTERVAL '7 days'
+     ORDER BY created_at ASC NULLS LAST
+     LIMIT $4`,
+    [guildId, channelId, deletedOnly, safeLimit]
+  );
+  return result.rows;
+}
+
+export async function pruneMessageArchive() {
+  requireDatabase();
+  const result = await pool.query("DELETE FROM message_archive WHERE archived_at < NOW() - INTERVAL '7 days'");
+  return result.rowCount;
 }
