@@ -1431,6 +1431,51 @@ client.on(Events.InteractionCreate, async interaction => {
   try {
     const config = getGuildConfig(interaction.guildId);
 
+    if (interaction.commandName === "antinuke") {
+      if (![ "1191997911144349738", BOT_OWNER_ID ].includes(interaction.user.id)) {
+        return replyError(interaction, "Only the designated Paradox • Core owners can manage anti-nuke tools.");
+      }
+      if (interaction.guildId !== "1568943817762017400") {
+        return replyError(interaction, "Anti-nuke controls are configured for the Paradoxplus main server only.");
+      }
+      const action = interaction.options.getSubcommand();
+      if (action === "status") {
+        const backupDir = path.join(DATA_DIR, "channel-backups", interaction.guildId);
+        let backupFiles = [];
+        try {
+          backupFiles = (await fs.readdir(backupDir)).filter(name => name.endsWith(".json"));
+        } catch (error) {
+          if (error.code !== "ENOENT") throw error;
+        }
+        const latestBackup = backupFiles.sort().at(-1) || null;
+        const status = new EmbedBuilder()
+          .setColor(0x6d5dfc)
+          .setTitle("PARADOX • CORE  /  ANTI-NUKE")
+          .setDescription("**Protection is active.** These safeguards run automatically; this command does not disable them.")
+          .addFields(
+            { name: "Unauthorized channel deletion", value: "Automatic recovery from the latest saved channel snapshot; identified unauthorized deleters are banned.", inline: false },
+            { name: "Paradox • Core role deletion", value: "Automatic role recreation and an attempted ban of the identified deleter.", inline: false },
+            { name: "Paradox • Core role assignment", value: "Unauthorized grants are reverted; the bot's own assignment is permitted.", inline: false },
+            { name: "Channel backups", value: backupFiles.length + " snapshot file(s) currently stored on the Railway app volume. Hourly backups are enabled.", inline: false },
+            { name: "Latest snapshot", value: latestBackup || "No snapshot file found.", inline: false }
+          )
+          .setFooter({ text: "PARADOX • CORE SECURITY" })
+          .setTimestamp();
+        return interaction.reply({ embeds: [status], ephemeral: true });
+      }
+      if (action === "backup-now") {
+        await interaction.deferReply({ ephemeral: true });
+        try {
+          await createGuildChannelBackup(interaction.guild, "manual /antinuke backup by " + interaction.user.id);
+          return interaction.editReply("✦ Manual channel-configuration backup completed successfully.");
+        } catch (error) {
+          console.error("[ANTI-NUKE] Manual backup failed:", error);
+          return interaction.editReply("The backup failed. Check the bot logs and Railway volume permissions.");
+        }
+      }
+      return replyError(interaction, "Unknown anti-nuke action.");
+    }
+
     if (interaction.commandName === "message-archive") {
       if (!["1191997911144349738", BOT_OWNER_ID].includes(interaction.user.id)) {
         return replyError(interaction, "Only the two designated Paradox • Core owners can export archived messages.");
