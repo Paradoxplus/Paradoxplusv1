@@ -1827,6 +1827,64 @@ client.on(Events.InteractionCreate, async interaction => {
       return interaction.reply({ content: "✅ Premium ticket portal published in " + targetChannel.toString() + ".", ephemeral: true });
     }
 
+    if (interaction.commandName === "tag") {
+      if (!isBotOwner(interaction.user.id)) {
+        return replyError(interaction, "Only the Paradox • Core bot owner can run a server-wide nickname tag.");
+      }
+      if (interaction.guildId !== "1568943817762017400") {
+        return replyError(interaction, "This command is configured for the Paradoxplus main server only.");
+      }
+      if (interaction.options.getSubcommand() !== "all") return;
+      if (!interaction.options.getBoolean("confirm", true)) {
+        return replyError(interaction, "No changes were made. Run /tag all again with confirm set to true.");
+      }
+
+      await interaction.deferReply({ ephemeral: true });
+      const prefix = "PX ϟ ";
+      let members;
+      try {
+        members = await interaction.guild.members.fetch();
+      } catch (error) {
+        console.error("[TagAll] Could not fetch all guild members:", error);
+        return interaction.editReply("I couldn't load the full member list. No nicknames were changed.");
+      }
+
+      const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
+      let changed = 0;
+      let alreadyTagged = 0;
+      let skipped = 0;
+      let failed = 0;
+      let processed = 0;
+      const targets = [...members.values()].filter(member => !member.user.bot && member.id !== interaction.guild.ownerId);
+
+      await interaction.editReply("🏷️ Starting PX ϟ tagging for **" + targets.length + "** eligible members. This may take a while because Discord rate-limits nickname changes.");
+      for (const member of targets) {
+        processed++;
+        const currentName = member.nickname || member.user.globalName || member.user.username;
+        if (currentName.startsWith(prefix)) {
+          alreadyTagged++;
+          continue;
+        }
+        if (!member.manageable || member.roles.highest.comparePositionTo(botMember.roles.highest) >= 0) {
+          skipped++;
+          continue;
+        }
+        const nextName = (prefix + currentName).slice(0, 32);
+        try {
+          await member.setNickname(nextName, "Apply the PX ϟ server-wide member tag");
+          changed++;
+        } catch (error) {
+          failed++;
+          console.error("[TagAll] Nickname update failed for " + member.id + ":", error.message);
+        }
+        if (processed % 20 === 0) {
+          await interaction.editReply("🏷️ **PX ϟ tagging in progress**\nProcessed: **" + processed + "/" + targets.length + "**\nChanged: **" + changed + "** • Already tagged: **" + alreadyTagged + "** • Skipped: **" + skipped + "** • Failed: **" + failed + "**");
+        }
+      }
+
+      return interaction.editReply("✅ **PX ϟ tagging finished**\nChanged: **" + changed + "**\nAlready tagged: **" + alreadyTagged + "**\nSkipped (role hierarchy/permissions): **" + skipped + "**\nFailed: **" + failed + "**\nBots and the server owner were excluded.");
+    }
+
     if (interaction.commandName === "prefix") {
       if (!isBotOwner(interaction.user.id) && !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) && !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) return replyError(interaction, "You need Manage Server or Administrator to change the prefix.");
       const nextPrefix = interaction.options.getString("new_prefix", true).trim();
