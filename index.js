@@ -964,7 +964,7 @@ async function createGuildChannelBackup(guild, reason = "hourly") {
     guildName: guild.name,
     createdAt: new Date().toISOString(),
     reason,
-    channels: [...channels.values()].map(channel => ({
+    channels: [...channels.values()].filter(channel => channel && typeof channel.id === "string").map(channel => ({
       id: channel.id,
       name: channel.name,
       type: channel.type,
@@ -979,7 +979,7 @@ async function createGuildChannelBackup(guild, reason = "hourly") {
       videoQualityMode: channel.videoQualityMode ?? null,
       defaultAutoArchiveDuration: channel.defaultAutoArchiveDuration ?? null,
       defaultThreadRateLimitPerUser: channel.defaultThreadRateLimitPerUser ?? null,
-      permissionOverwrites: channel.permissionOverwrites?.cache?.map(overwrite => ({
+      permissionOverwrites: channel.permissionOverwrites?.cache?.filter(overwrite => overwrite && typeof overwrite.id === "string").map(overwrite => ({
         id: overwrite.id,
         type: overwrite.type,
         allow: overwrite.allow.bitfield.toString(),
