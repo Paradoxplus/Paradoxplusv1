@@ -1888,7 +1888,7 @@ client.on(Events.InteractionCreate, async interaction => {
       }
       const missingRoles = Object.values(SELF_ROLE_MAP).filter(roleId => !interaction.guild.roles.cache.has(roleId));
       if (missingRoles.length) return replyError(interaction, "One or more configured self-roles no longer exist: " + missingRoles.join(", "));
-      const content = "# **<a:rflx_s:1571536117042258100> <a:rflx_e:1571536117147115621> <a:rflx_l:1571536117457494047> <a:rflx_f:1571536117088657509>   <a:rflx_r:1492771876882092043> <a:rflx_o:1492771893860630580> <a:rflx_l:1492756806328520765> <a:rflx_e:1492771918292586607> <a:rflx_s:1492771885769949214> **\n\n" +
+      const content = "# **<a:rflx_s:1571536117042258100> <a:rflx_e:1571536117147115621> <a:rflx_l:1571536117457494047> <a:rflx_f:1571536117088657509>   <a:rflx_r:1571536117067419852> <a:rflx_o:1571536117025476718> <a:rflx_l:1571536117457494047> <a:rflx_e:1571536117147115621> <a:rflx_s:1571536117042258100> **\n\n" +
         "<:ou_clown:1569290049588039721> <:arrow_yellow:1571561291640742010> [ <@&1568943817762017406> ]\n" +
         "<:yt:1569261094244196392> <:arrow_yellow:1571561291640742010> [ <@&1568943817762017405> ]\n" +
         "<a:RedCrown:1571561291712168038> <:arrow_yellow:1571561291640742010> [ <@&1568943817762017404> ]";
