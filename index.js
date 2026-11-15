@@ -8,7 +8,7 @@ import path from "node:path";
 import { startDashboard } from "./dashboard.js";
 import { joinVoiceChannel, VoiceConnectionStatus, entersState, getVoiceConnection } from "@discordjs/voice";
 import { setupMusic, handleMusicInteraction, handleMusicPrefix } from "./music.js";
-import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot } from "./recruitment.js";
+import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot, importDatabaseSnapshot } from "./recruitment.js";
 
  
 // Discord does not support loading custom fonts, so use Unicode sans-serif bold
@@ -2476,6 +2476,49 @@ client.on(Events.MessageCreate, async message => {
         files
       });
       return send("✦ BACKUP SENT", "Your backup files have been sent to your Discord DMs. Check that the attachments arrived and save them outside Railway.");
+    }
+    if (command === "restore") {
+      if (!isBotOwner(message.author.id)) return fail("This restore command is restricted to the bot owner.");
+      if ((args[0] || "").toLowerCase() !== "confirm") return fail("This replaces the new bot configuration and clears the recruitment_records table before importing the backup. Use " + prefix + "restore confirm with both backup attachments, and only on the NEW Railway database.");
+      const attachments = [...message.attachments.values()];
+      if (!attachments.length) return fail("Attach the backup files to this message and run " + prefix + "restore confirm. Include volume-guild-config.json and paradoxplus-postgresql-backup.json.");
+      const maxBytes = 8 * 1024 * 1024;
+      const parsedFiles = [];
+      for (const attachment of attachments) {
+        if (attachment.size > maxBytes) return fail("Backup attachment is too large: " + attachment.name);
+        const response = await fetch(attachment.url);
+        if (!response.ok) return fail("Could not download backup attachment: " + attachment.name);
+        const buffer = Buffer.from(await response.arrayBuffer());
+        if (buffer.length > maxBytes) return fail("Backup attachment exceeded the size limit: " + attachment.name);
+        parsedFiles.push({ name: attachment.name, buffer });
+      }
+      const configFile = parsedFiles.find(file => file.name === "volume-guild-config.json");
+      const databaseFile = parsedFiles.find(file => file.name === "paradoxplus-postgresql-backup.json");
+      if (!configFile || !databaseFile) return fail("Both required files are missing. Attach volume-guild-config.json and paradoxplus-postgresql-backup.json together.");
+      let restoredConfig, snapshot;
+      try {
+        restoredConfig = JSON.parse(configFile.buffer.toString("utf8"));
+        snapshot = JSON.parse(databaseFile.buffer.toString("utf8"));
+      } catch {
+        return fail("One of the backup files is not valid JSON. Nothing was restored.");
+      }
+      if (!restoredConfig || typeof restoredConfig !== "object" || !restoredConfig.guilds || typeof restoredConfig.guilds !== "object" || Array.isArray(restoredConfig.guilds)) return fail("The volume backup does not contain a valid Paradoxplus guild configuration.");
+      if (!isRecruitmentDatabaseReady()) return fail("PostgreSQL is not connected. Set DATABASE_URL on the new Railway bot service first.");
+      const configPath = path.join(DATA_DIR, "guild-config.json");
+      const tempPath = configPath + ".restore.tmp";
+      try {
+        const dbResult = await importDatabaseSnapshot(snapshot);
+        await fs.mkdir(DATA_DIR, { recursive: true });
+        await fs.writeFile(tempPath, JSON.stringify(restoredConfig, null, 2), "utf8");
+        await fs.rename(tempPath, configPath);
+        database = restoredConfig;
+        await saveDatabase();
+        return send("✦ RESTORE COMPLETE", "Restored " + Object.keys(restoredConfig.guilds).length + " server configuration(s) and " + dbResult.restored + " recruitment database record(s). Restart the Railway bot service once to finish loading the restored state.");
+      } catch (error) {
+        await fs.rm(tempPath, { force: true }).catch(() => {});
+        console.error("[Restore] Backup restore failed:", error);
+        return fail("Restore failed: " + String(error.message || error).slice(0, 900) + ". Check Railway logs before retrying.");
+      }
     }
     if (await handleMusicPrefix(message, command, args, client)) return;
     if (command === "afk") {
