@@ -2387,6 +2387,7 @@ client.on(Events.MessageCreate, async message => {
   if (!message.content.startsWith(prefix)) return;
   const args = message.content.slice(prefix.length).trim().split(/\s+/);
   let command = (args.shift() || "").toLowerCase();
+  if (command === "si") command = "serverinfo";
   if (command === "role") {
     const subcommand = (args.shift() || "").toLowerCase();
     if (subcommand === "add" || subcommand === "give") command = "role-add";
