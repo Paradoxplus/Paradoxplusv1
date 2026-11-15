@@ -945,13 +945,16 @@ client.on(Events.GuildMemberAdd, async member => {
   const embed = new EmbedBuilder()
     .setColor(0x7c5cff)
     .setAuthor({ name: "Paradoxplus", iconURL: client.user.displayAvatarURL() })
-    .setTitle("✦ WELCOME TO PARADOXX")
+.setTitle("<:ht3:1571185139512246385> Welcome " + member.toString() + " to " + member.guild.name + " ! <:ht3:1571185139512246385>")
     .setDescription(
-      "A new legend just entered the realm.\n\n" +
-      "Welcome aboard, " + member.toString() + "!\n" +
-      "You're our **" + count.toLocaleString() + getOrdinalSuffix(count) + " member**.\n\n" +
-      "Make yourself at home, meet the community, and enjoy your stay.\n\n" +
-      "╰┈➤ **PARADOXX • WHERE LEGENDS CONNECT**"
+      "**Hey there " + member.toString() + "**\n" +
+      "**We're hyped to have you here — enjoy your stay!**\n\n" +
+      "> - <:bluearrow:1571185142616170496> [relations]()\n" +
+      "> - <:bluearrow:1571185142616170496> [war logs]()\n" +
+      "> - <:bluearrow:1571185142616170496> [rosters]()\n" +
+      "> - <:bluearrow:1571185142616170496> [tvt]()\n" +
+      "> - <:bluearrow:1571185142616170496> [clowns]()\n" +
+      "> - <:bluearrow:1571185142616170496> [memories]()"
     )
     .setThumbnail(member.user.displayAvatarURL({ extension: "png", size: 256 }))
     .setImage(bannerUrl)
@@ -3285,13 +3288,16 @@ client.on(Events.MessageCreate, async message => {
         const embed = new EmbedBuilder()
           .setColor(0x7c5cff)
           .setAuthor({ name: "Paradoxplus", iconURL: client.user.displayAvatarURL() })
-          .setTitle("✦ WELCOME TO PARADOXX")
+          .setTitle("<:ht3:1571185139512246385> Welcome " + message.member.toString() + " to " + message.guild.name + " ! <:ht3:1571185139512246385>")
           .setDescription(
-            "A new legend just entered the realm.\n\n" +
-            "Welcome aboard, " + message.member.toString() + "!\n" +
-            "You're our **" + count.toLocaleString() + getOrdinalSuffix(count) + " member**.\n\n" +
-            "Make yourself at home, meet the community, and enjoy your stay.\n\n" +
-            "╰┈➤ **PARADOXX • WHERE LEGENDS CONNECT**"
+            "**Hey there " + message.member.toString() + "**\n" +
+            "**We're hyped to have you here — enjoy your stay!**\n\n" +
+            "> - <:bluearrow:1571185142616170496> [relations]()\n" +
+            "> - <:bluearrow:1571185142616170496> [war logs]()\n" +
+            "> - <:bluearrow:1571185142616170496> [rosters]()\n" +
+            "> - <:bluearrow:1571185142616170496> [tvt]()\n" +
+            "> - <:bluearrow:1571185142616170496> [clowns]()\n" +
+            "> - <:bluearrow:1571185142616170496> [memories]()"
           )
           .setThumbnail(message.author.displayAvatarURL({ extension: "png", size: 256 }))
           .setImage(bannerUrl)
