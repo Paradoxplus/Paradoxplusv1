@@ -2796,35 +2796,37 @@ client.on(Events.MessageCreate, async message => {
     if (["warn","warnings","clear-warnings"].includes(command)) {
       if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
       if (command === "warn" && args[0]?.toLowerCase() === "remove") {
-        const targetId = mentionedId(args[1]) || (args[1] && /^\d{17,20}$/.test(args[1]) ? args[1] : null);
-        if (!targetId) return fail("Usage: " + prefix + "warn remove @member [warning-id]");
-        const rows = config.warnings.filter(row => row.memberId === targetId);
-        if (!rows.length) return fail("That member has no recorded warnings.");
-        const requestedId = args[2] === undefined ? null : Number(args[2]);
-        if (args[2] !== undefined && (!Number.isSafeInteger(requestedId) || requestedId < 1)) {
+        const issuedByMe = args[1]?.toLowerCase() === "issued";
+        const targetToken = issuedByMe ? args[2] : args[1];
+        const targetId = mentionedId(targetToken) || (targetToken && /^\d{17,20}$/.test(targetToken) ? targetToken : null);
+        if (!targetId) return fail("Usage: " + prefix + "warn remove @member [warning-id] OR " + prefix + "warn remove issued @member [warning-id]");
+        const requestedId = (issuedByMe ? args[3] : args[2]) === undefined ? null : Number(issuedByMe ? args[3] : args[2]);
+        if (requestedId !== null && (!Number.isSafeInteger(requestedId) || requestedId < 1)) {
           return fail("Warning ID must be a positive number. Use " + prefix + "warnings @member to see warning IDs.");
         }
+        const rows = config.warnings.filter(row => row.memberId === targetId && (!issuedByMe || row.moderatorId === message.author.id));
+        if (!rows.length) return fail(issuedByMe ? "You have not issued any active warnings to that member." : "That member has no recorded warnings.");
         if (requestedId !== null) {
-          const index = config.warnings.findIndex(row => row.memberId === targetId && Number(row.id) === requestedId);
-          if (index === -1) return fail("Warning #" + requestedId + " was not found for that member. Use " + prefix + "warnings @member to see their warning IDs.");
+          const index = config.warnings.findIndex(row => row.memberId === targetId && (!issuedByMe || row.moderatorId === message.author.id) && Number(row.id) === requestedId);
+          if (index === -1) return fail("Warning #" + requestedId + " was not found in the selected warnings. Use " + prefix + "warnings @member to see warning IDs.");
           const [removed] = config.warnings.splice(index, 1);
-          addPrefixCase("REMOVE_WARNING", targetId, "Removed warning #" + requestedId + ": " + removed.reason);
+          addPrefixCase("REMOVE_WARNING", targetId, "Removed warning #" + requestedId + (issuedByMe ? " issued by " + message.author.id : "") + ": " + removed.reason);
           await saveDatabase();
           return send("✦ WARNING REMOVED", "Removed warning **#" + requestedId + "** from <@" + targetId + ">. They now have **" + config.warnings.filter(row => row.memberId === targetId).length + "** active warning(s).");
         }
-        config.warnings = config.warnings.filter(row => row.memberId !== targetId);
-        addPrefixCase("CLEAR_WARNINGS", targetId, "Removed all " + rows.length + " warnings");
+        config.warnings = config.warnings.filter(row => !(row.memberId === targetId && (!issuedByMe || row.moderatorId === message.author.id)));
+        addPrefixCase(issuedByMe ? "REMOVE_OWN_ISSUED_WARNINGS" : "CLEAR_WARNINGS", targetId, "Removed " + rows.length + (issuedByMe ? " warnings issued by " + message.author.id : " warnings"));
         await saveDatabase();
-        return send("✦ WARNINGS CLEARED", "Removed **all " + rows.length + "** warning(s) from <@" + targetId + ">.");
+        return send(issuedByMe ? "✦ YOUR WARNINGS REMOVED" : "✦ WARNINGS CLEARED", "Removed **" + rows.length + "** warning(s) from <@" + targetId + ">." + (issuedByMe ? " Only warnings you issued were removed." : ""));
       }
       const target = await prefixTarget(args[0]);
       if (!target) return fail("Usage: " + prefix + command + " @member [reason]");
       const actor = message.member;
-      if (target.id === message.author.id || !canActOnTarget(actor, target, message.guild)) return fail("You cannot moderate a member with an equal or higher role.");
+      if (command === "warn" && (target.id === message.author.id || !canActOnTarget(actor, target, message.guild))) return fail("You cannot warn yourself or a member with an equal or higher role.");
       if (command === "warn") {
         const reason = args.slice(1).join(" ").trim();
         if (!reason) return fail("Usage: " + prefix + "warn @member <reason>");
-        const warning = { id: config.warnings.length + 1, memberId: target.id, moderatorId: message.author.id, reason, timestamp: new Date().toISOString() };
+        const warning = { id: config.warnings.reduce((max, row) => Math.max(max, Number(row.id) || 0), 0) + 1, memberId: target.id, moderatorId: message.author.id, reason, timestamp: new Date().toISOString() };
         config.warnings.unshift(warning);
         const item = addPrefixCase("WARN", target.id, reason);
         warning.caseId = item.id;
