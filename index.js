@@ -3232,9 +3232,14 @@ client.on(Events.MessageCreate, async message => {
   } else if (command === "addrole" || command === "giverole") command = "role-add";
   else if (command === "removerole" || command === "takerole") command = "role-remove";
   if (!command) return;
-  const send = (title, description) => message.reply({
+  // Do not create a Discord message reference here: the command message may
+  // have been deleted by moderation before this response is sent.
+  const send = (title, description) => message.channel.send({
     embeds: [prefixEmbed(title, description)],
     allowedMentions: { repliedUser: false, parse: [] }
+  }).catch(error => {
+    console.error("[PrefixCommand] Could not send command response:", error);
+    return null;
   });
   const fail = text => send("⚠️ Command error", text);
   try {
