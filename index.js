@@ -633,6 +633,117 @@ client.on(Events.GuildBanAdd, ban => {
   if (ban.guild?.id === ANTI_NUKE_GUILD_ID) void enforceRapidBanProtection(ban.guild, ban.user);
 });
 
+async function punishAntiNukeExecutor(guild, executorId, reason) {
+  if (!executorId || executorId === guild.ownerId || executorId === client.user.id || CHANNEL_SECURITY_OWNER_IDS.has(executorId)) {
+    if (executorId === guild.ownerId) console.error("[ANTI-NUKE] Server owner performed a protected action; Discord does not allow bots to ban the owner.");
+    return false;
+  }
+  try {
+    await guild.members.ban(executorId, { reason: "Paradox • Core anti-nuke: " + reason });
+    console.error("[ANTI-NUKE] Banned executor:", executorId, reason);
+    await notifyAntiNukeOwner(guild, "Banned <@" + executorId + "> for: " + reason);
+    return true;
+  } catch (error) {
+    console.error("[ANTI-NUKE] Failed to ban executor:", executorId, error);
+    await notifyAntiNukeOwner(guild, "Detected " + reason + " by <@" + executorId + ">, but Discord rejected the ban: " + String(error?.message || error).slice(0, 250));
+    return false;
+  }
+}
+
+function hasDangerousPermissions(permissions) {
+  return ANTI_NUKE_BOT_DANGEROUS_PERMISSIONS.some(permission => permissions.has(permission));
+}
+
+async function inspectRolePermissionEscalation(oldRole, newRole) {
+  const guild = newRole.guild;
+  if (guild.id !== ANTI_NUKE_GUILD_ID) return;
+  const newlyGranted = ANTI_NUKE_BOT_DANGEROUS_PERMISSIONS.filter(permission =>
+    !oldRole.permissions.has(permission) && newRole.permissions.has(permission)
+  );
+  if (!newlyGranted.length) return;
+  const entry = await findRecentAuditExecutor(guild, AuditLogEvent.RoleUpdate, newRole.id);
+  const executorId = entry?.executorId ?? null;
+  if (executorId === client.user.id || (executorId && CHANNEL_SECURITY_OWNER_IDS.has(executorId))) return;
+  try {
+    await newRole.setPermissions(oldRole.permissions.bitfield, "Anti-nuke: revert unauthorized dangerous role permission escalation");
+    console.error("[ANTI-NUKE] Reverted dangerous permissions on role:", newRole.id, "executor:", executorId);
+  } catch (error) {
+    console.error("[ANTI-NUKE] Failed to revert dangerous role permissions:", error);
+    await notifyAntiNukeOwner(guild, "A role gained dangerous permissions, but Paradox could not revert them. Role: " + newRole.id + "; executor: " + (executorId || "unknown"));
+  }
+  if (executorId) await punishAntiNukeExecutor(guild, executorId, "granting dangerous permissions to role " + newRole.name);
+  else await notifyAntiNukeOwner(guild, "A role gained dangerous permissions, but its audit-log executor could not be identified. Role: " + newRole.name);
+}
+
+client.on(Events.GuildRoleCreate, async role => {
+  if (role.guild.id !== ANTI_NUKE_GUILD_ID || !hasDangerousPermissions(role.permissions)) return;
+  const entry = await findRecentAuditExecutor(role.guild, AuditLogEvent.RoleCreate, role.id);
+  const executorId = entry?.executorId ?? null;
+  if (executorId === client.user.id || (executorId && CHANNEL_SECURITY_OWNER_IDS.has(executorId))) return;
+  try {
+    await role.delete("Anti-nuke: remove newly created role with dangerous permissions");
+    console.error("[ANTI-NUKE] Deleted newly created dangerous-permission role:", role.id);
+  } catch (error) {
+    console.error("[ANTI-NUKE] Failed to delete dangerous-permission role:", role.id, error);
+    await notifyAntiNukeOwner(role.guild, "A new role has dangerous permissions and could not be deleted. Role: " + role.name);
+  }
+  if (executorId) await punishAntiNukeExecutor(role.guild, executorId, "creating dangerous-permission role " + role.name);
+  else await notifyAntiNukeOwner(role.guild, "A dangerous-permission role was created, but its executor could not be identified: " + role.name);
+});
+
+client.on(Events.GuildRoleUpdate, (oldRole, newRole) => {
+  void inspectRolePermissionEscalation(oldRole, newRole).catch(error => console.error("[ANTI-NUKE] Role escalation handler failed:", error));
+});
+
+client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+  if (newMember.guild.id !== ANTI_NUKE_GUILD_ID) return;
+  const addedDangerousRoles = newMember.roles.cache.filter(role =>
+    !oldMember.roles.cache.has(role.id) && hasDangerousPermissions(role.permissions)
+  );
+  if (!addedDangerousRoles.size) return;
+  const entry = await findRecentAuditExecutor(newMember.guild, AuditLogEvent.MemberRoleUpdate, newMember.id);
+  const executorId = entry?.executorId ?? null;
+  if (executorId === client.user.id || (executorId && CHANNEL_SECURITY_OWNER_IDS.has(executorId))) return;
+  try {
+    await newMember.roles.remove([...addedDangerousRoles.keys()], "Anti-nuke: revert unauthorized assignment of dangerous-permission role");
+    console.error("[ANTI-NUKE] Removed dangerous role assignment from member:", newMember.id);
+  } catch (error) {
+    console.error("[ANTI-NUKE] Failed to remove dangerous role assignment:", error);
+    await notifyAntiNukeOwner(newMember.guild, "A member received a dangerous-permission role that Paradox could not remove. Member: " + newMember.id);
+  }
+  if (executorId) await punishAntiNukeExecutor(newMember.guild, executorId, "assigning dangerous role(s) to <@" + newMember.id + ">");
+  else await notifyAntiNukeOwner(newMember.guild, "A member received a dangerous-permission role, but the executor could not be identified. Member: " + newMember.id);
+});
+
+async function inspectMassKicks(guild) {
+  if (guild.id !== ANTI_NUKE_GUILD_ID) return;
+  const lockKey = guild.id + ":rapid-kick";
+  if (antiNukeActorLocks.has(lockKey)) return;
+  antiNukeActorLocks.add(lockKey);
+  try {
+    await new Promise(resolve => setTimeout(resolve, 800));
+    const logs = await guild.fetchAuditLogs({ type: AuditLogEvent.MemberKick, limit: 50 });
+    const cutoff = Date.now() - 12000;
+    const counts = new Map();
+    for (const entry of logs.entries.values()) {
+      if (entry.executorId && entry.createdTimestamp >= cutoff && entry.createdTimestamp <= Date.now() + 2000) {
+        counts.set(entry.executorId, (counts.get(entry.executorId) || 0) + 1);
+      }
+    }
+    const candidate = [...counts.entries()].find(([, count]) => count >= 3);
+    if (candidate) await punishAntiNukeExecutor(guild, candidate[0], "kicking " + candidate[1] + " members within 12 seconds");
+  } catch (error) {
+    console.error("[ANTI-NUKE] Mass-kick inspection failed:", error);
+    await notifyAntiNukeOwner(guild, "Mass-kick inspection failed: " + String(error?.message || error).slice(0, 250));
+  } finally {
+    antiNukeActorLocks.delete(lockKey);
+  }
+}
+
+client.on(Events.GuildMemberRemove, member => {
+  if (member.guild.id === ANTI_NUKE_GUILD_ID) void inspectMassKicks(member.guild);
+});
+
 async function inspectNewBot(member) {
   if (!member.user.bot || member.guild.id !== ANTI_NUKE_GUILD_ID) return false;
   const entry = await findRecentAuditExecutor(member.guild, AuditLogEvent.BotAdd, member.id);
