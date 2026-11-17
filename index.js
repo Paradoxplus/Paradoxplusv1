@@ -592,7 +592,7 @@ async function notifyAntiNukeOwner(guild, message) {
 
 async function enforceRapidBanProtection(guild, bannedUser) {
   if (guild.id !== ANTI_NUKE_GUILD_ID) return;
-  const lockKey = guild.id + ":ban:" + bannedUser.id;
+  const lockKey = guild.id + ":rapid-ban";
   if (antiNukeActorLocks.has(lockKey)) return;
   antiNukeActorLocks.add(lockKey);
   try {
