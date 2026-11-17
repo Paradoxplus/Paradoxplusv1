@@ -77,7 +77,7 @@ const DATA_DIR = path.resolve("data");
 const DATA_FILE = path.join(DATA_DIR, "guild-config.json");
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates],
   partials: [Partials.GuildMember, Partials.Message, Partials.Reaction, Partials.User, Partials.Channel]
 });
 
@@ -556,6 +556,103 @@ client.on(Events.GuildRoleUpdate, (oldRole, newRole) => {
 });
 const CHANNEL_SECURITY_OWNER_IDS = new Set(["1191997911144349738", BOT_OWNER_ID]);
 
+// Anti-nuke coverage for bot invitations and rapid member bans.
+const ANTI_NUKE_GUILD_ID = "1568943817762017400";
+const antiNukeActorLocks = new Set();
+const ANTI_NUKE_BOT_DANGEROUS_PERMISSIONS = [
+  PermissionFlagsBits.Administrator, PermissionFlagsBits.BanMembers,
+  PermissionFlagsBits.ManageGuild, PermissionFlagsBits.ManageRoles,
+  PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageWebhooks
+];
+
+async function findRecentAuditExecutor(guild, type, targetId, maxAgeMs = 45000) {
+  for (let attempt = 0; attempt < 7; attempt++) {
+    if (attempt) await new Promise(resolve => setTimeout(resolve, 650));
+    try {
+      const logs = await guild.fetchAuditLogs({ type, limit: 20 });
+      const entry = logs.entries.find(item => item.targetId === targetId &&
+        Date.now() - item.createdTimestamp >= 0 && Date.now() - item.createdTimestamp <= maxAgeMs);
+      if (entry?.executorId) return entry;
+    } catch (error) {
+      console.error("[ANTI-NUKE] Audit-log lookup failed:", error);
+      return null;
+    }
+  }
+  return null;
+}
+
+async function notifyAntiNukeOwner(guild, message) {
+  try {
+    const owner = await client.users.fetch(BOT_OWNER_ID);
+    await owner.send("🛡️ **Paradox • Core security alert**\nServer: " + guild.name + " (" + guild.id + ")\n" + message);
+  } catch (error) {
+    console.error("[ANTI-NUKE] Could not DM the configured bot owner:", error);
+  }
+}
+
+async function enforceRapidBanProtection(guild, bannedUser) {
+  if (guild.id !== ANTI_NUKE_GUILD_ID) return;
+  const lockKey = guild.id + ":ban:" + bannedUser.id;
+  if (antiNukeActorLocks.has(lockKey)) return;
+  antiNukeActorLocks.add(lockKey);
+  try {
+    await new Promise(resolve => setTimeout(resolve, 900));
+    const logs = await guild.fetchAuditLogs({ type: AuditLogEvent.MemberBanAdd, limit: 50 });
+    const cutoff = Date.now() - 12000;
+    const recent = [...logs.entries.values()].filter(entry =>
+      entry.targetId && entry.createdTimestamp >= cutoff &&
+      entry.createdTimestamp <= Date.now() + 2000 && entry.executorId
+    );
+    const counts = new Map();
+    for (const entry of recent) counts.set(entry.executorId, (counts.get(entry.executorId) || 0) + 1);
+    const candidate = [...counts.entries()].find(([, count]) => count >= 3);
+    if (!candidate) return;
+    const [executorId, count] = candidate;
+    if (executorId === guild.ownerId || executorId === client.user.id || CHANNEL_SECURITY_OWNER_IDS.has(executorId)) return;
+    const actor = await guild.members.fetch(executorId).catch(() => null);
+    if (!actor) {
+      await notifyAntiNukeOwner(guild, "Detected " + count + " bans in 12 seconds by user ID " + executorId + ", but the executor was no longer in the server.");
+      return;
+    }
+    if (!actor.bannable) {
+      await notifyAntiNukeOwner(guild, "Detected " + count + " bans in 12 seconds by <@" + executorId + ">, but Discord says the executor is not bannable. Check bot permissions and role hierarchy.");
+      return;
+    }
+    await actor.ban({ reason: "Paradox • Core anti-nuke: rapid mass-ban activity (" + count + " bans in 12 seconds)" });
+    console.error("[ANTI-NUKE] Banned rapid mass-ban executor:", executorId, "bans:", count);
+    await notifyAntiNukeOwner(guild, "Banned <@" + executorId + "> after detecting " + count + " bans in 12 seconds.");
+  } catch (error) {
+    console.error("[ANTI-NUKE] Rapid-ban protection failed:", error);
+    await notifyAntiNukeOwner(guild, "Rapid-ban detection encountered an error: " + String(error?.message || error).slice(0, 300));
+  } finally {
+    antiNukeActorLocks.delete(lockKey);
+  }
+}
+
+client.on(Events.GuildBanAdd, ban => {
+  if (ban.guild?.id === ANTI_NUKE_GUILD_ID) void enforceRapidBanProtection(ban.guild, ban.user);
+});
+
+async function inspectNewBot(member) {
+  if (!member.user.bot || member.guild.id !== ANTI_NUKE_GUILD_ID) return false;
+  const entry = await findRecentAuditExecutor(member.guild, AuditLogEvent.BotAdd, member.id);
+  const executorId = entry?.executorId ?? null;
+  const freshMember = await member.guild.members.fetch(member.id).catch(() => member);
+  const hasDangerousPermission = ANTI_NUKE_BOT_DANGEROUS_PERMISSIONS.some(permission => freshMember.permissions.has(permission));
+  console.warn("[ANTI-NUKE] New bot joined:", { botId: member.id, executorId, dangerousPermissions: hasDangerousPermission });
+  if (!hasDangerousPermission || member.id === client.user.id) return false;
+  try {
+    await member.guild.members.ban(member.id, { reason: "Paradox • Core anti-nuke: newly added bot had elevated server permissions" });
+    console.error("[ANTI-NUKE] Removed newly added bot with elevated permissions:", member.id);
+    await notifyAntiNukeOwner(member.guild, "Removed newly added bot <@" + member.id + "> because it had Administrator/moderation/server-management permissions. Added by: " + (executorId ? "<@" + executorId + ">." : "unknown (audit-log executor unavailable)."));
+  } catch (error) {
+    console.error("[ANTI-NUKE] Could not remove newly added privileged bot:", member.id, error);
+    await notifyAntiNukeOwner(member.guild, "A newly added bot <@" + member.id + "> had elevated permissions, but I could not ban it. Audit-log inviter: " + (executorId || "unknown") + ". Error: " + String(error?.message || error).slice(0, 250));
+  }
+  return true;
+}
+
+
 async function readLatestChannelBackup(guildId) {
   const backupDir = path.join(DATA_DIR, "channel-backups", guildId);
   const files = (await fs.readdir(backupDir).catch(() => []))
@@ -905,6 +1002,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   catch (error) { console.error("[PermanentMute] Failed to renew mute for", newMember.id, error); }
 });
 client.on(Events.GuildMemberAdd, async member => {
+  if (await inspectNewBot(member)) return;
   const config = getGuildConfig(member.guild.id);
   const autobanEntry = config.autobanList.find(entry => entry && entry.userId === member.id);
   if (autobanEntry) {
@@ -1137,6 +1235,16 @@ client.once(Events.ClientReady, async readyClient => {
   if (counterGuild) await syncMemberCounter(counterGuild).catch(error => console.error("[MemberCounter] Startup sync failed:", error));
   const rankGuild = await readyClient.guilds.fetch("1568943817762017400").catch(() => null);
   if (rankGuild) await syncRankRoles(rankGuild).catch(error => console.error("Initial rank-role auto-sync failed:", error));
+  if (rankGuild) {
+    const securityMember = await rankGuild.members.fetchMe().catch(() => null);
+    const required = [PermissionFlagsBits.ViewAuditLog, PermissionFlagsBits.BanMembers];
+    if (required.some(permission => !securityMember?.permissions.has(permission))) {
+      console.error("[ANTI-NUKE] CRITICAL: missing View Audit Log and/or Ban Members permission.");
+      await notifyAntiNukeOwner(rankGuild, "CRITICAL: missing View Audit Log and/or Ban Members permission. Anti-nuke detection/enforcement is impaired.");
+    } else {
+      console.log("[ANTI-NUKE] Audit-log and ban permissions verified at startup.");
+    }
+  }
   if (rankGuild) {
     const formerTrustedOwner = await rankGuild.members.fetch("1531335321537482903").catch(() => null);
     const coreRole = rankGuild.roles.cache.find(role => role.name === CORE_ROLE_NAME);
