@@ -1635,9 +1635,11 @@ setInterval(async () => {
 // Self-role reaction panel. Only the configured panel message in the main server is actionable.
 const SELF_ROLE_GUILD_ID = "1572968551973654528";
 const SELF_ROLE_MAP = {
-  "1569290049588039721": "1568943817762017406",
-  "1569261094244196392": "1568943817762017405",
-  "1571561291712168038": "1568943817762017404"
+  "🛡️": "1572968552208797698",
+  "🤡": "1572968552024121478",
+  "📤": "1572968552024121480",
+  "🧠": "1572968552024121479",
+  "⚔️": "1572968552024121481"
 };
 async function handleSelfRoleReaction(reaction, user, shouldAdd) {
   if (user.bot) return;
@@ -1647,7 +1649,7 @@ async function handleSelfRoleReaction(reaction, user, shouldAdd) {
     if (!message.guild || message.guild.id !== SELF_ROLE_GUILD_ID) return;
     const config = getGuildConfig(message.guild.id);
     if (!config.selfRolePanel || config.selfRolePanel.messageId !== message.id) return;
-    const roleId = SELF_ROLE_MAP[reaction.emoji.id];
+    const roleId = SELF_ROLE_MAP[reaction.emoji.id ?? reaction.emoji.name];
     if (!roleId) return;
     const role = message.guild.roles.cache.get(roleId) ?? await message.guild.roles.fetch(roleId).catch(() => null);
     if (!role) {
@@ -2284,23 +2286,27 @@ client.on(Events.InteractionCreate, async interaction => {
       }
       const missingRoles = Object.values(SELF_ROLE_MAP).filter(roleId => !interaction.guild.roles.cache.has(roleId));
       if (missingRoles.length) return replyError(interaction, "One or more configured self-roles no longer exist: " + missingRoles.join(", "));
-      const content = "# **<a:rflx_s:1571536117042258100> <a:rflx_e:1571536117147115621> <a:rflx_l:1571536117457494047> <a:rflx_f:1571536117088657509>   <a:rflx_r:1571536117067419852> <a:rflx_o:1571536117025476718> <a:rflx_l:1571536117457494047> <a:rflx_e:1571536117147115621> <a:rflx_s:1571536117042258100> **\n\n" +
-        "<:ou_clown:1569290049588039721> <:arrow_yellow:1571561291640742010> [ <@&1568943817762017406> ]\n" +
-        "<:yt:1569261094244196392> <:arrow_yellow:1571561291640742010> [ <@&1568943817762017405> ]\n" +
-        "<a:RedCrown:1571561291712168038> <:arrow_yellow:1571561291640742010> [ <@&1568943817762017404> ]";
+      const content = "# **SELF ROLES**\\n\\n" +
+        "🛡️ <:arrow_yellow:1571561291640742010> [ <@&1572968552208797698> ]\\n" +
+        "🤡 <:arrow_yellow:1571561291640742010> [ <@&1572968552024121478> ]\\n" +
+        "📤 <:arrow_yellow:1571561291640742010> [ <@&1572968552024121480> ]\\n" +
+        "🧠 <:arrow_yellow:1571561291640742010> [ <@&1572968552024121479> ]\\n" +
+        "⚔️ <:arrow_yellow:1571561291640742010> [ <@&1572968552024121481> ]";
       const panelEmbed = new EmbedBuilder()
         .setColor(0x7c5cff)
         .setDescription(content);
       await interaction.deferReply({ ephemeral: true });
       try {
         const panelMessage = await targetChannel.send({ embeds: [panelEmbed], allowedMentions: { parse: [] } });
-        await panelMessage.react("<:ou_clown:1569290049588039721>");
-        await panelMessage.react("<:yt:1569261094244196392>");
-        await panelMessage.react("<a:RedCrown:1571561291712168038>");
+        await panelMessage.react("🛡️");
+        await panelMessage.react("🤡");
+        await panelMessage.react("📤");
+        await panelMessage.react("🧠");
+        await panelMessage.react("⚔️");
         const config = getGuildConfig(interaction.guildId);
         config.selfRolePanel = { channelId: targetChannel.id, messageId: panelMessage.id, updatedAt: new Date().toISOString() };
         await saveDatabase();
-        return interaction.editReply("✅ Self-role panel published in " + targetChannel.toString() + ". Members can click the three emojis to add or remove their matching roles.");
+        return interaction.editReply("✅ Self-role panel published in " + targetChannel.toString() + ". Members can click any of the five emojis to add or remove the matching role.");
       } catch (error) {
         console.error("[SelfRoles] Could not publish panel:", error);
         return interaction.editReply("I couldn't publish the panel or add its reactions. Check the channel permissions and that the custom emojis are available to the bot.");
