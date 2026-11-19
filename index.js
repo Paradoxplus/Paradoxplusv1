@@ -137,6 +137,8 @@ function getGuildConfig(guildId) {
   if (!config.afkUsers || typeof config.afkUsers !== "object" || Array.isArray(config.afkUsers)) config.afkUsers = {};
   if (!Number.isInteger(config.recruitCount) || config.recruitCount < 0) config.recruitCount = 0;
   if (!Array.isArray(config.inactiveAppeals)) config.inactiveAppeals = [];
+  if (typeof config.recoveryReviewChannelId !== "string") config.recoveryReviewChannelId = null;
+  if (!Array.isArray(config.pendingDeletionApprovals)) config.pendingDeletionApprovals = [];
   if (typeof config.announceChannelId !== "string") config.announceChannelId = null;
   config.ranks.sort((a, b) => a.position - b.position);
   return config;
@@ -781,9 +783,9 @@ async function readLatestChannelBackup(guildId) {
   return null;
 }
 
-async function restoreDeletedChannel(channel) {
+async function restoreDeletedChannel(channel, selectedSnapshot = null) {
   const guild = channel.guild;
-  const snapshot = await readLatestChannelBackup(guild.id);
+  const snapshot = selectedSnapshot || await readLatestChannelBackup(guild.id);
   const saved = snapshot?.channels?.find(item => item.id === channel.id);
   if (!saved) {
     console.error("[CHANNEL-ANTI-NUKE] No saved channel record found for", channel.id);
@@ -1665,6 +1667,34 @@ client.on(Events.MessageReactionRemove, (reaction, user) => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
+  if (interaction.isButton() && interaction.customId.startsWith("px_delete_approval:")) {
+    if (!interaction.inGuild()) return interaction.reply({ content: "Server-only approval.", ephemeral: true });
+    if (interaction.user.id !== interaction.guild.ownerId && !isBotOwner(interaction.user.id)) return interaction.reply({ content: "Only the server owner or Paradox • Core owner can decide.", ephemeral: true });
+    const parts = interaction.customId.split(":");
+    const decision = parts[1], deletedChannelId = parts[2];
+    const cfg = getGuildConfig(interaction.guildId);
+    const pending = cfg.pendingDeletionApprovals.find(item => item.channelId === deletedChannelId && item.status === "pending");
+    if (!pending) return interaction.reply({ content: "This request has already been handled.", ephemeral: true });
+    const restored = await interaction.guild.channels.fetch(pending.restoredChannelId).catch(() => null);
+    if (decision === "accept") {
+      if (restored) await restored.delete("Deletion approved by " + interaction.user.tag);
+      pending.status = "approved"; pending.decidedBy = interaction.user.id; pending.decidedAt = new Date().toISOString();
+      await saveDatabase();
+      return interaction.update({ content: "Deletion approved. The recovered copy has been removed.", embeds: [], components: [] });
+    }
+    if (decision === "reject") {
+      pending.status = "rejected"; pending.decidedBy = interaction.user.id; pending.decidedAt = new Date().toISOString();
+      await saveDatabase();
+      let result = "The recovered channel remains available.";
+      if (pending.executorId && pending.executorId !== interaction.guild.ownerId && pending.executorId !== client.user.id) {
+        await interaction.guild.members.ban(pending.executorId, { reason: "Paradox • Core: deletion request rejected by server owner" })
+          .then(() => { result += " The requester was banned."; })
+          .catch(error => { result += " Ban failed: " + String(error.message || error).slice(0, 150); });
+      }
+      return interaction.update({ content: "Deletion rejected. " + result, embeds: [], components: [] });
+    }
+  }
+
   // Persistent giveaway entry button.
   if (interaction.isButton() && interaction.customId.startsWith("px_giveaway_enter:")) {
     if (!interaction.inGuild()) return interaction.reply({ content: "Giveaways can only be entered inside a server.", ephemeral: true });
@@ -1788,6 +1818,61 @@ client.on(Events.InteractionCreate, async interaction => {
 
   try {
     const config = getGuildConfig(interaction.guildId);
+
+    if (interaction.commandName === "recovery") {
+      if (interaction.user.id !== BOT_OWNER_ID && interaction.user.id !== interaction.guild.ownerId) return replyError(interaction, "Only the server owner or Paradox • Core owner can use Recovery Center.");
+      const action = interaction.options.getSubcommand();
+      if (action === "setup") {
+        const channel = interaction.options.getChannel("channel", true);
+        const me = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
+        if (!channel.permissionsFor(me)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) return replyError(interaction, "I need View Channel, Send Messages, and Embed Links in that review channel.");
+        config.recoveryReviewChannelId = channel.id; await saveDatabase();
+        return interaction.reply({ content: "Deletion approval requests will be sent to " + channel.toString() + ".", ephemeral: true });
+      }
+      if (action === "messages") {
+        const channelId = interaction.options.getString("channel_id", true).trim();
+        if (!/^\d{17,20}$/.test(channelId)) return replyError(interaction, "Invalid channel ID.");
+        const deletedOnly = interaction.options.getBoolean("deleted_only") ?? false;
+        const rows = await getArchivedChannelMessages(interaction.guildId, channelId, deletedOnly, 20);
+        if (!rows.length) return interaction.reply({ content: "No archived messages found.", ephemeral: true });
+        const body = rows.map(row => "**" + (row.deleted_at ? "DELETED" : "SAVED") + "** • " + row.message_id + " • " + (row.created_at ? new Date(row.created_at).toISOString() : "unknown date") + "\n" + String(row.content || "[no text]").replace(/\s+/g, " ").slice(0, 160)).join("\n\n");
+        return interaction.reply({ content: "**Recovery Center — archived messages**\n" + body, ephemeral: true });
+      }
+      if (action === "restore-message") {
+        const channelId = interaction.options.getString("channel_id", true).trim(), messageId = interaction.options.getString("message_id", true).trim();
+        if (!/^\d{17,20}$/.test(channelId) || !/^\d{17,20}$/.test(messageId)) return replyError(interaction, "Invalid Discord IDs.");
+        const rows = await getArchivedChannelMessages(interaction.guildId, channelId, false, 1000), row = rows.find(item => item.message_id === messageId);
+        if (!row) return replyError(interaction, "Message not found in the archive for that channel.");
+        const destination = await interaction.guild.channels.fetch(channelId).catch(() => null);
+        if (!destination || typeof destination.send !== "function") return replyError(interaction, "The original channel is unavailable. Restore it first.");
+        const parts = ["Recovered message • " + (row.author_tag || "Unknown author"), row.content || "[No text content archived]"];
+        for (const file of (Array.isArray(row.attachments) ? row.attachments : [])) if (file.url) parts.push("Attachment: " + (file.name || "file") + " — " + file.url);
+        const sent = await destination.send({ content: parts.join("\n").slice(0, 1950), allowedMentions: { parse: [] } });
+        return interaction.reply({ content: "Message replayed: " + sent.url, ephemeral: true });
+      }
+      const backupDir = path.join(DATA_DIR, "channel-backups", interaction.guildId);
+      const files = (await fs.readdir(backupDir).catch(() => [])).filter(file => file.endsWith(".json")).sort().reverse();
+      if (action === "backups") {
+        if (!files.length) return interaction.reply({ content: "No channel backups are available yet.", ephemeral: true });
+        return interaction.reply({ content: "**Available backups**\n" + files.slice(0, 20).join("\n"), ephemeral: true });
+      }
+      if (action === "restore-channel") {
+        const channelId = interaction.options.getString("channel_id", true).trim(), filename = interaction.options.getString("backup_file", true).trim();
+        if (!/^\d{17,20}$/.test(channelId) || !/^[a-zA-Z0-9_-]+\.json$/.test(filename) || !files.includes(filename)) return replyError(interaction, "Invalid channel ID or backup filename. Use /recovery backups.");
+        const snapshot = JSON.parse(await fs.readFile(path.join(backupDir, filename), "utf8"));
+        if (snapshot.guildId !== interaction.guildId || !Array.isArray(snapshot.channels)) return replyError(interaction, "Backup does not belong to this server.");
+        const saved = snapshot.channels.find(item => item.id === channelId);
+        if (!saved) return replyError(interaction, "Channel is not present in that backup.");
+        const existing = await interaction.guild.channels.fetch(channelId).catch(() => null);
+        if (existing) return replyError(interaction, "That channel still exists; this restores missing channels only.");
+        await interaction.deferReply({ ephemeral: true });
+        const placeholder = { guild: interaction.guild, id: channelId, name: saved.name };
+        const restored = await restoreDeletedChannel(placeholder, snapshot);
+        if (!restored) return interaction.editReply("Channel restoration failed.");
+        const count = await restoreArchivedMessages(placeholder, restored).catch(error => { console.error("[Recovery] Message replay failed:", error); return 0; });
+        return interaction.editReply("Restored " + saved.name + " from " + filename + " and replayed " + count + " archived messages.");
+      }
+    }
 
     if (interaction.commandName === "antinuke") {
       if (![ "1191997911144349738", BOT_OWNER_ID ].includes(interaction.user.id)) {
