@@ -902,8 +902,8 @@ client.on(Events.ChannelDelete, async channel => {
 
   const executorId = entry?.executorId ?? null;
   const isTrustedOwner = executorId && CHANNEL_SECURITY_OWNER_IDS.has(executorId);
-  if (isTrustedOwner) {
-    console.log("[CHANNEL-ANTI-NUKE] Trusted owner deleted channel; no enforcement:", executorId);
+  if (isTrustedOwner || executorId === client.user.id) {
+    console.log("[CHANNEL-ANTI-NUKE] Trusted owner or bot deleted channel; no enforcement:", executorId);
     return;
   }
 
