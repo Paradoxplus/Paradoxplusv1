@@ -379,6 +379,19 @@ const commands = [
     .addStringOption(o=>o.setName("topic").setDescription("New topic").setMaxLength(1024).setRequired(true)),
 
 
+  new SlashCommandBuilder().setName("recovery").setDescription("Paradox • Core message and channel recovery center.")
+    .addSubcommand(sc=>sc.setName("setup").setDescription("Set the deletion approval review channel.")
+      .addChannelOption(o=>o.setName("channel").setDescription("Private review channel").addChannelTypes(ChannelType.GuildText).setRequired(true)))
+    .addSubcommand(sc=>sc.setName("messages").setDescription("Browse archived messages.")
+      .addStringOption(o=>o.setName("channel_id").setDescription("Original channel ID").setRequired(true))
+      .addBooleanOption(o=>o.setName("deleted_only").setDescription("Show only deleted messages")))
+    .addSubcommand(sc=>sc.setName("restore-message").setDescription("Replay an archived message.")
+      .addStringOption(o=>o.setName("channel_id").setDescription("Original channel ID").setRequired(true))
+      .addStringOption(o=>o.setName("message_id").setDescription("Archived message ID").setRequired(true)))
+    .addSubcommand(sc=>sc.setName("backups").setDescription("List available channel backups."))
+    .addSubcommand(sc=>sc.setName("restore-channel").setDescription("Restore a channel from a selected backup.")
+      .addStringOption(o=>o.setName("channel_id").setDescription("Original channel ID").setRequired(true))
+      .addStringOption(o=>o.setName("backup_file").setDescription("Exact backup filename").setRequired(true))),
   new SlashCommandBuilder().setName("antinuke").setDescription("View and run Paradox • Core anti-nuke protection.")
     .addSubcommand(sc=>sc.setName("status").setDescription("View active anti-nuke protections and backup status."))
     .addSubcommand(sc=>sc.setName("backup-now").setDescription("Create an immediate channel-configuration backup.")),
