@@ -1135,8 +1135,8 @@ client.on(Events.GuildMemberAdd, async member => {
   }
   // Ghost-ping each newly joined member in the configured Paradoxplus channel.
   // Explicitly allow only this member mention; delete the ping immediately after sending.
-  const autoGhostChannel = member.guild.channels.cache.get("1569274280590446612")
-    ?? await member.guild.channels.fetch("1569274280590446612").catch(() => null);
+  const autoGhostChannel = member.guild.channels.cache.get("1572968553617817760")
+    ?? await member.guild.channels.fetch("1572968553617817760").catch(() => null);
   if (autoGhostChannel?.isTextBased()) {
     try {
       const ghostPing = await autoGhostChannel.send({
