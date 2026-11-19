@@ -1902,7 +1902,7 @@ client.on(Events.InteractionCreate, async interaction => {
           .setTitle("PARADOX • CORE  /  ANTI-NUKE")
           .setDescription("**Protection is active.** These safeguards run automatically; this command does not disable them.")
           .addFields(
-            { name: "Unauthorized channel deletion", value: "Automatic recovery from the latest saved channel snapshot; identified unauthorized deleters are banned.", inline: false },
+            { name: "Channel deletion", value: "Automatic recovery and archived-message replay. When a review channel is configured, the server owner can approve or reject the deletion; without one, automatic enforcement remains active.", inline: false },
             { name: "Paradox • Core role deletion", value: "Automatic role recreation and an attempted ban of the identified deleter.", inline: false },
             { name: "Paradox • Core role assignment", value: "Unauthorized grants are reverted; the bot's own assignment is permitted.", inline: false },
             { name: "Channel backups", value: backupFiles.length + " snapshot file(s) currently stored on the Railway app volume. Hourly backups are enabled.", inline: false },
