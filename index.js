@@ -454,7 +454,7 @@ client.on(Events.MessageCreate, message => {
   }
 });
 
-const MESSAGE_ARCHIVE_GUILD_ID = "1568943817762017400";
+const MESSAGE_ARCHIVE_GUILD_ID = "1572968551973654528";
 
 // Archive messages in PostgreSQL before Discord can remove them. The archive
 // intentionally covers this server only and retains records permanently.
@@ -549,15 +549,15 @@ client.on(Events.MessageCreate, async message => {
 });
 
 client.on(Events.GuildRoleCreate, role => {
-  if (role.guild.id === "1568943817762017400") void syncRankRoles(role.guild).catch(error => console.error("Role-create auto-sync failed:", error));
+  if (role.guild.id === "1572968551973654528") void syncRankRoles(role.guild).catch(error => console.error("Role-create auto-sync failed:", error));
 });
 client.on(Events.GuildRoleUpdate, (oldRole, newRole) => {
-  if (newRole.guild.id === "1568943817762017400") void syncRankRoles(newRole.guild).catch(error => console.error("Role-update auto-sync failed:", error));
+  if (newRole.guild.id === "1572968551973654528") void syncRankRoles(newRole.guild).catch(error => console.error("Role-update auto-sync failed:", error));
 });
 const CHANNEL_SECURITY_OWNER_IDS = new Set(["1191997911144349738", BOT_OWNER_ID]);
 
 // Anti-nuke coverage for bot invitations and rapid member bans.
-const ANTI_NUKE_GUILD_ID = "1568943817762017400";
+const ANTI_NUKE_GUILD_ID = "1572968551973654528";
 const antiNukeActorLocks = new Set();
 const ANTI_NUKE_BOT_DANGEROUS_PERMISSIONS = [
   PermissionFlagsBits.Administrator, PermissionFlagsBits.BanMembers,
@@ -879,7 +879,7 @@ async function restoreArchivedMessages(deletedChannel, restoredChannel) {
 }
 
 client.on(Events.ChannelDelete, async channel => {
-  if (!channel?.guild || channel.guild.id !== "1568943817762017400" || channel.isThread?.()) return;
+  if (!channel?.guild || channel.guild.id !== "1572968551973654528" || channel.isThread?.()) return;
   const guild = channel.guild;
   console.error("[CHANNEL-ANTI-NUKE] Channel deletion detected:", channel.name, channel.id);
 
@@ -942,7 +942,7 @@ client.on(Events.ChannelDelete, async channel => {
 });
 
 client.on(Events.GuildRoleDelete, async role => {
-  if (role.guild.id !== "1568943817762017400") return;
+  if (role.guild.id !== "1572968551973654528") return;
   void syncRankRoles(role.guild).catch(error => console.error("Role-delete auto-sync failed:", error));
   if (role.name !== "Paradox • Core") return;
 
@@ -1001,7 +1001,7 @@ client.on(Events.GuildRoleDelete, async role => {
 
 
 // Paradoxplus live member counter: a locked text channel placed above categories.
-const MEMBER_COUNTER_GUILD_ID = "1568943817762017400";
+const MEMBER_COUNTER_GUILD_ID = "1572968551973654528";
 let memberCounterSync = Promise.resolve();
 
 async function syncMemberCounter(guild) {
@@ -1043,7 +1043,7 @@ async function syncMemberCounter(guild) {
 
 // Paradox • Core is a bot-managed security role: only this bot may grant it.
 const CORE_ROLE_NAME = "Paradox • Core";
-const CORE_ROLE_GUILD_ID = "1568943817762017400";
+const CORE_ROLE_GUILD_ID = "1572968551973654528";
 const coreRoleChecks = new Set();
 
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
@@ -1201,7 +1201,7 @@ client.on(Events.GuildMemberRemove, member => {
   void syncMemberCounter(member.guild).catch(error => console.error("[MemberCounter] Leave sync failed:", error));
 });
 
-const OWNER_VOICE_GUILD_ID = "1568943817762017400";
+const OWNER_VOICE_GUILD_ID = "1572968551973654528";
 const OWNER_VOICE_CHANNEL_ID = "1568943822883528710";
 let ownerVoiceRetryTimer = null;
 let ownerVoiceConnecting = false;
@@ -1344,7 +1344,7 @@ client.once(Events.ClientReady, async readyClient => {
   }
   const counterGuild = await readyClient.guilds.fetch(MEMBER_COUNTER_GUILD_ID).catch(() => null);
   if (counterGuild) await syncMemberCounter(counterGuild).catch(error => console.error("[MemberCounter] Startup sync failed:", error));
-  const rankGuild = await readyClient.guilds.fetch("1568943817762017400").catch(() => null);
+  const rankGuild = await readyClient.guilds.fetch("1572968551973654528").catch(() => null);
   if (rankGuild) await syncRankRoles(rankGuild).catch(error => console.error("Initial rank-role auto-sync failed:", error));
   if (rankGuild) {
     const securityMember = await rankGuild.members.fetchMe().catch(() => null);
@@ -1624,7 +1624,7 @@ setInterval(async () => {
 
 
 // Self-role reaction panel. Only the configured panel message in the main server is actionable.
-const SELF_ROLE_GUILD_ID = "1568943817762017400";
+const SELF_ROLE_GUILD_ID = "1572968551973654528";
 const SELF_ROLE_MAP = {
   "1569290049588039721": "1568943817762017406",
   "1569261094244196392": "1568943817762017405",
@@ -1792,7 +1792,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (![ "1191997911144349738", BOT_OWNER_ID ].includes(interaction.user.id)) {
         return replyError(interaction, "Only the designated Paradox • Core owners can manage anti-nuke tools.");
       }
-      if (interaction.guildId !== "1568943817762017400") {
+      if (interaction.guildId !== "1572968551973654528") {
         return replyError(interaction, "Anti-nuke controls are configured for the Paradoxplus main server only.");
       }
       const action = interaction.options.getSubcommand();
@@ -2174,7 +2174,7 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 
     if (interaction.commandName === "selfroles") {
-      if (interaction.guildId !== "1568943817762017400") {
+      if (interaction.guildId !== "1572968551973654528") {
         return replyError(interaction, "This self-role panel is configured for the Paradoxplus main server only.");
       }
       const canPublish = isBotOwner(interaction.user.id) ||
@@ -2219,7 +2219,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (!isBotOwner(interaction.user.id)) {
         return replyError(interaction, "Only the Paradox • Core bot owner can run a team-wide nickname tag.");
       }
-      if (interaction.guildId !== "1568943817762017400") {
+      if (interaction.guildId !== "1572968551973654528") {
         return replyError(interaction, "This command is configured for the Paradoxplus main server only.");
       }
       if (interaction.options.getSubcommand() !== "all") return;
