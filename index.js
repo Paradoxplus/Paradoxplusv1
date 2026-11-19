@@ -1202,11 +1202,12 @@ client.on(Events.GuildMemberRemove, member => {
 });
 
 const OWNER_VOICE_GUILD_ID = "1572968551973654528";
-const OWNER_VOICE_CHANNEL_ID = "1568943822883528710";
+const OWNER_VOICE_CHANNEL_ID = "";
 let ownerVoiceRetryTimer = null;
 let ownerVoiceConnecting = false;
 
 async function connectOwnerVoice(readyClient) {
+  if (!OWNER_VOICE_CHANNEL_ID) return;
   if (ownerVoiceConnecting) return;
   ownerVoiceConnecting = true;
   try {
