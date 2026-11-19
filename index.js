@@ -907,39 +907,45 @@ client.on(Events.ChannelDelete, async channel => {
     return;
   }
 
-  // Recover the channel first, then replay its archived messages into the replacement channel.
+  // Restore immediately, then let the owner decide whether the deletion should stand.
   let restoredChannel = null;
   try {
     restoredChannel = await restoreDeletedChannel(channel);
+    if (restoredChannel) await restoreArchivedMessages(channel, restoredChannel);
   } catch (error) {
-    console.error("[CHANNEL-ANTI-NUKE] Channel restoration failed:", error);
+    console.error("[CHANNEL-ANTI-NUKE] Recovery failed:", error);
   }
-
-  if (restoredChannel) {
-    try {
-      await restoreArchivedMessages(channel, restoredChannel);
-    } catch (error) {
-      console.error("[MessageArchive] Automatic message replay failed:", error);
-    }
-  }
-
-  if (!executorId) {
-    console.error("[CHANNEL-ANTI-NUKE] Could not identify the deleter; restored if a backup existed, but no ban was attempted.");
+  if (!executorId || executorId === guild.ownerId || executorId === client.user.id) return;
+  const cfg = getGuildConfig(guild.id);
+  const reviewChannel = cfg.recoveryReviewChannelId ? await guild.channels.fetch(cfg.recoveryReviewChannelId).catch(() => null) : null;
+  if (restoredChannel && reviewChannel?.isTextBased?.() && typeof reviewChannel.send === "function") {
+    const pending = { channelId: channel.id, channelName: channel.name, restoredChannelId: restoredChannel.id, executorId, requestedAt: new Date().toISOString(), status: "pending" };
+    cfg.pendingDeletionApprovals = cfg.pendingDeletionApprovals.filter(item => !(item.channelId === channel.id && item.status === "pending"));
+    cfg.pendingDeletionApprovals.push(pending);
+    if (cfg.pendingDeletionApprovals.length > 100) cfg.pendingDeletionApprovals = cfg.pendingDeletionApprovals.slice(-100);
+    await saveDatabase();
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("px_delete_approval:accept:" + channel.id).setLabel("Accept deletion").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId("px_delete_approval:reject:" + channel.id).setLabel("Reject & keep recovery").setStyle(ButtonStyle.Success)
+    );
+    await reviewChannel.send({
+      embeds: [new EmbedBuilder().setColor(0xe0a12b).setTitle("Channel deletion approval required")
+        .setDescription("A channel was deleted and has been recovered temporarily. Choose whether the deletion should stand.")
+        .addFields(
+          { name: "Channel", value: channel.name + " (" + channel.id + ")", inline: true },
+          { name: "Executor", value: "<@" + executorId + "> (" + executorId + ")", inline: true },
+          { name: "Recovered copy", value: "<#" + restoredChannel.id + ">", inline: false }
+        ).setTimestamp()],
+      components: [row],
+      allowedMentions: { users: [guild.ownerId], parse: [] }
+    }).catch(error => console.error("[DeletionApproval] Could not send approval request:", error));
     return;
   }
-  if (executorId === guild.ownerId) {
-    console.error("[CHANNEL-ANTI-NUKE] Server owner cannot be banned by a bot.");
-    return;
-  }
-  if (executorId === client.user.id) return;
-
+  // No review channel or no recoverable snapshot: retain automatic enforcement.
   try {
-    await guild.members.ban(executorId, {
-      reason: "Paradox • Core anti-nuke: unauthorized channel deletion"
-    });
-    console.log("[CHANNEL-ANTI-NUKE] Banned channel deleter:", executorId);
+    await guild.members.ban(executorId, { reason: "Paradox • Core anti-nuke: unauthorized channel deletion (approval route unavailable)" });
   } catch (error) {
-    console.error("[CHANNEL-ANTI-NUKE] Could not ban channel deleter (check Ban Members permission and role hierarchy):", error);
+    console.error("[CHANNEL-ANTI-NUKE] Could not ban channel deleter:", error);
   }
 });
 
