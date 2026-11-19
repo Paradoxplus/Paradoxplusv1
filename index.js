@@ -2286,11 +2286,11 @@ client.on(Events.InteractionCreate, async interaction => {
       }
       const missingRoles = Object.values(SELF_ROLE_MAP).filter(roleId => !interaction.guild.roles.cache.has(roleId));
       if (missingRoles.length) return replyError(interaction, "One or more configured self-roles no longer exist: " + missingRoles.join(", "));
-      const content = "# **SELF ROLES**\\n\\n" +
-        "🛡️ <:arrow_yellow:1571561291640742010> [ <@&1572968552208797698> ]\\n" +
-        "🤡 <:arrow_yellow:1571561291640742010> [ <@&1572968552024121478> ]\\n" +
-        "📤 <:arrow_yellow:1571561291640742010> [ <@&1572968552024121480> ]\\n" +
-        "🧠 <:arrow_yellow:1571561291640742010> [ <@&1572968552024121479> ]\\n" +
+      const content = "# **SELF ROLES**\n\n" +
+        "🛡️ <:arrow_yellow:1571561291640742010> [ <@&1572968552208797698> ]\n" +
+        "🤡 <:arrow_yellow:1571561291640742010> [ <@&1572968552024121478> ]\n" +
+        "📤 <:arrow_yellow:1571561291640742010> [ <@&1572968552024121480> ]\n" +
+        "🧠 <:arrow_yellow:1571561291640742010> [ <@&1572968552024121479> ]\n" +
         "⚔️ <:arrow_yellow:1571561291640742010> [ <@&1572968552024121481> ]";
       const panelEmbed = new EmbedBuilder()
         .setColor(0x7c5cff)
