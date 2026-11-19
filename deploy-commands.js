@@ -414,20 +414,43 @@ if (!token || !clientId) {
 const rest = new REST({ version: "10" }).setToken(token);
 
 try {
-  if (guildId) {
-    await rest.put(
-      Routes.applicationGuildCommands(clientId, guildId),
-      { body: commands }
-    );
-    console.log("Registered commands to the test server.");
-  } else {
-    await rest.put(
-      Routes.applicationCommands(clientId),
-      { body: commands }
-    );
-    console.log("Registered global commands. They may take a while to appear.");
+  const route = guildId
+    ? Routes.applicationGuildCommands(clientId, guildId)
+    : Routes.applicationCommands(clientId);
+
+  console.log(`[COMMANDS] Registering ${commands.length} commands for application ${clientId}${guildId ? ` in guild ${guildId}` : " globally"}.`);
+
+  const submitted = await rest.put(route, { body: commands });
+
+  if (!Array.isArray(submitted)) {
+    throw new Error("Discord registration response was not an array.");
   }
+
+  const fetched = await rest.get(route);
+  if (!Array.isArray(fetched)) {
+    throw new Error("Discord command verification response was not an array.");
+  }
+
+  const expectedNames = commands.map(command => command.name).sort();
+  const actualNames = fetched.map(command => command.name).sort();
+  const missingNames = expectedNames.filter((name, index) => actualNames[index] !== name);
+  const unexpectedNames = actualNames.filter(name => !expectedNames.includes(name));
+
+  console.log(`[COMMANDS] Discord accepted ${submitted.length} commands; verification GET returned ${fetched.length} commands.`);
+  console.log(`[COMMANDS] Registered names: ${actualNames.join(", ")}`);
+
+  if (fetched.length !== commands.length || missingNames.length > 0 || unexpectedNames.length > 0) {
+    console.error("[COMMANDS] VERIFICATION MISMATCH.", {
+      expectedCount: commands.length,
+      actualCount: fetched.length,
+      expectedNames,
+      actualNames
+    });
+    process.exit(1);
+  }
+
+  console.log(`[COMMANDS] VERIFIED: all ${fetched.length} commands are stored by Discord for the target ${guildId ? "guild" : "application"}.`);
 } catch (error) {
-  console.error("Command registration failed:", error);
+  console.error("[COMMANDS] Registration/verification failed:", error);
   process.exit(1);
 }
