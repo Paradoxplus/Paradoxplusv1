@@ -391,7 +391,7 @@ const commands = [
 
 const token = process.env.DISCORD_TOKEN;
 const clientId = process.env.CLIENT_ID;
-const guildId = process.env.GUILD_ID;
+const guildId = "1572968551973654528";
 
 if (!token || !clientId) {
   console.error("Missing DISCORD_TOKEN or CLIENT_ID. Check your environment variables.");
