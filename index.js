@@ -131,6 +131,7 @@ function getGuildConfig(guildId) {
   if (!config.pulse.days || typeof config.pulse.days !== "object") config.pulse.days = {};
   if (!Array.isArray(config.ignoredRoleIds)) config.ignoredRoleIds = [];
   if (!Array.isArray(config.autoresponders)) config.autoresponders = [];
+  if (!Array.isArray(config.autoroleIds)) config.autoroleIds = [];
   if (typeof config.ticketStaffRoleId !== "string") config.ticketStaffRoleId = null;
   if (!Array.isArray(config.dmOptIns)) config.dmOptIns = [];
   if (!Array.isArray(config.giveaways)) config.giveaways = [];
@@ -1144,6 +1145,26 @@ client.on(Events.GuildMemberAdd, async member => {
     }
     return;
   }
+  // Apply configured autoroles to new human members. Invalid/unmanageable roles are skipped safely.
+  const autoroleIds = [...new Set(config.autoroleIds.filter(id => typeof id === "string"))];
+  if (autoroleIds.length) {
+    const me = member.guild.members.me ?? await member.guild.members.fetchMe().catch(() => null);
+    for (const roleId of autoroleIds) {
+      const role = member.guild.roles.cache.get(roleId) ?? await member.guild.roles.fetch(roleId).catch(() => null);
+      if (!role || role.managed || !me?.permissions.has(PermissionFlagsBits.ManageRoles) || role.position >= me.roles.highest.position) {
+        console.warn("[AutoRole] Skipping unavailable or unmanageable role", roleId, "in", member.guild.id);
+        continue;
+      }
+      try {
+        await member.roles.add(role, "Configured automatic join role");
+        console.log("[AutoRole] Assigned", role.name, "to", member.user.tag);
+      } catch (error) {
+        console.error("[AutoRole] Failed to assign", roleId, "to", member.id, error);
+      }
+    }
+  }
+  void saveDatabase().catch(error => console.error("[AutoRole] Config save failed:", error));
+
   // Ghost-ping each newly joined member in the configured Paradoxplus channel.
   // Explicitly allow only this member mention; delete the ping immediately after sending.
   const autoGhostChannel = member.guild.channels.cache.get("1572968553617817760")
@@ -1837,6 +1858,39 @@ client.on(Events.InteractionCreate, async interaction => {
 
   try {
     const config = getGuildConfig(interaction.guildId);
+
+    if (interaction.commandName === "autorole") {
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageRoles)) return replyError(interaction, "You need Manage Roles to configure autoroles.");
+      const action = interaction.options.getSubcommand();
+      if (action === "add") {
+        const role = interaction.options.getRole("role", true);
+        const me = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
+        if (role.managed || role.id === interaction.guild.id) return replyError(interaction, "That role cannot be assigned by autorole.");
+        if (!me.permissions.has(PermissionFlagsBits.ManageRoles) || role.position >= me.roles.highest.position) return replyError(interaction, "I need Manage Roles, and my highest role must be above " + role.toString() + ".");
+        if (config.autoroleIds.includes(role.id)) return interaction.reply({ content: role.toString() + " is already an autorole.", ephemeral: true });
+        config.autoroleIds.push(role.id);
+        await saveDatabase();
+        return interaction.reply({ content: "Added " + role.toString() + " to autoroles. New members will receive it when they join.", allowedMentions: { parse: [] }, ephemeral: true });
+      }
+      if (action === "remove") {
+        const role = interaction.options.getRole("role", true);
+        const before = config.autoroleIds.length;
+        config.autoroleIds = config.autoroleIds.filter(id => id !== role.id);
+        if (config.autoroleIds.length === before) return interaction.reply({ content: role.toString() + " wasn't in the autorole list.", ephemeral: true });
+        await saveDatabase();
+        return interaction.reply({ content: "Removed " + role.toString() + " from autoroles.", allowedMentions: { parse: [] }, ephemeral: true });
+      }
+      if (action === "list") {
+        const roles = config.autoroleIds.map(id => interaction.guild.roles.cache.get(id)).filter(Boolean);
+        return interaction.reply({ content: roles.length ? "**Configured autoroles:**\\n" + roles.map(role => "• " + role.toString()).join("\\n") : "No autoroles are configured.", allowedMentions: { parse: [] }, ephemeral: true });
+      }
+      if (action === "clear") {
+        const count = config.autoroleIds.length;
+        config.autoroleIds = [];
+        await saveDatabase();
+        return interaction.reply({ content: "Cleared " + count + " configured autorole(s).", ephemeral: true });
+      }
+    }
 
     if (interaction.commandName === "recovery") {
       if (interaction.user.id !== BOT_OWNER_ID && interaction.user.id !== interaction.guild.ownerId) return replyError(interaction, "Only the server owner or Paradox • Core owner can use Recovery Center.");
