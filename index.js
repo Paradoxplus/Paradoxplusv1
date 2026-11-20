@@ -3535,7 +3535,10 @@ async function applyRecruitPerks(guild, target) {
     catch (error) { results.errors.push('Role <@&' + roleId + '> assignment failed: ' + (error.message || 'check permissions.')); }
   }
   results.role = rolesAdded === roleIds.length;
-  const desiredNickname = ("Exl 么 " + target.user.username).slice(0, 32);
+  // Preserve the member's current server nickname/display name; never replace it with their account username.
+  const currentDisplayName = target.displayName || target.nickname || target.user.globalName || target.user.username;
+  const baseDisplayName = currentDisplayName.replace(/^(?:Exl 么 |PX ϟ |𝝨𝝬𝗟 么 )/, "");
+  const desiredNickname = ("Exl 么 " + baseDisplayName).slice(0, 32);
   if (!botMember.permissions.has(PermissionFlagsBits.ManageNicknames) && !botMember.permissions.has(PermissionFlagsBits.Administrator)) {
     results.errors.push('I need Manage Nicknames to set the recruit\'s server nickname.');
   } else if (target.roles.highest.position >= botMember.roles.highest.position && guild.ownerId !== target.id) {
