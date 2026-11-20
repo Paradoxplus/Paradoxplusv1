@@ -4153,26 +4153,86 @@ client.on(Events.MessageCreate, async message => {
       if (target.id === message.author.id) return fail("You cannot mute yourself.");
       if (!Array.isArray(config.permanentMutes)) config.permanentMutes = [];
       const reason = args.slice(1).join(" ").trim() || "No reason provided";
+      const botMember = message.guild.members.me ?? await message.guild.members.fetchMe();
+      if (!target.moderatable) return fail("I cannot timeout this member because of Discord's role hierarchy. Removing lower roles cannot bypass that restriction.");
+      if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) return fail("I need Manage Roles to temporarily remove and restore removable roles.");
       const existing = config.permanentMutes.find(item => item.memberId === target.id);
-      if (!existing) config.permanentMutes.push({ memberId: target.id, moderatorId: message.author.id, reason, createdAt: new Date().toISOString() });
-      try { await target.timeout(28 * 24 * 60 * 60 * 1000, "Permanent mute (auto-renewed): " + reason); }
-      catch (error) { if (!existing) config.permanentMutes = config.permanentMutes.filter(item => item.memberId !== target.id); return fail("I could not apply the mute. Check my Moderate Members permission and role hierarchy. " + error.message); }
+      const removableRoles = existing
+        ? []
+        : [...target.roles.cache.values()].filter(role =>
+            role.id !== message.guild.id &&
+            !role.managed &&
+            role.editable &&
+            role.position < botMember.roles.highest.position
+          );
+      const removedRoleIds = existing && Array.isArray(existing.removedRoleIds)
+        ? existing.removedRoleIds
+        : removableRoles.map(role => role.id);
+      try {
+        if (!existing && removableRoles.length) {
+          await target.roles.remove(removableRoles, "Temporarily removed for permanent mute by " + message.author.tag);
+        }
+        if (existing) {
+          existing.reason = reason;
+          existing.moderatorId = message.author.id;
+          if (!Array.isArray(existing.removedRoleIds)) existing.removedRoleIds = [];
+        } else {
+          config.permanentMutes.push({
+            memberId: target.id,
+            moderatorId: message.author.id,
+            reason,
+            createdAt: new Date().toISOString(),
+            removedRoleIds
+          });
+        }
+        await saveDatabase();
+        await target.timeout(28 * 24 * 60 * 60 * 1000, "Permanent mute (auto-renewed): " + reason);
+      } catch (error) {
+        if (!existing) {
+          const recordIndex = config.permanentMutes.findIndex(item => item.memberId === target.id);
+          if (recordIndex !== -1) config.permanentMutes.splice(recordIndex, 1);
+        }
+        const restoreable = removableRoles.filter(role => role.editable && !target.roles.cache.has(role.id));
+        if (restoreable.length) await target.roles.add(restoreable, "Mute failed; restoring roles").catch(restoreError =>
+          console.error("[PermanentMute] Failed to roll back roles for " + target.id, restoreError)
+        );
+        await saveDatabase();
+        return fail("I could not apply the mute. Discord may have blocked the timeout or role change. Check Moderate Members, Manage Roles, and role hierarchy. " + error.message);
+      }
       addPrefixCase("PERMANENT_MUTE", target.id, reason);
       await saveDatabase();
-      return send("✦ PERMANENT MUTE APPLIED", target.toString() + " is now permanently muted. The timeout will be renewed automatically when it expires.\nReason: " + reason);
+      return send("✦ PERMANENT MUTE APPLIED", target.toString() + " is now permanently muted. Removable roles were temporarily removed and will be restored by ?unmute. The timeout will renew automatically.\\nReason: " + reason);
     }
     if (command === "unmute") {
       if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
       const target = await prefixTarget(args[0]);
       if (!target) return fail("Usage: " + prefix + "unmute @member");
       if (!Array.isArray(config.permanentMutes)) config.permanentMutes = [];
-      const wasPermanent = config.permanentMutes.some(item => item.memberId === target.id);
-      config.permanentMutes = config.permanentMutes.filter(item => item.memberId !== target.id);
-      if (target.communicationDisabledUntilTimestamp && target.moderatable) await target.timeout(null, "Permanent mute removed by " + message.author.tag);
+      const muteRecord = config.permanentMutes.find(item => item.memberId === target.id);
+      const wasPermanent = Boolean(muteRecord);
       if (!wasPermanent && !target.communicationDisabledUntilTimestamp) return fail("That member is not muted.");
-      addPrefixCase("UNMUTE", target.id, "Permanent mute removed");
+      if (target.communicationDisabledUntilTimestamp) {
+        if (!target.moderatable) return fail("I cannot remove this timeout because of Discord's role hierarchy.");
+        await target.timeout(null, "Permanent mute removed by " + message.author.tag);
+      }
+      const roleIdsToRestore = Array.isArray(muteRecord?.removedRoleIds) ? muteRecord.removedRoleIds : [];
+      const rolesToRestore = roleIdsToRestore
+        .map(roleId => message.guild.roles.cache.get(roleId))
+        .filter(role => role && role.editable && !target.roles.cache.has(role.id));
+      let restoredCount = 0;
+      if (rolesToRestore.length) {
+        try {
+          await target.roles.add(rolesToRestore, "Restoring roles after unmute by " + message.author.tag);
+          restoredCount = rolesToRestore.length;
+        } catch (error) {
+          console.error("[PermanentMute] Some roles could not be restored for " + target.id, error);
+        }
+      }
+      config.permanentMutes = config.permanentMutes.filter(item => item.memberId !== target.id);
+      addPrefixCase("UNMUTE", target.id, "Permanent mute removed; restored " + restoredCount + " roles");
       await saveDatabase();
-      return send("✦ MEMBER UNMUTED", "Removed the permanent mute from " + target.toString() + ".");
+      const skippedCount = Math.max(0, roleIdsToRestore.length - restoredCount);
+      return send("✦ MEMBER UNMUTED", "Removed the permanent mute from " + target.toString() + ". Restored " + restoredCount + " role(s)." + (skippedCount ? "\\n⚠️ " + skippedCount + " role(s) could not be restored because they were deleted or are no longer manageable." : ""));
     }
     if (command === "untimeout") {
       if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
