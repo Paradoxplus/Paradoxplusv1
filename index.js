@@ -4689,7 +4689,9 @@ client.on(Events.MessageCreate, async message => {
         if (!selected.length) return fail("No recent messages were found to delete.");
         const deleted = await message.channel.bulkDelete(selected, true);
         await message.delete().catch(() => null);
-        return send("🧹 Messages cleared",`Deleted **${deleted.size}** messages (your purge command is removed separately).`);
+        const confirmation = await send("🧹 Messages cleared",`Deleted **${deleted.size}** messages (your purge command is removed separately).`);
+        if (confirmation) setTimeout(() => confirmation.delete().catch(() => null), 1000);
+        return confirmation;
       }
       const id=mentionedId(args[0]); if(!id) return fail(`Usage: .${command} @member [reason]`);
       const target=await message.guild.members.fetch(id).catch(()=>null); if(!target) return fail("Member not found.");
