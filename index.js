@@ -8,7 +8,7 @@ import path from "node:path";
 import { startDashboard } from "./dashboard.js";
 import { joinVoiceChannel, VoiceConnectionStatus, entersState, getVoiceConnection } from "@discordjs/voice";
 const EXILE_AS_BANNER_URL = "https://kommodo.ai/i/7GMXqpQZLSNrc1rfctNW";
-const TICKET_BANNER_URL = "https://kommodo.ai/i/5w9GWzIHSQjOCUJC2fHz";
+const RECRUIT_BANNER_URL = "https://kommodo.ai/i/5w9GWzIHSQjOCUJC2fHz";
 const WELCOME_BANNER_URL = "https://kommodo.ai/i/vQ6BSO4zLZMLvCSL39iM";
 
 import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot, importDatabaseSnapshot, archiveDiscordMessage, getArchivedChannelMessages } from "./recruitment.js";
@@ -1472,7 +1472,7 @@ function buildTicketPanel(guild, botUser) {
       "**NOTE:** Create a ticket only for one of the support types listed above."
     )
     .setThumbnail(guild.iconURL({ size: 256 }) || botUser.displayAvatarURL())
-    .setImage(TICKET_BANNER_URL)
+    .setImage(EXILE_AS_BANNER_URL)
     .setFooter({ text: "Powered By Exile • Core" });
   return { embeds: [panel], components: [new ActionRowBuilder().addComponents(menu)] };
 }
@@ -2532,6 +2532,7 @@ client.on(Events.InteractionCreate, async interaction => {
       await recruitChannel.send({
         embeds: [new EmbedBuilder()
           .setColor("#000000")
+          .setImage(RECRUIT_BANNER_URL)
           .setDescription((interaction.guild.emojis.cache.find(emoji => emoji.name === "GreenCrown")?.toString() || ":GreenCrown:") + " **New recruit** " + (interaction.guild.emojis.cache.find(emoji => emoji.name === "GreenCrown")?.toString() || ":GreenCrown:") + "\n\n> " + target.toString() + " joined the team.\n\n<:bluearrow:1573207744171737098> **Recruited by:** " + interaction.user.toString() + "\n<:bluearrow:1573207744171737098> **Total recruits:** `" + result.total + "`")],
         allowedMentions: { users: [target.id, interaction.user.id], parse: [] }
       });
@@ -3870,6 +3871,7 @@ client.on(Events.MessageCreate, async message => {
       await recruitChannel.send({
         embeds: [new EmbedBuilder()
           .setColor("#000000")
+          .setImage(RECRUIT_BANNER_URL)
           .setDescription((message.guild.emojis.cache.find(emoji => emoji.name === "GreenCrown")?.toString() || ":GreenCrown:") + " **New recruit** " + (message.guild.emojis.cache.find(emoji => emoji.name === "GreenCrown")?.toString() || ":GreenCrown:") + "\n\n> " + target.toString() + " joined the team.\n\n<:bluearrow:1573207744171737098> **Recruited by:** " + message.author.toString() + "\n<:bluearrow:1573207744171737098> **Total recruits:** `" + result.total + "`")],
         allowedMentions: { users: [target.id, message.author.id], parse: [] }
       });
