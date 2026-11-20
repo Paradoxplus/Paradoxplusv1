@@ -8,6 +8,7 @@ import path from "node:path";
 import { startDashboard } from "./dashboard.js";
 import { joinVoiceChannel, VoiceConnectionStatus, entersState, getVoiceConnection } from "@discordjs/voice";
 const EXILE_AS_BANNER_URL = "https://kommodo.ai/i/7GMXqpQZLSNrc1rfctNW";
+const WELCOME_BANNER_URL = "https://kommodo.ai/i/vQ6BSO4zLZMLvCSL39iM";
 
 import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot, importDatabaseSnapshot, archiveDiscordMessage, getArchivedChannelMessages } from "./recruitment.js";
 
@@ -1195,7 +1196,7 @@ client.on(Events.GuildMemberAdd, async member => {
   const channel = member.guild.channels.cache.get(config.welcomeChannelId)
     ?? await member.guild.channels.fetch(config.welcomeChannelId).catch(() => null);
   if (!channel?.isTextBased()) return;
-  const bannerUrl = EXILE_AS_BANNER_URL;
+  const bannerUrl = WELCOME_BANNER_URL;
   const count = member.guild.memberCount;
   const embed = new EmbedBuilder()
     .setColor(0x7c5cff)
