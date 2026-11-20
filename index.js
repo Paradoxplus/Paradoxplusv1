@@ -613,7 +613,7 @@ async function enforceRapidBanProtection(guild, bannedUser) {
     );
     const counts = new Map();
     for (const entry of recent) counts.set(entry.executorId, (counts.get(entry.executorId) || 0) + 1);
-    const candidate = [...counts.entries()].find(([, count]) => count >= 3);
+    const candidate = [...counts.entries()].find(([actorId, count]) => count >= 3 && !isAntiNukeWhitelisted(guild.id, actorId));
     if (!candidate) return;
     const [executorId, count] = candidate;
     if (executorId === guild.ownerId || executorId === client.user.id || CHANNEL_SECURITY_OWNER_IDS.has(executorId) || isAntiNukeWhitelisted(guild.id, executorId)) return;
@@ -738,7 +738,7 @@ async function inspectMassKicks(guild) {
         counts.set(entry.executorId, (counts.get(entry.executorId) || 0) + 1);
       }
     }
-    const candidate = [...counts.entries()].find(([, count]) => count >= 3);
+    const candidate = [...counts.entries()].find(([actorId, count]) => count >= 3 && !isAntiNukeWhitelisted(guild.id, actorId));
     if (candidate && !isAntiNukeWhitelisted(guild.id, candidate[0])) await punishAntiNukeExecutor(guild, candidate[0], "kicking " + candidate[1] + " members within 12 seconds");
   } catch (error) {
     console.error("[ANTI-NUKE] Mass-kick inspection failed:", error);
