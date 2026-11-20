@@ -392,6 +392,14 @@ const commands = [
     .addSubcommand(sc=>sc.setName("restore-channel").setDescription("Restore a channel from a selected backup.")
       .addStringOption(o=>o.setName("channel_id").setDescription("Original channel ID").setRequired(true))
       .addStringOption(o=>o.setName("backup_file").setDescription("Exact backup filename").setRequired(true))),
+  new SlashCommandBuilder().setName("autorole").setDescription("Configure roles automatically assigned to new members.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+    .addSubcommand(sc=>sc.setName("add").setDescription("Add a role to the automatic join-role list.")
+      .addRoleOption(o=>o.setName("role").setDescription("Role to assign to new members").setRequired(true)))
+    .addSubcommand(sc=>sc.setName("remove").setDescription("Remove a role from the automatic join-role list.")
+      .addRoleOption(o=>o.setName("role").setDescription("Role to stop assigning").setRequired(true)))
+    .addSubcommand(sc=>sc.setName("list").setDescription("Show all configured automatic join roles."))
+    .addSubcommand(sc=>sc.setName("clear").setDescription("Remove every configured automatic join role.")),
   new SlashCommandBuilder().setName("owner").setDescription("Manage trusted anti-nuke users.")
     .addSubcommandGroup(group => group.setName("whitelist").setDescription("Manage the anti-nuke trusted-user whitelist.")
       .addSubcommand(sc => sc.setName("add").setDescription("Protect a user from anti-nuke enforcement.")
