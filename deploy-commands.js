@@ -392,6 +392,10 @@ const commands = [
     .addSubcommand(sc=>sc.setName("restore-channel").setDescription("Restore a channel from a selected backup.")
       .addStringOption(o=>o.setName("channel_id").setDescription("Original channel ID").setRequired(true))
       .addStringOption(o=>o.setName("backup_file").setDescription("Exact backup filename").setRequired(true))),
+  new SlashCommandBuilder().setName("owner").setDescription("Manage trusted anti-nuke users.")
+    .addSubcommandGroup(group => group.setName("whitelist").setDescription("Manage the anti-nuke trusted-user whitelist.")
+      .addSubcommand(sc => sc.setName("add").setDescription("Protect a user from anti-nuke enforcement.")
+        .addUserOption(o => o.setName("user").setDescription("User to trust").setRequired(true)))),
   new SlashCommandBuilder().setName("antinuke").setDescription("View and run Paradox • Core anti-nuke protection.")
     .addSubcommand(sc=>sc.setName("status").setDescription("View active anti-nuke protections and backup status."))
     .addSubcommand(sc=>sc.setName("backup-now").setDescription("Create an immediate channel-configuration backup.")),
