@@ -1515,7 +1515,7 @@ async function archiveTicketTranscript(channel, closedBy, reason) {
   const guild = channel.guild;
   const config = getGuildConfig(guild.id);
   const botId = channel.client.user.id;
-  const supportCategoryId = "1568943820995961012";
+  const supportCategoryId = "1572968553924141165";
   const supportCategory = guild.channels.cache.get(supportCategoryId)
     ?? await guild.channels.fetch(supportCategoryId).catch(() => null);
   if (!supportCategory || supportCategory.type !== ChannelType.GuildCategory) {
@@ -1772,7 +1772,7 @@ client.on(Events.InteractionCreate, async interaction => {
         overwrites.push({ id: config.ticketStaffRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
       }
       const ticketType = interaction.values[0];
-      const categoryId = "1568943820995961012";
+      const categoryId = "1572968553924141165";
       const ticketCategory = await interaction.guild.channels.fetch(categoryId).catch(() => null);
       if (!ticketCategory || ticketCategory.type !== ChannelType.GuildCategory) {
         return interaction.editReply("The ticket category is missing or is not a category. Please ask an administrator to check the ticket setup.");
