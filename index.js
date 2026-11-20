@@ -2286,7 +2286,9 @@ client.on(Events.InteractionCreate, async interaction => {
           .setColor(0x15171c)
           .setAuthor({ name: "PARADOX • CORE  /  SECURITY CENTER" })
           .setTitle("ANTI-NUKE OVERVIEW")
-          .setDescription("**LIVE PROTECTION**  ·  Automatic detection is enabled for the configured server. Unknown audit-log actors are reported for review rather than blindly punished.")
+          .setDescription(missingSecurityPermissions.length
+            ? "**DEGRADED PROTECTION**  ·  Missing bot permissions can prevent some detections or recovery actions. Fix the permissions listed below."
+            : "**LIVE PROTECTION**  ·  Required bot permissions are present. Unknown audit-log actors are reported for review rather than blindly punished.")
           .addFields(
             { name: "01  /  Destructive actions", value: "Rapid mass-ban and mass-kick detection; channel and role creation/deletion monitoring; webhook creation, updates, and deletion monitoring.", inline: false },
             { name: "02  /  Permission escalation", value: "Dangerous role-permission grants, dangerous role assignments, and channel-overwrite permission escalation are checked and reverted when an unauthorized actor is identified.", inline: false },
