@@ -1630,12 +1630,20 @@ client.once(Events.ClientReady, async readyClient => {
   if (rankGuild) await syncRankRoles(rankGuild).catch(error => console.error("Initial rank-role auto-sync failed:", error));
   if (rankGuild) {
     const securityMember = await rankGuild.members.fetchMe().catch(() => null);
-    const required = [PermissionFlagsBits.ViewAuditLog, PermissionFlagsBits.BanMembers];
-    if (required.some(permission => !securityMember?.permissions.has(permission))) {
-      console.error("[ANTI-NUKE] CRITICAL: missing View Audit Log and/or Ban Members permission.");
-      await notifyAntiNukeOwner(rankGuild, "CRITICAL: missing View Audit Log and/or Ban Members permission. Anti-nuke detection/enforcement is impaired.");
+    const required = [
+      PermissionFlagsBits.ViewAuditLog,
+      PermissionFlagsBits.BanMembers,
+      PermissionFlagsBits.ManageRoles,
+      PermissionFlagsBits.ManageChannels,
+      PermissionFlagsBits.ManageWebhooks
+    ];
+    const missing = required.filter(permission => !securityMember?.permissions.has(permission));
+    if (missing.length) {
+      const missingNames = missing.map(permission => Object.entries(PermissionFlagsBits).find(([, value]) => value === permission)?.[0] || String(permission));
+      console.error("[ANTI-NUKE] CRITICAL: missing required permissions:", missingNames.join(", "));
+      await notifyAntiNukeOwner(rankGuild, "CRITICAL: the bot is missing required permissions: " + missingNames.join(", ") + ". Some anti-nuke rollback and enforcement actions will fail. Fix the bot role permissions and hierarchy.");
     } else {
-      console.log("[ANTI-NUKE] Audit-log and ban permissions verified at startup.");
+      console.log("[ANTI-NUKE] Required audit-log, ban, role, channel, and webhook permissions verified at startup.");
     }
   }
   if (rankGuild) {
@@ -2263,6 +2271,17 @@ client.on(Events.InteractionCreate, async interaction => {
           if (error.code !== "ENOENT") throw error;
         }
         const latestBackup = backupFiles.sort().at(-1) || null;
+        const securityBotMember = await interaction.guild.members.fetchMe().catch(() => null);
+        const requiredSecurityPermissions = [
+          [PermissionFlagsBits.ViewAuditLog, "View Audit Log"],
+          [PermissionFlagsBits.BanMembers, "Ban Members"],
+          [PermissionFlagsBits.ManageRoles, "Manage Roles"],
+          [PermissionFlagsBits.ManageChannels, "Manage Channels"],
+          [PermissionFlagsBits.ManageWebhooks, "Manage Webhooks"]
+        ];
+        const missingSecurityPermissions = requiredSecurityPermissions
+          .filter(([permission]) => !securityBotMember?.permissions.has(permission))
+          .map(([, name]) => name);
         const status = new EmbedBuilder()
           .setColor(0x15171c)
           .setAuthor({ name: "PARADOX • CORE  /  SECURITY CENTER" })
@@ -2274,6 +2293,7 @@ client.on(Events.InteractionCreate, async interaction => {
             { name: "03  /  Bot security", value: "New bots with elevated moderation or server-management permissions are detected and removed when the inviter is not trusted.", inline: false },
             { name: "04  /  Raid signals", value: "A burst of 8 human joins within 15 seconds triggers an owner alert. Join detection is alert-only; it does not mass-kick ordinary members.", inline: false },
             { name: "05  /  Recovery & backups", value: "Channel configuration recovery and archived-message replay are available when snapshots exist. Core-role recovery is handled separately. " + backupFiles.length + " channel snapshot file(s) found; hourly backups are enabled.", inline: false },
+            { name: "BOT PERMISSIONS", value: missingSecurityPermissions.length ? "**MISSING:** " + missingSecurityPermissions.join(", ") : "All required anti-nuke permissions are present.", inline: false },
             { name: "LATEST SNAPSHOT", value: latestBackup || "No snapshot file found.", inline: true },
             { name: "TRUST MODEL", value: "Server owner, configured security owners, bot, and owner-managed whitelist are exempt from automated punishment.", inline: true },
             { name: "CURRENT LIMITATIONS", value: "No panic-lockdown or quarantine workflow yet. This is not full Wick parity; deleted webhook tokens and all deleted server assets cannot be restored automatically.", inline: false }
