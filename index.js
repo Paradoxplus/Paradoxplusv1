@@ -1378,8 +1378,8 @@ client.once(Events.ClientReady, async readyClient => {
   const nicknameGuild = await readyClient.guilds.fetch(MEMBER_COUNTER_GUILD_ID).catch(() => null);
   if (nicknameGuild) {
     const botMember = await nicknameGuild.members.fetchMe().catch(() => null);
-    if (botMember && botMember.nickname !== "Paradox • Core") {
-      await botMember.setNickname("Paradox • Core", "Set official Paradoxplus bot nickname")
+    if (botMember && botMember.nickname !== "Exile • Core") {
+      await botMember.setNickname("Exile • Core", "Set official Exile • Core bot nickname")
         .catch(error => console.error("[Nickname] Could not set bot nickname:", error));
     }
   }
@@ -1472,7 +1472,7 @@ function buildTicketPanel(guild, botUser) {
     )
     .setThumbnail(guild.iconURL({ size: 256 }) || botUser.displayAvatarURL())
     .setImage("https://d2ol7oe51mr4n9.cloudfront.net/user_3LnTjrCm07BcsWANEl3eqURP53X/2c552c8e-1694-4602-ab5b-4e8430de9597.gif")
-    .setFooter({ text: "Powered By Paradox • Core" });
+    .setFooter({ text: "Powered By Exile • Core" });
   return { embeds: [panel], components: [new ActionRowBuilder().addComponents(menu)] };
 }
 
@@ -1488,7 +1488,7 @@ async function buildTicketTranscript(channel) {
   }
   collected.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
   const lines = [
-    "PARADOXPLUS TICKET TRANSCRIPT",
+    "EXILE AS 1.9+ | TICKET TRANSCRIPT",
     "Server: " + channel.guild.name,
     "Channel: #" + channel.name,
     "Generated: " + new Date().toISOString(),
@@ -1532,7 +1532,7 @@ async function archiveTicketTranscript(channel, closedBy, reason) {
     transcriptChannel = await guild.channels.create({
       name: "ticket-transcripts",
       type: ChannelType.GuildText,
-      topic: "Paradoxplus automatically archived ticket transcripts",
+      topic: "Exile AS 1.9+ automatically archived ticket transcripts",
       parent: supportCategory.id,
       permissionOverwrites: overwrites,
       reason: "Create private ticket transcript archive"
@@ -1541,7 +1541,7 @@ async function archiveTicketTranscript(channel, closedBy, reason) {
     if (transcriptChannel.parentId !== supportCategory.id) {
       await transcriptChannel.setParent(supportCategory.id, {
         lockPermissions: false,
-        reason: "Keep ticket transcripts inside the Paradoxplus support area"
+        reason: "Keep ticket transcripts inside the Exile AS support area"
       });
     }
     await transcriptChannel.permissionOverwrites.edit(guild.roles.everyone.id, { ViewChannel: false }).catch(() => null);
@@ -1554,7 +1554,7 @@ async function archiveTicketTranscript(channel, closedBy, reason) {
   }
   const ticketData = getTicketData(channel);
   const attachment = new AttachmentBuilder(Buffer.from(transcript, "utf8"), {
-    name: "paradoxplus-" + channel.id + "-transcript.txt"
+    name: "exile-as-" + channel.id + "-transcript.txt"
   });
   const embed = new EmbedBuilder()
     .setColor(0x6d5dfc)
@@ -1566,7 +1566,7 @@ async function archiveTicketTranscript(channel, closedBy, reason) {
       { name: "Owner", value: ticketData?.ownerId ? "<@" + ticketData.ownerId + ">" : "Unknown", inline: true },
       { name: "Reason", value: reason ? reason.slice(0, 900) : "No reason provided", inline: false }
     )
-    .setFooter({ text: "Paradoxplus • Automatic Ticket Archive" })
+    .setFooter({ text: "Exile AS 1.9+ • Automatic Ticket Archive" })
     .setTimestamp();
   await transcriptChannel.send({ embeds: [embed], files: [attachment], allowedMentions: { users: [closedBy], parse: [] } });
   return transcriptChannel;
@@ -1821,7 +1821,7 @@ client.on(Events.InteractionCreate, async interaction => {
   if (interaction.isButton() && interaction.customId === "px_ticket_close") {
     if (!interaction.inGuild() || !interaction.channel) return interaction.reply({ content: "This ticket is no longer available.", ephemeral: true });
     const ownerId = getTicketData(interaction.channel)?.ownerId;
-    if (!ownerId) return interaction.reply({ content: "This button can only be used inside a Paradoxplus ticket.", ephemeral: true });
+    if (!ownerId) return interaction.reply({ content: "This button can only be used inside an Exile AS ticket.", ephemeral: true });
     const config = getGuildConfig(interaction.guildId);
     const staffRole = config.ticketStaffRoleId;
     const closingMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
@@ -1845,7 +1845,7 @@ client.on(Events.InteractionCreate, async interaction => {
       );
       await archiveTicketTranscript(interaction.channel, interaction.user.id, "Closed using the ticket close button.");
       await interaction.update({ content: "🔒 Ticket closed. Its transcript has been saved in #ticket-transcripts. This channel will now be deleted.", components: [disabledRow] });
-      await interaction.channel.delete("Paradoxplus ticket archived and automatically deleted after closure");
+      await interaction.channel.delete("Exile AS ticket archived and automatically deleted after closure");
       return;
     } catch (error) {
       console.error("[Tickets] Could not close ticket:", error);
@@ -2223,7 +2223,7 @@ client.on(Events.InteractionCreate, async interaction => {
       const staffAccess = isTicketStaff(interaction, config, staffMember);
 
       if (sub !== "panel" && !isTicketChannel) {
-        return replyError(interaction, "Use this command inside a Paradoxplus ticket channel.");
+        return replyError(interaction, "Use this command inside an Exile AS ticket channel.");
       }
 
       if (sub === "claim") {
@@ -2282,7 +2282,7 @@ client.on(Events.InteractionCreate, async interaction => {
             { name: "Priority", value: current.priority, inline: true },
             { name: "Claimed by", value: current.claimedBy ? "<@" + current.claimedBy + ">" : "Unclaimed", inline: true }
           )
-          .setFooter({ text: "Paradoxplus • Ticket Management" });
+          .setFooter({ text: "Exile AS 1.9+ • Ticket Management" });
         return interaction.reply({ embeds: [info], ephemeral: true, allowedMentions: { parse: [] } });
       }
 
@@ -2305,7 +2305,7 @@ client.on(Events.InteractionCreate, async interaction => {
           content: "🔒 Ticket closed. Its transcript has been saved in #ticket-transcripts, and this channel will now be deleted.",
           allowedMentions: { users: [interaction.user.id], parse: [] }
         });
-        await interaction.channel.delete("Paradoxplus ticket archived and automatically deleted after closure");
+        await interaction.channel.delete("Exile AS ticket archived and automatically deleted after closure");
         return;
       }
 
@@ -2350,7 +2350,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (sub === "add") {
         if (!allowed) return replyError(interaction, "Only ticket staff or server managers can add members to tickets.");
         const ownerId = interaction.channel?.topic?.match(/^paradoxplus-ticket:(\d+)$/)?.[1];
-        if (!ownerId) return replyError(interaction, "Use /ticket add inside an open Paradoxplus ticket channel.");
+        if (!ownerId) return replyError(interaction, "Use /ticket add inside an open Exile AS ticket channel.");
         const user = interaction.options.getUser("user", true);
         if (user.bot) return replyError(interaction, "Bots cannot be added to support tickets.");
         try {
