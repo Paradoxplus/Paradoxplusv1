@@ -2443,7 +2443,7 @@ client.on(Events.InteractionCreate, async interaction => {
       }
 
       await interaction.deferReply({ ephemeral: true });
-      const prefix = "PX ϟ ";
+      const prefix = "𝝨𝝬𝗟 么 ";
       let members;
       try {
         members = await interaction.guild.members.fetch();
@@ -2463,18 +2463,19 @@ client.on(Events.InteractionCreate, async interaction => {
         member.roles.cache.has(selectedRole.id)
       );
 
-      await interaction.editReply("🏷️ Starting PX ϟ tagging for **" + targets.length + "** members with " + selectedRole.toString() + ". Members without that role will not be changed.");
+      await interaction.editReply("🏷️ Starting 𝝨𝝬𝗟 么 tagging for **" + targets.length + "** members with " + selectedRole.toString() + ". Members without that role will not be changed.");
       for (const member of targets) {
         processed++;
-        const currentName = member.nickname || member.user.globalName || member.user.username;
-        if (currentName.startsWith(prefix)) {
+        const originalName = member.nickname || member.user.globalName || member.user.username;
+        const currentName = originalName.replace(/^(?:PX ϟ |Exl 么 |𝝨𝝬𝗟 么 )/, "");
+        if (originalName.startsWith(prefix)) {
           alreadyTagged++;
           continue;
         }
 
         const nextName = (prefix + currentName).slice(0, 32);
         try {
-          await member.setNickname(nextName, "Apply the PX ϟ team tag to members with role " + selectedRole.name);
+          await member.setNickname(nextName, "Apply the 𝝨𝝬𝗟 么 team tag to members with role " + selectedRole.name);
           changed++;
         } catch (error) {
           failed++;
@@ -2485,7 +2486,7 @@ client.on(Events.InteractionCreate, async interaction => {
         }
 
         if (processed % 10 === 0 || processed === targets.length) {
-          await interaction.editReply("🏷️ **PX ϟ team tagging in progress**\nRole: " + selectedRole.toString() + "\nProcessed: **" + processed + "/" + targets.length + "**\nChanged: **" + changed + "** • Already tagged: **" + alreadyTagged + "** • Discord rejected: **" + failed + "**");
+          await interaction.editReply("🏷️ **𝝨𝝬𝗟 么 team tagging in progress**\nRole: " + selectedRole.toString() + "\nProcessed: **" + processed + "/" + targets.length + "**\nChanged: **" + changed + "** • Already tagged: **" + alreadyTagged + "** • Discord rejected: **" + failed + "**");
         }
       }
 
@@ -2496,7 +2497,7 @@ client.on(Events.InteractionCreate, async interaction => {
       const detailsText = failureDetails.length
         ? "\n\n**Members Discord would not let me edit:**\n" + failureDetails.join("\n") + moreFailures
         : "";
-      const result = "✅ **PX ϟ team tagging finished**\nRole: " + selectedRole.toString() + "\nEligible members: **" + targets.length + "**\nChanged: **" + changed + "**\nAlready tagged: **" + alreadyTagged + "**\nDiscord rejected: **" + failed + "**\nMembers without the selected role were untouched; bots and the server owner were excluded." + detailsText;
+      const result = "✅ **𝝨𝝬𝗟 么 team tagging finished**\nRole: " + selectedRole.toString() + "\nEligible members: **" + targets.length + "**\nChanged: **" + changed + "**\nAlready tagged: **" + alreadyTagged + "**\nDiscord rejected: **" + failed + "**\nMembers without the selected role were untouched; bots and the server owner were excluded." + detailsText;
       return interaction.editReply(result.slice(0, 1950));
     }
 
