@@ -392,6 +392,10 @@ const commands = [
     .addSubcommand(sc=>sc.setName("restore-channel").setDescription("Restore a channel from a selected backup.")
       .addStringOption(o=>o.setName("channel_id").setDescription("Original channel ID").setRequired(true))
       .addStringOption(o=>o.setName("backup_file").setDescription("Exact backup filename").setRequired(true))),
+  new SlashCommandBuilder().setName("roleall").setDescription("Assign a role to every manageable human member.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+    .addRoleOption(o=>o.setName("role").setDescription("Role to assign to all members").setRequired(true))
+    .addBooleanOption(o=>o.setName("confirm").setDescription("Confirm assigning this role server-wide").setRequired(true)),
   new SlashCommandBuilder().setName("autorole").setDescription("Configure roles automatically assigned to new members.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
     .addSubcommand(sc=>sc.setName("add").setDescription("Add a role to the automatic join-role list.")
