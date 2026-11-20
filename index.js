@@ -1127,7 +1127,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   const config = getGuildConfig(newMember.guild.id);
   if (!Array.isArray(config.permanentMutes)) config.permanentMutes = [];
   const record = config.permanentMutes.find(item => item.memberId === newMember.id);
-  if (!record) return;
+  if (!record || record.unmuting) return;
   if (isAntiNukeWhitelisted(newMember.guild.id, newMember.id) || isBotOwner(newMember.id)) return;
   // Only renew when an existing timeout is actually cleared. Role changes
   // during the initial mute setup must not start a second timeout operation.
@@ -4284,9 +4284,23 @@ client.on(Events.MessageCreate, async message => {
       const muteRecord = config.permanentMutes.find(item => item.memberId === target.id);
       const wasPermanent = Boolean(muteRecord);
       if (!wasPermanent && !target.communicationDisabledUntilTimestamp) return fail("That member is not muted.");
+      // Mark the record before clearing the timeout so GuildMemberUpdate cannot
+      // interpret this intentional unmute as an expired timeout and renew it.
+      if (muteRecord) {
+        muteRecord.unmuting = true;
+        await saveDatabase();
+      }
       if (target.communicationDisabledUntilTimestamp) {
-        if (!target.moderatable) return fail("I cannot remove this timeout because of Discord's role hierarchy.");
-        await target.timeout(null, "Permanent mute removed by " + message.author.tag);
+        if (!target.moderatable) {
+          if (muteRecord) { muteRecord.unmuting = false; await saveDatabase(); }
+          return fail("I cannot remove this timeout because of Discord's role hierarchy.");
+        }
+        try {
+          await target.timeout(null, "Permanent mute removed by " + message.author.tag);
+        } catch (error) {
+          if (muteRecord) { muteRecord.unmuting = false; await saveDatabase(); }
+          return fail("I could not remove the timeout: " + String(error.message || error));
+        }
       }
       const roleIdsToRestore = Array.isArray(muteRecord?.removedRoleIds) ? muteRecord.removedRoleIds : [];
       const rolesToRestore = roleIdsToRestore
