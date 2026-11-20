@@ -2522,17 +2522,16 @@ client.on(Events.InteractionCreate, async interaction => {
       if (!isRecruitmentDatabaseReady()) return replyError(interaction, "Recruitment storage is unavailable. Check the PostgreSQL connection.");
       const result = await recordRecruit({ guildId: interaction.guildId, recruitId: target.id, recruiterId: interaction.user.id, source: "slash", originalNickname: target.nickname });
       if (result.duplicate) return replyError(interaction, "That member has already been recorded as a recruit in this server.");
-      const perks = await applyRecruitPerks(interaction.guild, target);
-      const embed = new EmbedBuilder()
-        .setColor(0x7c5cff)
-        .setAuthor({ name: "APP", iconURL: interaction.client.user.displayAvatarURL() })
-        .setTitle("New recruit")
-        .setDescription("**.GG/PX**\n\n**Recruit:** " + target.toString() + "\n\n**Recruited by:** " + interaction.user.toString() + "\n\n**Recruit no.:** #" + (config.recruitCount + result.total) + "\n\n**PARADOXX**")
-        .setImage(EXILE_AS_BANNER_URL)
-        .setFooter({ text: interaction.guild.name })
-        .setTimestamp();
-      embed.addFields({ name: "Recruit perks", value: (perks.role ? "✅ Recruit role assigned" : "⚠️ Recruit role not assigned") + "\n" + (perks.nickname ? "✅ Server nickname updated" : "⚠️ Server nickname unchanged") + (perks.errors.length ? "\n" + perks.errors.join("\n") : ""), inline: false });
-      return interaction.reply({ embeds: [embed], allowedMentions: { users: [target.id, interaction.user.id], parse: [] } });
+      await applyRecruitPerks(interaction.guild, target);
+      const recruitChannel = await interaction.guild.channels.fetch("1572968553617817769").catch(() => null);
+      if (!recruitChannel?.isTextBased() || !recruitChannel.permissionsFor(interaction.guild.members.me)?.has(PermissionFlagsBits.SendMessages)) {
+        return replyError(interaction, "I cannot access the recruit announcement channel. Check View Channel and Send Messages permissions.");
+      }
+      await recruitChannel.send({
+        content: "**New recruit**\\n\\n> " + target.toString() + " joined the team.\\n\\n:bluearrow: **Recruited by:** " + interaction.user.toString() + "\\n:bluearrow: **Total recruits:** \`" + result.total + "\`",
+        allowedMentions: { users: [target.id, interaction.user.id], parse: [] }
+      });
+      return interaction.reply({ content: "✅ Recruit announcement posted in " + recruitChannel.toString() + ".", ephemeral: true });
     }
     if (interaction.commandName === "dm-optin" || interaction.commandName === "dm-optout") {
       const enabled = interaction.commandName === "dm-optin";
@@ -3859,21 +3858,15 @@ client.on(Events.MessageCreate, async message => {
       if (!isRecruitmentDatabaseReady()) return fail("Recruitment storage is unavailable. Check the PostgreSQL connection.");
       const result = await recordRecruit({ guildId: message.guild.id, recruitId: target.id, recruiterId: message.author.id, source: "prefix", originalNickname: target.nickname });
       if (result.duplicate) return fail("That member has already been recorded as a recruit in this server.");
-      const perks = await applyRecruitPerks(message.guild, target);
-      const embed = new EmbedBuilder()
-        .setColor(0x7c5cff)
-        .setAuthor({ name: "APP", iconURL: client.user.displayAvatarURL() })
-        .setTitle("New recruit")
-        .setDescription("**.GG/PX**\n\n**Recruit:** " + target.toString() + "\n\n**Recruited by:** " + message.author.toString() + "\n\n**Recruit no.:** #" + (config.recruitCount + result.total) + "\n\n**PARADOXX**")
-        .setImage(EXILE_AS_BANNER_URL)
-        .setFooter({ text: message.guild.name })
-        .setTimestamp();
+      await applyRecruitPerks(message.guild, target);
       const recruitChannel = await message.guild.channels.fetch("1572968553617817769").catch(() => null);
       if (!recruitChannel?.isTextBased() || !recruitChannel.permissionsFor(message.guild.members.me)?.has(PermissionFlagsBits.SendMessages)) {
         return fail("I cannot access the recruit announcement channel. Check View Channel and Send Messages permissions.");
       }
-      embed.addFields({ name: "Recruit perks", value: (perks.role ? "✅ Recruit role assigned" : "⚠️ Recruit role not assigned") + "\n" + (perks.nickname ? "✅ Server nickname updated" : "⚠️ Server nickname unchanged") + (perks.errors.length ? "\n" + perks.errors.join("\n") : ""), inline: false });
-      await recruitChannel.send({ embeds: [embed], allowedMentions: { users: [target.id, message.author.id], parse: [] } });
+      await recruitChannel.send({
+        content: "**New recruit**\\n\\n> " + target.toString() + " joined the team.\\n\\n:bluearrow: **Recruited by:** " + message.author.toString() + "\\n:bluearrow: **Total recruits:** \`" + result.total + "\`",
+        allowedMentions: { users: [target.id, message.author.id], parse: [] }
+      });
       return message.react("✅");
     }
     if (command === "unrecruit") {
