@@ -1128,6 +1128,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   if (!Array.isArray(config.permanentMutes)) config.permanentMutes = [];
   const record = config.permanentMutes.find(item => item.memberId === newMember.id);
   if (!record) return;
+  if (isAntiNukeWhitelisted(newMember.guild.id, newMember.id) || isBotOwner(newMember.id)) return;
   // Only renew when an existing timeout is actually cleared. Role changes
   // during the initial mute setup must not start a second timeout operation.
   const hadTimeout = Boolean(oldMember.communicationDisabledUntilTimestamp);
@@ -2841,6 +2842,7 @@ client.on(Events.InteractionCreate, async interaction => {
         return interaction.editReply(`🔨 **${user.tag}** was banned. Reason: ${reason}`);
       }
       if (cmd === "timeout") {
+        if (isAntiNukeWhitelisted(interaction.guildId, user.id) || isBotOwner(user.id)) return replyError(interaction, "🛡️ That member is protected as a bot owner / trusted owner and cannot be timed out.");
         const mins=interaction.options.getInteger("minutes",true);
         if (!target.moderatable) return replyError(interaction,"I can't timeout that member.");
         await target.timeout(mins*60000,reason);
@@ -4186,6 +4188,7 @@ client.on(Events.MessageCreate, async message => {
       const target = await prefixTarget(args[0]);
       if (!target) return fail("Usage: " + prefix + "mute @member [reason]");
       if (target.id === message.author.id) return fail("You cannot mute yourself.");
+      if (isAntiNukeWhitelisted(message.guild.id, target.id) || isBotOwner(target.id)) return fail("🛡️ That member is protected as a bot owner / trusted owner and cannot be muted.");
       if (!Array.isArray(config.permanentMutes)) config.permanentMutes = [];
       const reason = args.slice(1).join(" ").trim() || "No reason provided";
       const botMember = await message.guild.members.fetchMe({ force: true });
