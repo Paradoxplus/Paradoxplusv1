@@ -2264,17 +2264,21 @@ client.on(Events.InteractionCreate, async interaction => {
         }
         const latestBackup = backupFiles.sort().at(-1) || null;
         const status = new EmbedBuilder()
-          .setColor(0x6d5dfc)
-          .setTitle("PARADOX • CORE  /  ANTI-NUKE")
-          .setDescription("**Protection is active.** These safeguards run automatically; this command does not disable them.")
+          .setColor(0x15171c)
+          .setAuthor({ name: "PARADOX • CORE  /  SECURITY CENTER" })
+          .setTitle("ANTI-NUKE OVERVIEW")
+          .setDescription("**LIVE PROTECTION**  ·  Automatic detection is enabled for the configured server. Unknown audit-log actors are reported for review rather than blindly punished.")
           .addFields(
-            { name: "Channel deletion", value: "Automatic recovery and archived-message replay. When a review channel is configured, the server owner can approve or reject the deletion; without one, automatic enforcement remains active.", inline: false },
-            { name: "Paradox • Core role deletion", value: "Automatic role recreation and an attempted ban of the identified deleter.", inline: false },
-            { name: "Paradox • Core role assignment", value: "Unauthorized grants are reverted; the bot's own assignment is permitted.", inline: false },
-            { name: "Channel backups", value: backupFiles.length + " snapshot file(s) currently stored on the Railway app volume. Hourly backups are enabled.", inline: false },
-            { name: "Latest snapshot", value: latestBackup || "No snapshot file found.", inline: false }
+            { name: "01  /  Destructive actions", value: "Rapid mass-ban and mass-kick detection; channel and role creation/deletion monitoring; webhook creation, updates, and deletion monitoring.", inline: false },
+            { name: "02  /  Permission escalation", value: "Dangerous role-permission grants, dangerous role assignments, and channel-overwrite permission escalation are checked and reverted when an unauthorized actor is identified.", inline: false },
+            { name: "03  /  Bot security", value: "New bots with elevated moderation or server-management permissions are detected and removed when the inviter is not trusted.", inline: false },
+            { name: "04  /  Raid signals", value: "A burst of 8 human joins within 15 seconds triggers an owner alert. Join detection is alert-only; it does not mass-kick ordinary members.", inline: false },
+            { name: "05  /  Recovery & backups", value: "Channel configuration recovery and archived-message replay are available when snapshots exist. Core-role recovery is handled separately. " + backupFiles.length + " channel snapshot file(s) found; hourly backups are enabled.", inline: false },
+            { name: "LATEST SNAPSHOT", value: latestBackup || "No snapshot file found.", inline: true },
+            { name: "TRUST MODEL", value: "Server owner, configured security owners, bot, and owner-managed whitelist are exempt from automated punishment.", inline: true },
+            { name: "CURRENT LIMITATIONS", value: "No panic-lockdown or quarantine workflow yet. This is not full Wick parity; deleted webhook tokens and all deleted server assets cannot be restored automatically.", inline: false }
           )
-          .setFooter({ text: "PARADOX • CORE SECURITY" })
+          .setFooter({ text: "PARADOX • CORE  /  SECURITY OPERATIONS" })
           .setTimestamp();
         return interaction.reply({ embeds: [status], ephemeral: true });
       }
