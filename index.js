@@ -595,6 +595,32 @@ async function findRecentAuditExecutor(guild, type, targetId, maxAgeMs = 45000) 
   return null;
 }
 
+const antiNukeDestructiveWindows = new Map();
+
+async function trackDestructiveAuditAction(guild, executorId, action, targetLabel) {
+  if (guild.id !== ANTI_NUKE_GUILD_ID || !executorId) return false;
+  if (executorId === guild.ownerId || executorId === client.user.id ||
+      CHANNEL_SECURITY_OWNER_IDS.has(executorId) || isAntiNukeWhitelisted(guild.id, executorId)) return false;
+
+  const now = Date.now();
+  const key = guild.id + ":" + action + ":" + executorId;
+  const recent = (antiNukeDestructiveWindows.get(key) || []).filter(timestamp => now - timestamp <= 12000);
+  recent.push(now);
+  antiNukeDestructiveWindows.set(key, recent);
+
+  // Keep the in-memory tracker bounded even during prolonged event floods.
+  if (antiNukeDestructiveWindows.size > 500) {
+    for (const [storedKey, timestamps] of antiNukeDestructiveWindows) {
+      if (!timestamps.length || now - timestamps[timestamps.length - 1] > 60000) antiNukeDestructiveWindows.delete(storedKey);
+    }
+  }
+
+  if (recent.length < 3) return false;
+  antiNukeDestructiveWindows.delete(key);
+  await punishAntiNukeExecutor(guild, executorId, "rapid " + action + " activity: " + recent.length + " " + targetLabel + " within 12 seconds");
+  return true;
+}
+
 async function notifyAntiNukeOwner(guild, message) {
   try {
     const owner = await client.users.fetch(BOT_OWNER_ID);
@@ -913,6 +939,9 @@ client.on(Events.ChannelDelete, async channel => {
   }
 
   const executorId = entry?.executorId ?? null;
+  if (executorId) {
+    await trackDestructiveAuditAction(guild, executorId, "channel-delete", "channels deleted");
+  }
   const isTrustedOwner = executorId && CHANNEL_SECURITY_OWNER_IDS.has(executorId);
   if (isTrustedOwner || executorId === client.user.id || isAntiNukeWhitelisted(guild.id, executorId)) {
     console.log("[CHANNEL-ANTI-NUKE] Trusted owner or bot deleted channel; no enforcement:", executorId);
@@ -962,8 +991,15 @@ client.on(Events.ChannelDelete, async channel => {
 });
 
 client.on(Events.GuildRoleDelete, async role => {
-  if (role.guild.id !== "1572968551973654528") return;
+  if (role.guild.id !== ANTI_NUKE_GUILD_ID) return;
   void syncRankRoles(role.guild).catch(error => console.error("Role-delete auto-sync failed:", error));
+
+  // Detect rapid deletion of multiple roles, not just deletion of the Core role.
+  const roleDeleteEntry = await findRecentAuditExecutor(role.guild, AuditLogEvent.RoleDelete, role.id, 30000);
+  if (roleDeleteEntry?.executorId) {
+    await trackDestructiveAuditAction(role.guild, roleDeleteEntry.executorId, "role-delete", "roles deleted");
+  }
+
   if (role.name !== "Paradox • Core") return;
 
   const guild = role.guild;
