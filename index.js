@@ -1870,13 +1870,17 @@ client.on(Events.InteractionCreate, async interaction => {
       await interaction.deferReply({ ephemeral: true });
       try {
         const members = await getGuildMembers(interaction.guild);
-        const targets = [...members.values()].filter(member => !member.user.bot && !member.roles.cache.has(role.id) && member.manageable);
-        let added = 0, failed = 0;
+        const targets = [...members.values()].filter(member => !member.roles.cache.has(role.id));
+        let added = 0;
+        const failed = [];
         for (const member of targets) {
           try { await member.roles.add(role, "Bulk role assignment by " + interaction.user.tag); added++; }
-          catch (error) { failed++; console.error("[RoleAll] Failed for", member.id, error); }
+          catch (error) { failed.push({ id: member.id, tag: member.user.tag, code: error.code || "unknown" }); console.error("[RoleAll] Failed for", member.id, error); }
         }
-        return interaction.editReply("Finished assigning " + role.toString() + ". Added: **" + added + "** human members. Failed: **" + failed + "**. Bots and members above my role were skipped.");
+        const failureList = failed.slice(0, 15).map(item => item.tag + " (" + item.id + ", error " + item.code + ")").join("\n");
+        const more = failed.length > 15 ? "\n…and " + (failed.length - 15) + " more." : "";
+        const report = "Finished assigning " + role.toString() + ".\nAdded: **" + added + "**\nFailed: **" + failed.length + "** (including any accounts Discord would not allow me to manage)." + (failureList ? "\n\n**Failed accounts:**\n" + failureList + more : "");
+        return interaction.editReply(report.slice(0, 1950));
       } catch (error) {
         console.error("[RoleAll] Bulk assignment failed:", error);
         return interaction.editReply("I couldn't complete the role assignment. Check my Server Members Intent, Manage Roles permission, and role hierarchy.");
