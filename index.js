@@ -1454,6 +1454,9 @@ function buildTicketPanel(guild, botUser) {
     .addOptions(
       { label: "Team Application", description: "Apply to join the team", value: "Team Application", emoji: "🛡️" },
       { label: "General Support", description: "Get help from the support team", value: "General Support", emoji: "🎫" },
+      { label: "Ally Request", description: "Request an alliance", value: "Ally", emoji: "🤝" },
+      { label: "Merge Request", description: "Request a clan merge", value: "Merge", emoji: "🔗" },
+      { label: "TVT", description: "Arrange a clan versus clan match", value: "TVT", emoji: "⚔️" },
       { label: "Paid Promotion", description: "Enquire about paid promotions", value: "Paid Promotion", emoji: "📢" }
     );
   const panel = new EmbedBuilder()
@@ -1468,7 +1471,7 @@ function buildTicketPanel(guild, botUser) {
       "> • Must be active in both VC and Chat\n" +
       "> • Must act mature and have common sense\n\n" +
       "**Types of help we can provide in __General Support:__**\n\n" +
-      "> - Ally / Merge Request\n> - Technical Help\n> - Staff Report\n> - Giveaways Rewards\n> - Clan V/s Clan\n\n" +
+      "> - Ally Request\n> - Merge Request\n> - TVT (Clan V/s Clan)\n> - Technical Help\n> - Staff Report\n> - Giveaways Rewards\n\n" +
       "**NOTE:** Create a ticket only for one of the support types listed above."
     )
     .setThumbnail(guild.iconURL({ size: 256 }) || botUser.displayAvatarURL())
@@ -1776,7 +1779,7 @@ client.on(Events.InteractionCreate, async interaction => {
         return interaction.editReply("The ticket category is missing or is not a category. Please ask an administrator to check the ticket setup.");
       }
       const username = interaction.user.username.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 45) || "member";
-      const typeSlug = ticketType === "General Support" ? "general" : ticketType === "Team Application" ? "team-application" : "paid-promotion";
+      const typeSlug = ticketType === "General Support" ? "general" : ticketType === "Team Application" ? "team-application" : ticketType === "Ally" ? "ally" : ticketType === "Merge" ? "merge" : ticketType === "TVT" ? "tvt" : "paid-promotion";
       const baseName = typeSlug + "-" + username;
       let channelName = baseName;
       let suffix = 2;
