@@ -654,7 +654,14 @@ async function trackDestructiveAuditAction(guild, executorId, action, targetLabe
 async function notifyAntiNukeOwner(guild, message) {
   try {
     const owner = await client.users.fetch(BOT_OWNER_ID);
-    await owner.send("🛡️ **Paradox • Core security alert**\nServer: " + guild.name + " (" + guild.id + ")\n" + message);
+    const alert = new EmbedBuilder()
+      .setColor(0x202225)
+      .setTitle("🛡️ Paradox • Core  |  Security Alert")
+      .setDescription(String(message).slice(0, 3900))
+      .addFields({ name: "Server", value: String(guild.name || "Unknown").slice(0, 100) + "\\n\\" + guild.id, inline: false })
+      .setFooter({ text: "ANTI-NUKE SYSTEM  •  Automated security notice" })
+      .setTimestamp();
+    await owner.send({ embeds: [alert], allowedMentions: { parse: [] } });
   } catch (error) {
     console.error("[ANTI-NUKE] Could not DM the configured bot owner:", error);
   }
@@ -1146,7 +1153,11 @@ client.on(Events.ChannelDelete, async channel => {
   } catch (error) {
     console.error("[CHANNEL-ANTI-NUKE] Recovery failed:", error);
   }
-  if (!executorId || executorId === guild.ownerId || executorId === client.user.id) return;
+  if (!executorId) {
+    await notifyAntiNukeOwner(guild, "A channel was deleted, but Discord did not provide a matching audit-log executor. Recovery was attempted. Review the audit log and verify the restored channel.");
+    return;
+  }
+  if (executorId === guild.ownerId || executorId === client.user.id) return;
   const cfg = getGuildConfig(guild.id);
   const reviewChannel = cfg.recoveryReviewChannelId ? await guild.channels.fetch(cfg.recoveryReviewChannelId).catch(() => null) : null;
   if (restoredChannel && reviewChannel?.isTextBased?.() && typeof reviewChannel.send === "function") {
