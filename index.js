@@ -1006,7 +1006,8 @@ async function inspectChannelPermissionEscalation(oldChannel, newChannel) {
   for (const [targetId, next] of newChannel.permissionOverwrites.cache) {
     const previous = oldChannel.permissionOverwrites.cache.get(targetId);
     const granted = ANTI_NUKE_CHANNEL_DANGEROUS_PERMISSIONS.filter(permission =>
-      next.allow.has(permission) && !previous?.allow.has(permission)
+      (next.allow.has(permission) && !previous?.allow.has(permission)) ||
+      (previous?.deny.has(permission) && !next.deny.has(permission))
     );
     if (granted.length) changedTargets.push({ targetId, previous, next, granted });
   }
@@ -1015,7 +1016,8 @@ async function inspectChannelPermissionEscalation(oldChannel, newChannel) {
   let entry = null;
   for (const type of [
     AuditLogEvent.ChannelOverwriteUpdate,
-    AuditLogEvent.ChannelOverwriteCreate
+    AuditLogEvent.ChannelOverwriteCreate,
+    AuditLogEvent.ChannelOverwriteDelete
   ]) {
     try {
       const logs = await newChannel.guild.fetchAuditLogs({ type, limit: 10 });
@@ -1086,7 +1088,7 @@ function trackAntiNukeJoin(member) {
 
 client.on(Events.WebhooksUpdate, async channel => {
   if (!channel?.guild || channel.guild.id !== ANTI_NUKE_GUILD_ID) return;
-  for (const type of [AuditLogEvent.WebhookCreate, AuditLogEvent.WebhookUpdate]) {
+  for (const type of [AuditLogEvent.WebhookCreate, AuditLogEvent.WebhookUpdate, AuditLogEvent.WebhookDelete]) {
     try {
       const logs = await channel.guild.fetchAuditLogs({ type, limit: 10 });
       const entry = [...logs.entries.values()].find(item =>
@@ -1106,7 +1108,7 @@ client.on(Events.WebhooksUpdate, async channel => {
       }
       if (!triggered) {
         await notifyAntiNukeOwner(channel.guild, "Unauthorized webhook " +
-          (type === AuditLogEvent.WebhookCreate ? "creation" : "update") +
+          (type === AuditLogEvent.WebhookCreate ? "creation" : type === AuditLogEvent.WebhookDelete ? "deletion" : "update") +
           " detected in <#" + channel.id + "> by <@" + entry.executorId + ">.");
       }
     } catch (error) {
