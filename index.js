@@ -961,7 +961,27 @@ client.on(Events.GuildRoleDelete, async role => {
   if (role.name !== "Paradox • Core") return;
 
   const guild = role.guild;
-  console.error("[ROLE-PROTECTION] Paradox • Core role was deleted. Attempting recovery and enforcement.");
+  console.error("[ROLE-PROTECTION] Paradox • Core role was deleted. Checking executor and recovery.");
+
+  // Identify the executor before taking recovery action so explicitly trusted users are exempt.
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  let executorId = null;
+  try {
+    const audit = await guild.fetchAuditLogs({ type: AuditLogEvent.RoleDelete, limit: 8 });
+    const entry = audit.entries.find(item =>
+      item.targetId === role.id &&
+      Date.now() - item.createdTimestamp < 20000
+    );
+    executorId = entry?.executorId ?? null;
+  } catch (error) {
+    console.error("[ROLE-PROTECTION] Could not identify role deleter:", error);
+  }
+
+  if (executorId === guild.ownerId || executorId === client.user.id || isAntiNukeWhitelisted(guild.id, executorId)) {
+    console.log("[ROLE-PROTECTION] Trusted executor; skipping protected-role recovery and enforcement:", executorId);
+    return;
+  }
+
   let recreatedRole = null;
   try {
     recreatedRole = await guild.roles.create({
@@ -980,39 +1000,21 @@ client.on(Events.GuildRoleDelete, async role => {
     console.error("[ROLE-PROTECTION] Failed to recreate protected role:", error);
   }
 
-  // Audit-log entries can appear shortly after the gateway event.
-  await new Promise(resolve => setTimeout(resolve, 1500));
-  try {
-    const audit = await guild.fetchAuditLogs({ type: AuditLogEvent.RoleDelete, limit: 8 });
-    const entry = audit.entries.find(item =>
-      item.targetId === role.id &&
-      Date.now() - item.createdTimestamp < 20000
-    );
-    const executorId = entry?.executorId;
-    if (!executorId) {
-      console.error("[ROLE-PROTECTION] Could not identify the role deleter; no ban was attempted.");
-      return;
-    }
-    if (executorId === guild.ownerId) {
-      console.error("[ROLE-PROTECTION] The server owner deleted the protected role. Discord does not allow bots to ban the server owner.");
-      return;
-    }
-    if (executorId === client.user.id || isAntiNukeWhitelisted(guild.id, executorId)) {
-      console.log("[ROLE-PROTECTION] Whitelisted executor; skipping anti-nuke punishment:", executorId);
-      return;
-    }
+  if (!executorId) {
+    console.error("[ROLE-PROTECTION] Could not identify the role deleter; no ban was attempted.");
+    return;
+  }
 
-    const executor = await guild.members.fetch(executorId).catch(() => null);
-    if (!executor) {
-      console.error("[ROLE-PROTECTION] Deleter is no longer in the server; cannot ban them.");
-      return;
-    }
-    await executor.ban({
-      reason: "Paradox • Core role protection: deleting the protected role"
-    });
+  const executor = await guild.members.fetch(executorId).catch(() => null);
+  if (!executor) {
+    console.error("[ROLE-PROTECTION] Deleter is no longer in the server; cannot ban them.");
+    return;
+  }
+  try {
+    await executor.ban({ reason: "Paradox • Core role protection: deleting the protected role" });
     console.log("[ROLE-PROTECTION] Banned role deleter:", executorId);
   } catch (error) {
-    console.error("[ROLE-PROTECTION] Could not identify or ban the role deleter:", error);
+    console.error("[ROLE-PROTECTION] Could not ban role deleter:", error);
   }
 });
 
