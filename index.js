@@ -4683,8 +4683,13 @@ client.on(Events.MessageCreate, async message => {
       const perm={kick:PermissionFlagsBits.KickMembers,ban:PermissionFlagsBits.BanMembers,timeout:PermissionFlagsBits.ModerateMembers,untimeout:PermissionFlagsBits.ModerateMembers,purge:PermissionFlagsBits.ManageMessages}[command];
       if (!isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.Administrator) && !message.member.permissions.has(perm)) return fail("You don't have permission to use that moderation command.");
       if(command==="purge"){
-        const n=Number(args[0]); if(!Number.isInteger(n)||n<1||n>100) return fail("Usage: .purge 1-100");
-        const deleted=await message.channel.bulkDelete(n,true); return send("🧹 Messages cleared",`Deleted **${deleted.size}** recent messages.`);
+        const n=Number(args[0]); if(!Number.isInteger(n)||n<1||n>100) return fail("Usage: ?purge 1-100");
+        const recent = await message.channel.messages.fetch({ limit: 100 });
+        const selected = recent.filter(item => item.id !== message.id && !item.pinned).first(n);
+        if (!selected.length) return fail("No recent messages were found to delete.");
+        const deleted = await message.channel.bulkDelete(selected, true);
+        await message.delete().catch(() => null);
+        return send("🧹 Messages cleared",`Deleted **${deleted.size}** messages (your purge command is removed separately).`);
       }
       const id=mentionedId(args[0]); if(!id) return fail(`Usage: .${command} @member [reason]`);
       const target=await message.guild.members.fetch(id).catch(()=>null); if(!target) return fail("Member not found.");
