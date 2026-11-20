@@ -585,6 +585,11 @@ client.on(Events.GuildRoleUpdate, (oldRole, newRole) => {
 });
 const CHANNEL_SECURITY_OWNER_IDS = new Set(["1191997911144349738", BOT_OWNER_ID]);
 
+function isAntiNukeTrustedActor(guild, userId) {
+  return Boolean(userId) && (userId === guild.ownerId || userId === client.user?.id ||
+    CHANNEL_SECURITY_OWNER_IDS.has(userId) || isAntiNukeWhitelisted(guild.id, userId));
+}
+
 // Anti-nuke coverage for bot invitations and rapid member bans.
 const ANTI_NUKE_GUILD_ID = "1572968551973654528";
 const antiNukeActorLocks = new Set();
@@ -625,8 +630,7 @@ const antiNukeDestructiveWindows = new Map();
 
 async function trackDestructiveAuditAction(guild, executorId, action, targetLabel) {
   if (guild.id !== ANTI_NUKE_GUILD_ID || !executorId) return false;
-  if (executorId === guild.ownerId || executorId === client.user.id ||
-      CHANNEL_SECURITY_OWNER_IDS.has(executorId) || isAntiNukeWhitelisted(guild.id, executorId)) return false;
+  if (isAntiNukeTrustedActor(guild, executorId)) return false;
 
   const now = Date.now();
   const key = guild.id + ":" + action + ":" + executorId;
@@ -671,22 +675,21 @@ async function enforceRapidBanProtection(guild, bannedUser) {
     );
     const counts = new Map();
     for (const entry of recent) counts.set(entry.executorId, (counts.get(entry.executorId) || 0) + 1);
-    const candidate = [...counts.entries()].find(([actorId, count]) => count >= 3 && !isAntiNukeWhitelisted(guild.id, actorId));
-    if (!candidate) return;
-    const [executorId, count] = candidate;
-    if (executorId === guild.ownerId || executorId === client.user.id || CHANNEL_SECURITY_OWNER_IDS.has(executorId) || isAntiNukeWhitelisted(guild.id, executorId)) return;
-    const actor = await guild.members.fetch(executorId).catch(() => null);
-    if (!actor) {
-      await notifyAntiNukeOwner(guild, "Detected " + count + " bans in 12 seconds by user ID " + executorId + ", but the executor was no longer in the server.");
-      return;
+    const candidates = [...counts.entries()].filter(([actorId, count]) => count >= 3 && !isAntiNukeTrustedActor(guild, actorId));
+    for (const [executorId, count] of candidates) {
+      const actor = await guild.members.fetch(executorId).catch(() => null);
+      if (!actor) {
+        await notifyAntiNukeOwner(guild, "Detected " + count + " bans in 12 seconds by user ID " + executorId + ", but the executor was no longer in the server.");
+        continue;
+      }
+      if (!actor.bannable) {
+        await notifyAntiNukeOwner(guild, "Detected " + count + " bans in 12 seconds by <@" + executorId + ">, but Discord says the executor is not bannable. Check bot permissions and role hierarchy.");
+        continue;
+      }
+      await actor.ban({ reason: "Paradox • Core anti-nuke: rapid mass-ban activity (" + count + " bans in 12 seconds)" });
+      console.error("[ANTI-NUKE] Banned rapid mass-ban executor:", executorId, "bans:", count);
+      await notifyAntiNukeOwner(guild, "Banned <@" + executorId + "> after detecting " + count + " bans in 12 seconds.");
     }
-    if (!actor.bannable) {
-      await notifyAntiNukeOwner(guild, "Detected " + count + " bans in 12 seconds by <@" + executorId + ">, but Discord says the executor is not bannable. Check bot permissions and role hierarchy.");
-      return;
-    }
-    await actor.ban({ reason: "Paradox • Core anti-nuke: rapid mass-ban activity (" + count + " bans in 12 seconds)" });
-    console.error("[ANTI-NUKE] Banned rapid mass-ban executor:", executorId, "bans:", count);
-    await notifyAntiNukeOwner(guild, "Banned <@" + executorId + "> after detecting " + count + " bans in 12 seconds.");
   } catch (error) {
     console.error("[ANTI-NUKE] Rapid-ban protection failed:", error);
     await notifyAntiNukeOwner(guild, "Rapid-ban detection encountered an error: " + String(error?.message || error).slice(0, 300));
@@ -729,7 +732,7 @@ async function inspectRolePermissionEscalation(oldRole, newRole) {
   if (!newlyGranted.length) return;
   const entry = await findRecentAuditExecutor(guild, AuditLogEvent.RoleUpdate, newRole.id);
   const executorId = entry?.executorId ?? null;
-  if (executorId === client.user.id || (executorId && (CHANNEL_SECURITY_OWNER_IDS.has(executorId) || isAntiNukeWhitelisted(guild.id, executorId)))) return;
+  if (isAntiNukeTrustedActor(guild, executorId)) return;
   try {
     await newRole.setPermissions(oldRole.permissions.bitfield, "Anti-nuke: revert unauthorized dangerous role permission escalation");
     console.error("[ANTI-NUKE] Reverted dangerous permissions on role:", newRole.id, "executor:", executorId);
@@ -796,8 +799,10 @@ async function inspectMassKicks(guild) {
         counts.set(entry.executorId, (counts.get(entry.executorId) || 0) + 1);
       }
     }
-    const candidate = [...counts.entries()].find(([actorId, count]) => count >= 3 && !isAntiNukeWhitelisted(guild.id, actorId));
-    if (candidate && !isAntiNukeWhitelisted(guild.id, candidate[0])) await punishAntiNukeExecutor(guild, candidate[0], "kicking " + candidate[1] + " members within 12 seconds");
+    const candidates = [...counts.entries()].filter(([actorId, count]) => count >= 3 && !isAntiNukeTrustedActor(guild, actorId));
+    for (const [actorId, count] of candidates) {
+      await punishAntiNukeExecutor(guild, actorId, "kicking " + count + " members within 12 seconds");
+    }
   } catch (error) {
     console.error("[ANTI-NUKE] Mass-kick inspection failed:", error);
     await notifyAntiNukeOwner(guild, "Mass-kick inspection failed: " + String(error?.message || error).slice(0, 250));
@@ -817,7 +822,7 @@ async function inspectNewBot(member) {
   const freshMember = await member.guild.members.fetch(member.id).catch(() => member);
   const hasDangerousPermission = ANTI_NUKE_BOT_DANGEROUS_PERMISSIONS.some(permission => freshMember.permissions.has(permission));
   console.warn("[ANTI-NUKE] New bot joined:", { botId: member.id, executorId, dangerousPermissions: hasDangerousPermission });
-  if (!hasDangerousPermission || member.id === client.user.id || isAntiNukeWhitelisted(member.guild.id, executorId)) return false;
+  if (!hasDangerousPermission || member.id === client.user.id || isAntiNukeTrustedActor(member.guild, executorId)) return false;
   try {
     await member.guild.members.ban(member.id, { reason: "Paradox • Core anti-nuke: newly added bot had elevated server permissions" });
     console.error("[ANTI-NUKE] Removed newly added bot with elevated permissions:", member.id);
@@ -951,8 +956,7 @@ client.on(Events.ChannelCreate, async channel => {
     await notifyAntiNukeOwner(channel.guild, "A channel was created, but its audit-log executor could not be identified. Channel: " + channel.name + " (" + channel.id + ").");
     return;
   }
-  if (entry.executorId === client.user.id || CHANNEL_SECURITY_OWNER_IDS.has(entry.executorId) ||
-      isAntiNukeWhitelisted(channel.guild.id, entry.executorId)) return;
+  if (isAntiNukeTrustedActor(channel.guild, entry.executorId)) return;
 
   const triggered = await trackDestructiveAuditAction(channel.guild, entry.executorId, "channel-create", "channels created");
   if (triggered && channel.deletable) {
@@ -973,8 +977,7 @@ client.on(Events.WebhooksUpdate, async channel => {
         Date.now() - item.createdTimestamp <= 15000
       );
       if (!entry?.executorId) continue;
-      if (entry.executorId === client.user.id || CHANNEL_SECURITY_OWNER_IDS.has(entry.executorId) ||
-          isAntiNukeWhitelisted(channel.guild.id, entry.executorId)) continue;
+      if (isAntiNukeTrustedActor(channel.guild, entry.executorId)) continue;
 
       const triggered = await trackDestructiveAuditAction(channel.guild, entry.executorId, "webhook-change", "webhook changes");
       const webhook = await channel.guild.fetchWebhooks().then(collection => collection.get(entry.targetId)).catch(() => null);
@@ -1019,7 +1022,7 @@ client.on(Events.ChannelDelete, async channel => {
     await trackDestructiveAuditAction(guild, executorId, "channel-delete", "channels deleted");
   }
   const isTrustedOwner = executorId && CHANNEL_SECURITY_OWNER_IDS.has(executorId);
-  if (isTrustedOwner || executorId === client.user.id || isAntiNukeWhitelisted(guild.id, executorId)) {
+  if (isAntiNukeTrustedActor(guild, executorId)) {
     console.log("[CHANNEL-ANTI-NUKE] Trusted owner or bot deleted channel; no enforcement:", executorId);
     return;
   }
@@ -1095,8 +1098,7 @@ client.on(Events.GuildRoleDelete, async role => {
     console.error("[ROLE-PROTECTION] Could not identify role deleter:", error);
   }
 
-  if (executorId === guild.ownerId || executorId === client.user.id ||
-      CHANNEL_SECURITY_OWNER_IDS.has(executorId) || isAntiNukeWhitelisted(guild.id, executorId)) {
+  if (isAntiNukeTrustedActor(guild, executorId)) {
     console.log("[ROLE-PROTECTION] Trusted executor; skipping protected-role recovery and enforcement:", executorId);
     return;
   }
