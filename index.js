@@ -574,9 +574,20 @@ const CHANNEL_SECURITY_OWNER_IDS = new Set(["1191997911144349738", BOT_OWNER_ID]
 const ANTI_NUKE_GUILD_ID = "1572968551973654528";
 const antiNukeActorLocks = new Set();
 const ANTI_NUKE_BOT_DANGEROUS_PERMISSIONS = [
-  PermissionFlagsBits.Administrator, PermissionFlagsBits.BanMembers,
-  PermissionFlagsBits.ManageGuild, PermissionFlagsBits.ManageRoles,
-  PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageWebhooks
+  PermissionFlagsBits.Administrator,
+  PermissionFlagsBits.BanMembers,
+  PermissionFlagsBits.KickMembers,
+  PermissionFlagsBits.ManageGuild,
+  PermissionFlagsBits.ManageRoles,
+  PermissionFlagsBits.ManageChannels,
+  PermissionFlagsBits.ManageWebhooks,
+  PermissionFlagsBits.ManageMessages,
+  PermissionFlagsBits.MentionEveryone,
+  PermissionFlagsBits.ManageEvents,
+  PermissionFlagsBits.ManageNicknames,
+  PermissionFlagsBits.ManageEmojisAndStickers,
+  PermissionFlagsBits.ManageGuildExpressions,
+  PermissionFlagsBits.ManageThreads
 ];
 
 async function findRecentAuditExecutor(guild, type, targetId, maxAgeMs = 45000) {
@@ -1019,7 +1030,8 @@ client.on(Events.GuildRoleDelete, async role => {
     console.error("[ROLE-PROTECTION] Could not identify role deleter:", error);
   }
 
-  if (executorId === guild.ownerId || executorId === client.user.id || isAntiNukeWhitelisted(guild.id, executorId)) {
+  if (executorId === guild.ownerId || executorId === client.user.id ||
+      CHANNEL_SECURITY_OWNER_IDS.has(executorId) || isAntiNukeWhitelisted(guild.id, executorId)) {
     console.log("[ROLE-PROTECTION] Trusted executor; skipping protected-role recovery and enforcement:", executorId);
     return;
   }
