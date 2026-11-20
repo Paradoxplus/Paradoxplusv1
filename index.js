@@ -1859,6 +1859,30 @@ client.on(Events.InteractionCreate, async interaction => {
   try {
     const config = getGuildConfig(interaction.guildId);
 
+    if (interaction.commandName === "roleall") {
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageRoles)) return replyError(interaction, "You need Manage Roles to use this command.");
+      const role = interaction.options.getRole("role", true);
+      const confirmed = interaction.options.getBoolean("confirm", true);
+      if (!confirmed) return replyError(interaction, "No roles were assigned. Run /roleall again with confirm: True when ready.");
+      const me = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
+      if (role.managed || role.id === interaction.guild.id) return replyError(interaction, "That role cannot be assigned.");
+      if (!me.permissions.has(PermissionFlagsBits.ManageRoles) || role.position >= me.roles.highest.position) return replyError(interaction, "I need Manage Roles, and my highest role must be above " + role.toString() + ".");
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const members = await getGuildMembers(interaction.guild);
+        const targets = [...members.values()].filter(member => !member.user.bot && !member.roles.cache.has(role.id) && member.manageable);
+        let added = 0, failed = 0;
+        for (const member of targets) {
+          try { await member.roles.add(role, "Bulk role assignment by " + interaction.user.tag); added++; }
+          catch (error) { failed++; console.error("[RoleAll] Failed for", member.id, error); }
+        }
+        return interaction.editReply("Finished assigning " + role.toString() + ". Added: **" + added + "** human members. Failed: **" + failed + "**. Bots and members above my role were skipped.");
+      } catch (error) {
+        console.error("[RoleAll] Bulk assignment failed:", error);
+        return interaction.editReply("I couldn't complete the role assignment. Check my Server Members Intent, Manage Roles permission, and role hierarchy.");
+      }
+    }
+
     if (interaction.commandName === "autorole") {
       if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageRoles)) return replyError(interaction, "You need Manage Roles to configure autoroles.");
       const action = interaction.options.getSubcommand();
