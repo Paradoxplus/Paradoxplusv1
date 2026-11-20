@@ -3745,7 +3745,7 @@ client.on(Events.MessageCreate, async message => {
         message.member.permissions.has(PermissionFlagsBits.ManageGuild);
       if (!canConfigure) return fail("You need Manage Server or Administrator to configure welcome messages.");
       if (sub === "test") {
-        const bannerUrl = EXILE_AS_BANNER_URL;
+        const bannerUrl = WELCOME_BANNER_URL;
         const count = message.guild.memberCount;
         const embed = new EmbedBuilder()
           .setColor(0x7c5cff)
