@@ -8,6 +8,7 @@ import path from "node:path";
 import { startDashboard } from "./dashboard.js";
 import { joinVoiceChannel, VoiceConnectionStatus, entersState, getVoiceConnection } from "@discordjs/voice";
 const EXILE_AS_BANNER_URL = "https://kommodo.ai/i/7GMXqpQZLSNrc1rfctNW";
+const TICKET_BANNER_URL = "https://kommodo.ai/i/5w9GWzIHSQjOCUJC2fHz";
 const WELCOME_BANNER_URL = "https://kommodo.ai/i/vQ6BSO4zLZMLvCSL39iM";
 
 import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot, importDatabaseSnapshot, archiveDiscordMessage, getArchivedChannelMessages } from "./recruitment.js";
@@ -1471,7 +1472,7 @@ function buildTicketPanel(guild, botUser) {
       "**NOTE:** Create a ticket only for one of the support types listed above."
     )
     .setThumbnail(guild.iconURL({ size: 256 }) || botUser.displayAvatarURL())
-    .setImage(EXILE_AS_BANNER_URL)
+    .setImage(TICKET_BANNER_URL)
     .setFooter({ text: "Powered By Exile • Core" });
   return { embeds: [panel], components: [new ActionRowBuilder().addComponents(menu)] };
 }
