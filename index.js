@@ -2407,11 +2407,11 @@ client.on(Events.InteractionCreate, async interaction => {
       }
       const missingRoles = Object.values(SELF_ROLE_MAP).filter(roleId => !interaction.guild.roles.cache.has(roleId));
       if (missingRoles.length) return replyError(interaction, "One or more configured self-roles no longer exist: " + missingRoles.join(", "));
-      const content = "**<a:rflx_s:1573218769386471526> <a:rflx_e:1573218771622174742> <a:rflx_l:1573218774700523530> <a:rflx_f:1573218776563060746>   <a:rflx_r:1573218779914313829> <a:rflx_o:1573218783504375869> <a:rflx_l:1573218774700523530> <a:rflx_e:1573218771622174742> <a:rflx_s:1573218769386471526> **\\n\\n" +
-        "<:ou_clown:1573218793520631828> <:arrow_yellow:1573218795319730176> [ <@&1572968552024121478> ]\\n" +
-        "<:yt:1573218797018550362> <:arrow_yellow:1573218795319730176> [ <@&1572968552024121480> ]\\n" +
-        "<a:RedCrown:1573218800814391387> <:arrow_yellow:1573218795319730176> [ <@&1572968552024121479> ]\\n" +
-        "<:Netherite_Sword:1573219700354064402> <:arrow_yellow:1573218795319730176> [ <@&1572968552024121481> ]\\n\\n" +
+      const content = "**<a:rflx_s:1573218769386471526> <a:rflx_e:1573218771622174742> <a:rflx_l:1573218774700523530> <a:rflx_f:1573218776563060746>   <a:rflx_r:1573218779914313829> <a:rflx_o:1573218783504375869> <a:rflx_l:1573218774700523530> <a:rflx_e:1573218771622174742> <a:rflx_s:1573218769386471526> **\n\n" +
+        "<:ou_clown:1573218793520631828> <:arrow_yellow:1573218795319730176> [ <@&1572968552024121478> ]\n" +
+        "<:yt:1573218797018550362> <:arrow_yellow:1573218795319730176> [ <@&1572968552024121480> ]\n" +
+        "<a:RedCrown:1573218800814391387> <:arrow_yellow:1573218795319730176> [ <@&1572968552024121479> ]\n" +
+        "<:Netherite_Sword:1573219700354064402> <:arrow_yellow:1573218795319730176> [ <@&1572968552024121481> ]\n\n" +
         "<a:ak47_animated:1573219706167365663> **Take Your Roles From Here** <:45499gun:1573219703143403550>";
       const panelEmbed = new EmbedBuilder()
         .setColor(0x7c5cff)
