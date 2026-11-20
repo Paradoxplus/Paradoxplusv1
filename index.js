@@ -1882,7 +1882,7 @@ client.on(Events.InteractionCreate, async interaction => {
       }
       if (action === "list") {
         const roles = config.autoroleIds.map(id => interaction.guild.roles.cache.get(id)).filter(Boolean);
-        return interaction.reply({ content: roles.length ? "**Configured autoroles:**\\n" + roles.map(role => "• " + role.toString()).join("\\n") : "No autoroles are configured.", allowedMentions: { parse: [] }, ephemeral: true });
+        return interaction.reply({ content: roles.length ? "**Configured autoroles:**\n" + roles.map(role => "• " + role.toString()).join("\n") : "No autoroles are configured.", allowedMentions: { parse: [] }, ephemeral: true });
       }
       if (action === "clear") {
         const count = config.autoroleIds.length;
