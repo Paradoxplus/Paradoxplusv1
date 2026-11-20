@@ -121,6 +121,7 @@ function getGuildConfig(guildId) {
   if (!Array.isArray(config.history)) config.history = [];
   if (!Array.isArray(config.warnings)) config.warnings = [];
   if (!Array.isArray(config.autobanList)) config.autobanList = [];
+  if (!Array.isArray(config.antiNukeWhitelist)) config.antiNukeWhitelist = [];
   if (!Array.isArray(config.strikes)) config.strikes = [];
   if (!Array.isArray(config.strikeHistory)) config.strikeHistory = [];
   if (!Array.isArray(config.moderationCases)) config.moderationCases = [];
@@ -142,6 +143,11 @@ function getGuildConfig(guildId) {
   if (typeof config.announceChannelId !== "string") config.announceChannelId = null;
   config.ranks.sort((a, b) => a.position - b.position);
   return config;
+}
+
+function isAntiNukeWhitelisted(guildId, userId) {
+  if (!guildId || !userId) return false;
+  return getGuildConfig(guildId).antiNukeWhitelist.includes(userId);
 }
 
 function canActOnTarget(actor, target, guild) {
@@ -610,7 +616,7 @@ async function enforceRapidBanProtection(guild, bannedUser) {
     const candidate = [...counts.entries()].find(([, count]) => count >= 3);
     if (!candidate) return;
     const [executorId, count] = candidate;
-    if (executorId === guild.ownerId || executorId === client.user.id || CHANNEL_SECURITY_OWNER_IDS.has(executorId)) return;
+    if (executorId === guild.ownerId || executorId === client.user.id || CHANNEL_SECURITY_OWNER_IDS.has(executorId) || isAntiNukeWhitelisted(guild.id, executorId)) return;
     const actor = await guild.members.fetch(executorId).catch(() => null);
     if (!actor) {
       await notifyAntiNukeOwner(guild, "Detected " + count + " bans in 12 seconds by user ID " + executorId + ", but the executor was no longer in the server.");
@@ -636,7 +642,7 @@ client.on(Events.GuildBanAdd, ban => {
 });
 
 async function punishAntiNukeExecutor(guild, executorId, reason) {
-  if (!executorId || executorId === guild.ownerId || executorId === client.user.id || CHANNEL_SECURITY_OWNER_IDS.has(executorId)) {
+  if (!executorId || executorId === guild.ownerId || executorId === client.user.id || CHANNEL_SECURITY_OWNER_IDS.has(executorId) || isAntiNukeWhitelisted(guild.id, executorId)) {
     if (executorId === guild.ownerId) console.error("[ANTI-NUKE] Server owner performed a protected action; Discord does not allow bots to ban the owner.");
     return false;
   }
@@ -665,7 +671,7 @@ async function inspectRolePermissionEscalation(oldRole, newRole) {
   if (!newlyGranted.length) return;
   const entry = await findRecentAuditExecutor(guild, AuditLogEvent.RoleUpdate, newRole.id);
   const executorId = entry?.executorId ?? null;
-  if (executorId === client.user.id || (executorId && CHANNEL_SECURITY_OWNER_IDS.has(executorId))) return;
+  if (executorId === client.user.id || (executorId && (CHANNEL_SECURITY_OWNER_IDS.has(executorId) || isAntiNukeWhitelisted(guild.id, executorId)))) return;
   try {
     await newRole.setPermissions(oldRole.permissions.bitfield, "Anti-nuke: revert unauthorized dangerous role permission escalation");
     console.error("[ANTI-NUKE] Reverted dangerous permissions on role:", newRole.id, "executor:", executorId);
@@ -681,7 +687,7 @@ client.on(Events.GuildRoleCreate, async role => {
   if (role.guild.id !== ANTI_NUKE_GUILD_ID || !hasDangerousPermissions(role.permissions)) return;
   const entry = await findRecentAuditExecutor(role.guild, AuditLogEvent.RoleCreate, role.id);
   const executorId = entry?.executorId ?? null;
-  if (executorId === client.user.id || (executorId && CHANNEL_SECURITY_OWNER_IDS.has(executorId))) return;
+  if (executorId === client.user.id || (executorId && (CHANNEL_SECURITY_OWNER_IDS.has(executorId) || isAntiNukeWhitelisted(newMember.guild.id, executorId)))) return;
   try {
     await role.delete("Anti-nuke: remove newly created role with dangerous permissions");
     console.error("[ANTI-NUKE] Deleted newly created dangerous-permission role:", role.id);
@@ -733,7 +739,7 @@ async function inspectMassKicks(guild) {
       }
     }
     const candidate = [...counts.entries()].find(([, count]) => count >= 3);
-    if (candidate) await punishAntiNukeExecutor(guild, candidate[0], "kicking " + candidate[1] + " members within 12 seconds");
+    if (candidate && !isAntiNukeWhitelisted(guild.id, candidate[0])) await punishAntiNukeExecutor(guild, candidate[0], "kicking " + candidate[1] + " members within 12 seconds");
   } catch (error) {
     console.error("[ANTI-NUKE] Mass-kick inspection failed:", error);
     await notifyAntiNukeOwner(guild, "Mass-kick inspection failed: " + String(error?.message || error).slice(0, 250));
@@ -753,7 +759,7 @@ async function inspectNewBot(member) {
   const freshMember = await member.guild.members.fetch(member.id).catch(() => member);
   const hasDangerousPermission = ANTI_NUKE_BOT_DANGEROUS_PERMISSIONS.some(permission => freshMember.permissions.has(permission));
   console.warn("[ANTI-NUKE] New bot joined:", { botId: member.id, executorId, dangerousPermissions: hasDangerousPermission });
-  if (!hasDangerousPermission || member.id === client.user.id) return false;
+  if (!hasDangerousPermission || member.id === client.user.id || isAntiNukeWhitelisted(member.guild.id, executorId)) return false;
   try {
     await member.guild.members.ban(member.id, { reason: "Paradox • Core anti-nuke: newly added bot had elevated server permissions" });
     console.error("[ANTI-NUKE] Removed newly added bot with elevated permissions:", member.id);
@@ -902,7 +908,7 @@ client.on(Events.ChannelDelete, async channel => {
 
   const executorId = entry?.executorId ?? null;
   const isTrustedOwner = executorId && CHANNEL_SECURITY_OWNER_IDS.has(executorId);
-  if (isTrustedOwner || executorId === client.user.id) {
+  if (isTrustedOwner || executorId === client.user.id || isAntiNukeWhitelisted(guild.id, executorId)) {
     console.log("[CHANNEL-ANTI-NUKE] Trusted owner or bot deleted channel; no enforcement:", executorId);
     return;
   }
@@ -991,7 +997,10 @@ client.on(Events.GuildRoleDelete, async role => {
       console.error("[ROLE-PROTECTION] The server owner deleted the protected role. Discord does not allow bots to ban the server owner.");
       return;
     }
-    if (executorId === client.user.id) return;
+    if (executorId === client.user.id || isAntiNukeWhitelisted(guild.id, executorId)) {
+      console.log("[ROLE-PROTECTION] Whitelisted executor; skipping anti-nuke punishment:", executorId);
+      return;
+    }
 
     const executor = await guild.members.fetch(executorId).catch(() => null);
     if (!executor) {
@@ -1880,6 +1889,34 @@ client.on(Events.InteractionCreate, async interaction => {
         const count = await restoreArchivedMessages(placeholder, restored).catch(error => { console.error("[Recovery] Message replay failed:", error); return 0; });
         return interaction.editReply("Restored " + saved.name + " from " + filename + " and replayed " + count + " archived messages.");
       }
+    }
+
+    if (interaction.commandName === "owner") {
+      if (!isBotOwner(interaction.user.id)) {
+        return replyError(interaction, "Only Fearless, the configured Paradox • Core bot owner, can manage this whitelist.");
+      }
+      if (interaction.guildId !== ANTI_NUKE_GUILD_ID) {
+        return replyError(interaction, "The owner whitelist is configured for the Paradoxplus main server only.");
+      }
+      if (interaction.options.getSubcommandGroup() !== "whitelist" || interaction.options.getSubcommand() !== "add") {
+        return replyError(interaction, "Unknown owner whitelist action.");
+      }
+      const user = interaction.options.getUser("user", true);
+      if (user.id === BOT_OWNER_ID) {
+        return replyError(interaction, "Fearless is already the configured bot owner.");
+      }
+      const config = getGuildConfig(interaction.guildId);
+      if (config.antiNukeWhitelist.includes(user.id)) {
+        return interaction.reply({ content: "✅ <@" + user.id + "> is already on the anti-nuke whitelist.", ephemeral: true, allowedMentions: { parse: [] } });
+      }
+      config.antiNukeWhitelist.push(user.id);
+      await saveDatabase();
+      console.log("[ANTI-NUKE] Bot owner added trusted user:", user.id, "by", interaction.user.id);
+      return interaction.reply({
+        content: "🛡️ Added <@" + user.id + "> to the anti-nuke whitelist. They will be exempt from anti-nuke enforcement, but this does not grant bot-owner commands or permissions.",
+        ephemeral: true,
+        allowedMentions: { parse: [] }
+      });
     }
 
     if (interaction.commandName === "antinuke") {
