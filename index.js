@@ -4154,7 +4154,6 @@ client.on(Events.MessageCreate, async message => {
       if (!Array.isArray(config.permanentMutes)) config.permanentMutes = [];
       const reason = args.slice(1).join(" ").trim() || "No reason provided";
       const botMember = message.guild.members.me ?? await message.guild.members.fetchMe();
-      if (!target.moderatable) return fail("I cannot timeout this member because of Discord's role hierarchy. Removing lower roles cannot bypass that restriction.");
       if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) return fail("I need Manage Roles to temporarily remove and restore removable roles.");
       const existing = config.permanentMutes.find(item => item.memberId === target.id);
       const removableRoles = existing
@@ -4169,6 +4168,8 @@ client.on(Events.MessageCreate, async message => {
         ? existing.removedRoleIds
         : removableRoles.map(role => role.id);
       try {
+        // Remove every role the bot is permitted to manage before attempting
+        // the timeout. Discord's own hierarchy and permission checks still apply.
         if (!existing && removableRoles.length) {
           await target.roles.remove(removableRoles, "Temporarily removed for permanent mute by " + message.author.tag);
         }
@@ -4186,6 +4187,9 @@ client.on(Events.MessageCreate, async message => {
           });
         }
         await saveDatabase();
+        if (!target.moderatable) {
+          throw new Error("Discord still does not allow me to timeout this member after removing manageable roles. Check whether they own the server or still have a role at/above my highest role, and confirm Moderate Members.");
+        }
         await target.timeout(28 * 24 * 60 * 60 * 1000, "Permanent mute (auto-renewed): " + reason);
       } catch (error) {
         if (!existing) {
@@ -4197,7 +4201,7 @@ client.on(Events.MessageCreate, async message => {
           console.error("[PermanentMute] Failed to roll back roles for " + target.id, restoreError)
         );
         await saveDatabase();
-        return fail("I could not apply the mute. Discord may have blocked the timeout or role change. Check Moderate Members, Manage Roles, and role hierarchy. " + error.message);
+        return fail("I could not apply the mute. Any roles I removed were restored where possible. " + error.message);
       }
       addPrefixCase("PERMANENT_MUTE", target.id, reason);
       await saveDatabase();
