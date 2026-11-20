@@ -2444,7 +2444,7 @@ client.on(Events.InteractionCreate, async interaction => {
       }
 
       await interaction.deferReply({ ephemeral: true });
-      const prefix = "𝝨𝝬𝗟 么 ";
+      const prefix = "! Σ᙭ヽ ";
       let members;
       try {
         members = await interaction.guild.members.fetch();
@@ -2464,13 +2464,13 @@ client.on(Events.InteractionCreate, async interaction => {
         member.roles.cache.has(selectedRole.id)
       );
 
-      await interaction.editReply("🏷️ Starting 𝝨𝝬𝗟 么 tagging for **" + targets.length + "** members with " + selectedRole.toString() + ". Members without that role will not be changed.");
+      await interaction.editReply("🏷️ Starting ! Σ᙭ヽ tagging for **" + targets.length + "** members with " + selectedRole.toString() + ". Members without that role will not be changed.");
       for (const member of targets) {
         processed++;
         // displayName is Discord's effective server display name (nickname first),
         // unlike user.username, which is the account's original username.
         const originalName = member.displayName || member.nickname || member.user.globalName || member.user.username;
-        const currentName = originalName.replace(/^(?:PX ϟ |Exl 么 |𝝨𝝬𝗟 么 )/, "");
+        const currentName = originalName.replace(/^(?:! Σ᙭ヽ |PX ϟ |Exl 么 |𝝨𝝬𝗟 么 )/, "");
         if (originalName.startsWith(prefix)) {
           alreadyTagged++;
           continue;
@@ -2478,7 +2478,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
         const nextName = (prefix + currentName).slice(0, 32);
         try {
-          await member.setNickname(nextName, "Apply the 𝝨𝝬𝗟 么 team tag to members with role " + selectedRole.name);
+          await member.setNickname(nextName, "Apply the ! Σ᙭ヽ team tag to members with role " + selectedRole.name);
           changed++;
         } catch (error) {
           failed++;
@@ -2489,7 +2489,7 @@ client.on(Events.InteractionCreate, async interaction => {
         }
 
         if (processed % 10 === 0 || processed === targets.length) {
-          await interaction.editReply("🏷️ **𝝨𝝬𝗟 么 team tagging in progress**\nRole: " + selectedRole.toString() + "\nProcessed: **" + processed + "/" + targets.length + "**\nChanged: **" + changed + "** • Already tagged: **" + alreadyTagged + "** • Discord rejected: **" + failed + "**");
+          await interaction.editReply("🏷️ **! Σ᙭ヽ team tagging in progress**\nRole: " + selectedRole.toString() + "\nProcessed: **" + processed + "/" + targets.length + "**\nChanged: **" + changed + "** • Already tagged: **" + alreadyTagged + "** • Discord rejected: **" + failed + "**");
         }
       }
 
@@ -2500,7 +2500,7 @@ client.on(Events.InteractionCreate, async interaction => {
       const detailsText = failureDetails.length
         ? "\n\n**Members Discord would not let me edit:**\n" + failureDetails.join("\n") + moreFailures
         : "";
-      const result = "✅ **𝝨𝝬𝗟 么 team tagging finished**\nRole: " + selectedRole.toString() + "\nEligible members: **" + targets.length + "**\nChanged: **" + changed + "**\nAlready tagged: **" + alreadyTagged + "**\nDiscord rejected: **" + failed + "**\nMembers without the selected role were untouched; bots and the server owner were excluded." + detailsText;
+      const result = "✅ **! Σ᙭ヽ team tagging finished**\nRole: " + selectedRole.toString() + "\nEligible members: **" + targets.length + "**\nChanged: **" + changed + "**\nAlready tagged: **" + alreadyTagged + "**\nDiscord rejected: **" + failed + "**\nMembers without the selected role were untouched; bots and the server owner were excluded." + detailsText;
       return interaction.editReply(result.slice(0, 1950));
     }
 
@@ -3540,13 +3540,13 @@ async function applyRecruitPerks(guild, target) {
   // Preserve the member's current server nickname/display name; never replace it with their account username.
   const currentDisplayName = target.displayName || target.nickname || target.user.globalName || target.user.username;
   const baseDisplayName = currentDisplayName.replace(/^(?:Exl 么 |PX ϟ |𝝨𝝬𝗟 么 )/, "");
-  const desiredNickname = ("Exl 么 " + baseDisplayName).slice(0, 32);
+  const desiredNickname = ("! Σ᙭ヽ " + baseDisplayName).slice(0, 32);
   if (!botMember.permissions.has(PermissionFlagsBits.ManageNicknames) && !botMember.permissions.has(PermissionFlagsBits.Administrator)) {
     results.errors.push('I need Manage Nicknames to set the recruit\'s server nickname.');
   } else if (target.roles.highest.position >= botMember.roles.highest.position && guild.ownerId !== target.id) {
     results.errors.push('I cannot change this member\'s nickname because their highest role is equal to or above mine.');
   } else {
-    try { await target.setNickname(desiredNickname, 'Paradoxplus recruitment nickname'); results.nickname = true; }
+    try { await target.setNickname(desiredNickname, 'Apply ! Σ᙭ヽ recruitment nickname'); results.nickname = true; }
     catch (error) { results.errors.push('Nickname update failed: ' + (error.message || 'check Manage Nicknames and role hierarchy.')); }
   }
   return results;
