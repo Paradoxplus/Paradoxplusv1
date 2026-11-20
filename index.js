@@ -493,12 +493,48 @@ client.on(Events.MessageDelete, async deletedMessage => {
     .catch(error => console.error("[MessageArchive] Could not mark deleted message:", error));
 });
 
+const antiNukeMassDeleteWindows = new Map();
+async function inspectMassMessageDelete(messages) {
+  const first = messages.first();
+  const guild = first?.guild;
+  const channel = first?.channel;
+  if (!guild || guild.id !== ANTI_NUKE_GUILD_ID || messages.size < 10) return;
+  let entry = null;
+  try {
+    const logs = await guild.fetchAuditLogs({ type: AuditLogEvent.MessageBulkDelete, limit: 10 });
+    entry = [...logs.entries.values()].find(item =>
+      item.extra?.channel?.id === channel?.id &&
+      Date.now() - item.createdTimestamp >= 0 &&
+      Date.now() - item.createdTimestamp <= 15000
+    ) || null;
+  } catch (error) {
+    console.error("[ANTI-NUKE] Mass-message-delete audit lookup failed:", error);
+    await notifyAntiNukeOwner(guild, "Detected a bulk deletion of " + messages.size + " messages in #" + (channel?.name || "unknown channel") + ", but audit-log lookup failed. Check View Audit Log permission.");
+    return;
+  }
+  const executorId = entry?.executorId ?? null;
+  if (!executorId) {
+    await notifyAntiNukeOwner(guild, "Detected a bulk deletion of " + messages.size + " messages in #" + (channel?.name || "unknown channel") + ", but Discord did not provide a matching executor. Review the audit log.");
+    return;
+  }
+  if (isAntiNukeTrustedActor(guild, executorId)) return;
+  const now = Date.now();
+  const recent = (antiNukeMassDeleteWindows.get(executorId) || []).filter(item => now - item.at <= 60000);
+  recent.push({ at: now, count: messages.size, channelId: channel.id });
+  antiNukeMassDeleteWindows.set(executorId, recent);
+  await notifyAntiNukeOwner(guild,
+    "Mass message deletion detected. Actor: <@" + executorId + ">. Deleted: " + messages.size +
+    " messages. Channel: <#" + channel.id + ">. Bulk-delete events by this actor in the last minute: " + recent.length +
+    ". Archived message records are being marked for recovery/export.");
+}
 client.on(Events.MessageBulkDelete, messages => {
   for (const message of messages.values()) {
     if (message.guildId !== MESSAGE_ARCHIVE_GUILD_ID) continue;
     void archiveDiscordMessage(message, "delete")
       .catch(error => console.error("[MessageArchive] Could not mark bulk-deleted message:", error));
   }
+  void inspectMassMessageDelete(messages)
+    .catch(error => console.error("[ANTI-NUKE] Mass-message-delete detection failed:", error));
 });
 // Built-in and configurable autoresponders.
 client.on(Events.MessageCreate, async message => {
@@ -1538,8 +1574,130 @@ async function connectOwnerVoice(readyClient) {
   }
 }
 
+const STICKER_BACKUP_ROOT = path.join(DATA_DIR, "sticker-backups");
+
+function stickerFileExtension(sticker) {
+  const format = String(sticker.format);
+  if (format === "1" || format.toLowerCase() === "png") return "png";
+  if (format === "2" || format.toLowerCase() === "apng") return "apng";
+  if (format === "3" || format.toLowerCase() === "lottie") return "json";
+  if (format === "4" || format.toLowerCase() === "gif") return "gif";
+  return "bin";
+}
+
+async function backupGuildStickers(guild, reason = "scheduled") {
+  if (!guild || guild.id !== ANTI_NUKE_GUILD_ID) return 0;
+  const stickers = await guild.stickers.fetch();
+  const backupDir = path.join(STICKER_BACKUP_ROOT, guild.id);
+  await fs.mkdir(backupDir, { recursive: true });
+  const records = [];
+  for (const sticker of stickers.values()) {
+    try {
+      const extension = stickerFileExtension(sticker);
+      const filePath = path.join(backupDir, sticker.id + "." + extension);
+      const response = await fetch(sticker.url);
+      if (!response.ok) throw new Error("CDN returned HTTP " + response.status);
+      const bytes = Buffer.from(await response.arrayBuffer());
+      await fs.writeFile(filePath, bytes);
+      records.push({
+        id: sticker.id, name: sticker.name, description: sticker.description ?? null,
+        tags: sticker.tags || "✨", format: sticker.format, available: sticker.available,
+        file: sticker.id + "." + extension, backedUpAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("[StickerBackup] Could not back up sticker:", sticker.id, error);
+      await notifyAntiNukeOwner(guild, "Could not back up sticker " + sticker.name + " (" + sticker.id + "). " + String(error?.message || error).slice(0, 200));
+    }
+  }
+  const manifestPath = path.join(backupDir, "manifest.json");
+  const tempPath = manifestPath + ".tmp";
+  await fs.writeFile(tempPath, JSON.stringify({
+    schemaVersion: 1, guildId: guild.id, reason, backedUpAt: new Date().toISOString(), stickers: records
+  }, null, 2), "utf8");
+  await fs.rename(tempPath, manifestPath);
+  console.log("[StickerBackup] Saved " + records.length + " sticker asset(s) for " + guild.name + ".");
+  return records.length;
+}
+
+async function restoreDeletedGuildSticker(sticker) {
+  const guild = sticker.guild;
+  if (!guild || guild.id !== ANTI_NUKE_GUILD_ID) return;
+  let entry = null;
+  try {
+    const logs = await guild.fetchAuditLogs({ type: AuditLogEvent.StickerDelete, limit: 10 });
+    entry = [...logs.entries.values()].find(item =>
+      item.target?.id === sticker.id &&
+      Date.now() - item.createdTimestamp >= 0 &&
+      Date.now() - item.createdTimestamp <= 20000
+    ) || null;
+  } catch (error) {
+    console.error("[StickerBackup] Sticker-delete audit lookup failed:", error);
+    await notifyAntiNukeOwner(guild, "Sticker deletion detected for " + sticker.name + ", but audit-log lookup failed. Automatic restoration was paused to avoid overriding a legitimate owner action.");
+    return;
+  }
+  const executorId = entry?.executorId ?? null;
+  if (!executorId) {
+    await notifyAntiNukeOwner(guild, "Sticker " + sticker.name + " was deleted, but its executor could not be identified. Automatic restoration was paused; review the audit log.");
+    return;
+  }
+  if (isAntiNukeTrustedActor(guild, executorId)) return;
+
+  const backupDir = path.join(STICKER_BACKUP_ROOT, guild.id);
+  let manifest;
+  try {
+    manifest = JSON.parse(await fs.readFile(path.join(backupDir, "manifest.json"), "utf8"));
+  } catch (error) {
+    await notifyAntiNukeOwner(guild, "Unauthorized deletion of sticker " + sticker.name + " by <@" + executorId + "> was detected, but no readable sticker manifest exists. Cannot restore it.");
+    await punishAntiNukeExecutor(guild, executorId, "deleting sticker " + sticker.name);
+    return;
+  }
+  const saved = manifest.stickers?.find(item => item.id === sticker.id);
+  if (!saved?.file) {
+    await notifyAntiNukeOwner(guild, "Unauthorized deletion of sticker " + sticker.name + " by <@" + executorId + "> was detected, but that sticker was not in the latest backup.");
+    await punishAntiNukeExecutor(guild, executorId, "deleting sticker " + sticker.name);
+    return;
+  }
+  try {
+    const filePath = path.join(backupDir, path.basename(saved.file));
+    const file = await fs.readFile(filePath);
+    const restored = await guild.stickers.create({
+      file: { attachment: file, name: saved.file },
+      name: String(saved.name || sticker.name).slice(0, 30),
+      description: saved.description || undefined,
+      tags: String(saved.tags || "✨").slice(0, 200),
+      reason: "Paradox • Core anti-nuke: restore unauthorized deleted sticker"
+    });
+    await notifyAntiNukeOwner(guild, "Restored deleted sticker " + saved.name + " as " + restored.id + ". Deleter: <@" + executorId + ">.");
+    await punishAntiNukeExecutor(guild, executorId, "deleting sticker " + saved.name);
+  } catch (error) {
+    console.error("[StickerBackup] Sticker restoration failed:", error);
+    await notifyAntiNukeOwner(guild, "Detected unauthorized deletion of sticker " + saved.name + " by <@" + executorId + ">, but restoration failed: " + String(error?.message || error).slice(0, 250));
+    await punishAntiNukeExecutor(guild, executorId, "deleting sticker " + saved.name);
+  }
+}
+
+client.on(Events.GuildStickerCreate, sticker => {
+  if (sticker.guild?.id === ANTI_NUKE_GUILD_ID) {
+    void backupGuildStickers(sticker.guild, "sticker-created").catch(error => console.error("[StickerBackup] Create-event backup failed:", error));
+  }
+});
+client.on(Events.GuildStickerUpdate, (_oldSticker, newSticker) => {
+  if (newSticker.guild?.id === ANTI_NUKE_GUILD_ID) {
+    void backupGuildStickers(newSticker.guild, "sticker-updated").catch(error => console.error("[StickerBackup] Update-event backup failed:", error));
+  }
+});
+client.on(Events.GuildStickerDelete, sticker => {
+  void restoreDeletedGuildSticker(sticker).catch(error => console.error("[StickerBackup] Delete-event recovery failed:", error));
+});
+
 async function createGuildChannelBackup(guild, reason = "hourly") {
   const channels = await guild.channels.fetch();
+  if (guild.id === ANTI_NUKE_GUILD_ID) {
+    await backupGuildStickers(guild, reason).catch(error => {
+      console.error("[StickerBackup] Scheduled sticker backup failed:", error);
+      void notifyAntiNukeOwner(guild, "Sticker backup failed: " + String(error?.message || error).slice(0, 250));
+    });
+  }
   const snapshot = {
     schemaVersion: 1,
     guildId: guild.id,
@@ -2294,7 +2452,8 @@ client.on(Events.InteractionCreate, async interaction => {
             { name: "02  /  Permission escalation", value: "Dangerous role-permission grants, dangerous role assignments, and channel-overwrite permission escalation are checked and reverted when an unauthorized actor is identified.", inline: false },
             { name: "03  /  Bot security", value: "New bots with elevated moderation or server-management permissions are detected and removed when the inviter is not trusted.", inline: false },
             { name: "04  /  Raid signals", value: "A burst of 8 human joins within 15 seconds triggers an owner alert. Join detection is alert-only; it does not mass-kick ordinary members.", inline: false },
-            { name: "05  /  Recovery & backups", value: "Channel configuration recovery and archived-message replay are available when snapshots exist. Core-role recovery is handled separately. " + backupFiles.length + " channel snapshot file(s) found; hourly backups are enabled.", inline: false },
+            { name: "05  /  Recovery & backups", value: "Channel configuration recovery, archived-message records, and sticker asset backups are available when snapshots exist. Unauthorized sticker deletion triggers automatic re-upload when the saved asset is available. " + backupFiles.length + " channel snapshot file(s) found; hourly backups are enabled.", inline: false },
+            { name: "06  /  Message deletion", value: "Bulk deletion of 10 or more messages triggers an owner alert with the identified actor when Discord audit logs provide one. Archived message records are retained for later review/export; Discord messages are not automatically reposted.", inline: false },
             { name: "BOT PERMISSIONS", value: missingSecurityPermissions.length ? "**MISSING:** " + missingSecurityPermissions.join(", ") : "All required anti-nuke permissions are present.", inline: false },
             { name: "LATEST SNAPSHOT", value: latestBackup || "No snapshot file found.", inline: true },
             { name: "TRUST MODEL", value: "Server owner, configured security owners, bot, and owner-managed whitelist are exempt from automated punishment.", inline: true },
