@@ -1048,7 +1048,7 @@ async function inspectChannelPermissionEscalation(oldChannel, newChannel) {
         await newChannel.permissionOverwrites.edit(change.targetId, {
           allow: change.previous.allow.bitfield,
           deny: change.previous.deny.bitfield
-        }, { reason: "Paradox • Core anti-nuke: revert unauthorized dangerous channel permission escalation" });
+        }, "Paradox • Core anti-nuke: revert unauthorized dangerous channel permission escalation");
       } else {
         await newChannel.permissionOverwrites.delete(change.targetId,
           "Paradox • Core anti-nuke: remove unauthorized dangerous channel permission overwrite");
