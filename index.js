@@ -733,21 +733,28 @@ async function inspectRolePermissionEscalation(oldRole, newRole) {
   const entry = await findRecentAuditExecutor(guild, AuditLogEvent.RoleUpdate, newRole.id);
   const executorId = entry?.executorId ?? null;
   if (isAntiNukeTrustedActor(guild, executorId)) return;
+  if (!executorId) {
+    await notifyAntiNukeOwner(guild, "A role gained dangerous permissions, but its executor could not be identified. No automatic rollback was attempted to avoid undoing a legitimate owner change. Role: " + newRole.name + " (" + newRole.id + "). Review the audit log immediately.");
+    return;
+  }
   try {
     await newRole.setPermissions(oldRole.permissions.bitfield, "Anti-nuke: revert unauthorized dangerous role permission escalation");
     console.error("[ANTI-NUKE] Reverted dangerous permissions on role:", newRole.id, "executor:", executorId);
   } catch (error) {
     console.error("[ANTI-NUKE] Failed to revert dangerous role permissions:", error);
-    await notifyAntiNukeOwner(guild, "A role gained dangerous permissions, but Paradox could not revert them. Role: " + newRole.id + "; executor: " + (executorId || "unknown"));
+    await notifyAntiNukeOwner(guild, "A role gained dangerous permissions, but Paradox could not revert them. Role: " + newRole.id + "; executor: " + executorId);
   }
-  if (executorId) await punishAntiNukeExecutor(guild, executorId, "granting dangerous permissions to role " + newRole.name);
-  else await notifyAntiNukeOwner(guild, "A role gained dangerous permissions, but its audit-log executor could not be identified. Role: " + newRole.name);
+  await punishAntiNukeExecutor(guild, executorId, "granting dangerous permissions to role " + newRole.name);
 }
 
 client.on(Events.GuildRoleCreate, async role => {
   if (role.guild.id !== ANTI_NUKE_GUILD_ID || !hasDangerousPermissions(role.permissions)) return;
   const entry = await findRecentAuditExecutor(role.guild, AuditLogEvent.RoleCreate, role.id);
   const executorId = entry?.executorId ?? null;
+  if (!executorId) {
+    await notifyAntiNukeOwner(role.guild, "A dangerous-permission role was created, but its executor could not be identified. No automatic deletion was attempted to avoid destroying a legitimate owner-created role. Review immediately: " + role.name + " (" + role.id + ").");
+    return;
+  }
   if (isAntiNukeTrustedActor(role.guild, executorId)) return;
   try {
     await role.delete("Anti-nuke: remove newly created role with dangerous permissions");
@@ -756,8 +763,7 @@ client.on(Events.GuildRoleCreate, async role => {
     console.error("[ANTI-NUKE] Failed to delete dangerous-permission role:", role.id, error);
     await notifyAntiNukeOwner(role.guild, "A new role has dangerous permissions and could not be deleted. Role: " + role.name);
   }
-  if (executorId) await punishAntiNukeExecutor(role.guild, executorId, "creating dangerous-permission role " + role.name);
-  else await notifyAntiNukeOwner(role.guild, "A dangerous-permission role was created, but its executor could not be identified: " + role.name);
+  await punishAntiNukeExecutor(role.guild, executorId, "creating dangerous-permission role " + role.name);
 });
 
 client.on(Events.GuildRoleUpdate, (oldRole, newRole) => {
@@ -772,6 +778,10 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   if (!addedDangerousRoles.size) return;
   const entry = await findRecentAuditExecutor(newMember.guild, AuditLogEvent.MemberRoleUpdate, newMember.id);
   const executorId = entry?.executorId ?? null;
+  if (!executorId) {
+    await notifyAntiNukeOwner(newMember.guild, "A member received a dangerous-permission role, but its executor could not be identified. No automatic role removal was attempted to avoid stripping a legitimate owner-approved role. Member: " + newMember.id + ". Review immediately.");
+    return;
+  }
   if (isAntiNukeTrustedActor(newMember.guild, executorId)) return;
   try {
     await newMember.roles.remove([...addedDangerousRoles.keys()], "Anti-nuke: revert unauthorized assignment of dangerous-permission role");
@@ -780,8 +790,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
     console.error("[ANTI-NUKE] Failed to remove dangerous role assignment:", error);
     await notifyAntiNukeOwner(newMember.guild, "A member received a dangerous-permission role that Paradox could not remove. Member: " + newMember.id);
   }
-  if (executorId) await punishAntiNukeExecutor(newMember.guild, executorId, "assigning dangerous role(s) to <@" + newMember.id + ">");
-  else await notifyAntiNukeOwner(newMember.guild, "A member received a dangerous-permission role, but the executor could not be identified. Member: " + newMember.id);
+  await punishAntiNukeExecutor(newMember.guild, executorId, "assigning dangerous role(s) to <@" + newMember.id + ">");
 });
 
 async function inspectMassKicks(guild) {
