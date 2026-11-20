@@ -4080,6 +4080,36 @@ client.on(Events.MessageCreate, async message => {
       await saveDatabase();
       return send("✦ NICKNAME UPDATED", "Updated " + target.toString() + ".");
     }
+    if (command === "roleall") {
+      if (!modPermission(PermissionFlagsBits.ManageRoles)) return fail("You need Manage Roles or Administrator.");
+      const roleId = args[0]?.match(/^<@&?(\\d+)>$/)?.[1] || (args[0] && /^\\d{17,20}$/.test(args[0]) ? args[0] : null);
+      const role = roleId ? await message.guild.roles.fetch(roleId).catch(() => null) : null;
+      if (!role) return fail("Usage: " + prefix + "roleall @role confirm");
+      if ((args[1] || "").toLowerCase() !== "confirm") return fail("This assigns the role to every manageable server member. Confirm by running: " + prefix + "roleall " + role.toString() + " confirm");
+      const bot = message.guild.members.me ?? await message.guild.members.fetchMe();
+      const actorIsAdmin = isBotOwner(message.author.id) || message.guild.ownerId === message.author.id || message.member.permissions.has(PermissionFlagsBits.Administrator);
+      if (role.managed || role.id === message.guild.id) return fail("That role cannot be assigned.");
+      if (!actorIsAdmin && role.position >= message.member.roles.highest.position) return fail("That role is equal to or above your highest role.");
+      if (!bot.permissions.has(PermissionFlagsBits.ManageRoles) || !role.editable || role.position >= bot.roles.highest.position) return fail("I need Manage Roles, and my highest role must be above " + role.toString() + ".");
+      try {
+        const members = await getGuildMembers(message.guild);
+        const targets = [...members.values()].filter(member => !member.roles.cache.has(role.id));
+        let added = 0;
+        const failed = [];
+        for (const member of targets) {
+          try { await member.roles.add(role, "Bulk role assignment by " + message.author.tag); added++; }
+          catch (error) { failed.push({ tag: member.user.tag, id: member.id, code: error.code || "unknown" }); }
+        }
+        const details = failed.slice(0, 12).map(item => item.tag + " (" + item.id + ", " + item.code + ")").join("\\n");
+        const more = failed.length > 12 ? "\\n…and " + (failed.length - 12) + " more." : "";
+        addPrefixCase("ROLE_ALL", null, role.name + ": added " + added + ", failed " + failed.length);
+        await saveDatabase();
+        return send("✦ BULK ROLE ASSIGNMENT COMPLETE", "Role: " + role.toString() + "\\nAdded: **" + added + "**\\nFailed: **" + failed.length + "**" + (details ? "\\n\\n**Failed members:**\\n" + details + more : ""));
+      } catch (error) {
+        console.error("[RoleAll] Prefix bulk assignment failed:", error);
+        return fail("I couldn't complete the bulk assignment. Check the Server Members Intent, Manage Roles permission, and role hierarchy.");
+      }
+    }
     if (command === "role-help") return send("✦ ROLE COMMANDS", "`" + prefix + "role add @member @role` — Give a role\n`" + prefix + "role remove @member @role` — Remove a role\nAliases: `" + prefix + "role-add`, `" + prefix + "role-remove`.");
     if (["role-add","role-remove"].includes(command)) {
       if (!modPermission(PermissionFlagsBits.ManageRoles)) return fail("You need Manage Roles or Administrator.");
