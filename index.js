@@ -658,7 +658,7 @@ async function notifyAntiNukeOwner(guild, message) {
       .setColor(0x202225)
       .setTitle("🛡️ Paradox • Core  |  Security Alert")
       .setDescription(String(message).slice(0, 3900))
-      .addFields({ name: "Server", value: String(guild.name || "Unknown").slice(0, 100) + "\\n\\" + guild.id, inline: false })
+      .addFields({ name: "Server", value: String(guild.name || "Unknown").slice(0, 100) + "\n" + guild.id, inline: false })
       .setFooter({ text: "ANTI-NUKE SYSTEM  •  Automated security notice" })
       .setTimestamp();
     await owner.send({ embeds: [alert], allowedMentions: { parse: [] } });
