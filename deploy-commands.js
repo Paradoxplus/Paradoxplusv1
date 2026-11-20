@@ -41,7 +41,7 @@ const commands = [
       .addStringOption(o=>o.setName("reason").setDescription("Why this ticket is being closed").setMaxLength(500)))
     .addSubcommand(sc=>sc.setName("reopen").setDescription("Reopen a closed ticket."))
     .addSubcommand(sc=>sc.setName("transcript").setDescription("Export the ticket conversation as a text file.")),
-  new SlashCommandBuilder().setName("ticket-panel").setDescription("Publish the Paradoxplus ticket portal in a selected channel.")
+  new SlashCommandBuilder().setName("ticket-panel").setDescription("Publish the Exile AS 1.9+ ticket portal in a selected channel.")
     .addChannelOption(o=>o.setName("channel").setDescription("Text channel where the ticket panel should be posted").addChannelTypes(ChannelType.GuildText).setRequired(true)),
   new SlashCommandBuilder().setName("selfroles").setDescription("Publish the Paradoxplus reaction-based self-role panel.")
     .addChannelOption(o => o.setName("channel").setDescription("Text channel where members can choose self-roles").addChannelTypes(ChannelType.GuildText).setRequired(true)),
