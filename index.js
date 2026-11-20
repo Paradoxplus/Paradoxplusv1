@@ -1172,7 +1172,7 @@ client.on(Events.GuildMemberAdd, async member => {
   const count = member.guild.memberCount;
   const embed = new EmbedBuilder()
     .setColor(0x7c5cff)
-    .setAuthor({ name: "Paradoxplus", iconURL: client.user.displayAvatarURL() })
+    .setAuthor({ name: "Exile AS", iconURL: client.user.displayAvatarURL() })
 .setTitle("WELCOME")
 
   .setDescription(
@@ -1436,9 +1436,9 @@ function buildTicketPanel(guild, botUser) {
     );
   const panel = new EmbedBuilder()
     .setColor(0x6d5dfc)
-    .setTitle("🎟️ Paradoxx | Ticket Support")
+    .setTitle("🎟️ Exile AS | Ticket Support")
     .setDescription(
-      "## Paradoxx | 1.9+ Ticket Support\n\n" +
+      "## Exile AS | Ticket Support\n\n" +
       "**Types Of Support We Provide**\n\n" +
       "> - Team Application\n> - General Support\n> - Paid Promotion\n\n" +
       "**Requirements for __Team Application:__**\n\n" +
@@ -1768,14 +1768,14 @@ client.on(Events.InteractionCreate, async interaction => {
         parent: ticketCategory.id,
         topic: "paradoxplus-ticket:" + interaction.user.id,
         permissionOverwrites: overwrites,
-        reason: "Paradox 1.9+ " + ticketType + " ticket opened by " + interaction.user.tag
+        reason: "Exile AS " + ticketType + " ticket opened by " + interaction.user.tag
       });
       const closeRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId("px_ticket_close").setLabel("Close ticket").setEmoji("🔒").setStyle(ButtonStyle.Danger)
       );
       const intro = new EmbedBuilder()
         .setColor(0x6d5dfc)
-        .setAuthor({ name: "PARADOX 1.9+  /  PRIVATE SUPPORT", iconURL: interaction.client.user.displayAvatarURL() })
+        .setAuthor({ name: "EXILE AS  /  PRIVATE SUPPORT", iconURL: interaction.client.user.displayAvatarURL() })
         .setTitle("✦  " + ticketType.toUpperCase() + "  /  SUPPORT ROOM")
         .setDescription(
           "Welcome " + member.toString() + " — your private ticket is open.\n" +
@@ -1787,7 +1787,7 @@ client.on(Events.InteractionCreate, async interaction => {
           { name: "STATUS", value: "🟢 Open", inline: true }
         )
         .setThumbnail(member.user.displayAvatarURL({ size: 256 }))
-        .setFooter({ text: "PARADOX 1.9+ • ParadoxManagerV1  /  Use the button below when your issue is resolved" })
+        .setFooter({ text: "EXILE AS  /  Use the button below when your issue is resolved" })
         .setTimestamp();
       await channel.send({ embeds: [intro], components: [closeRow], allowedMentions: { users: [member.id], parse: [] } });
       return interaction.editReply("Your private ticket has been created: " + channel.toString());
@@ -3659,7 +3659,7 @@ client.on(Events.MessageCreate, async message => {
         const count = message.guild.memberCount;
         const embed = new EmbedBuilder()
           .setColor(0x7c5cff)
-          .setAuthor({ name: "Paradoxplus", iconURL: client.user.displayAvatarURL() })
+          .setAuthor({ name: "Exile AS", iconURL: client.user.displayAvatarURL() })
           .setTitle("WELCOME")
 
             .setDescription(
