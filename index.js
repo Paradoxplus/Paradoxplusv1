@@ -1128,9 +1128,11 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   if (!Array.isArray(config.permanentMutes)) config.permanentMutes = [];
   const record = config.permanentMutes.find(item => item.memberId === newMember.id);
   if (!record) return;
-  const hadTimeout = Boolean(oldMember.communicationDisabledUntilTimestamp && oldMember.communicationDisabledUntilTimestamp > Date.now());
-  const hasTimeout = Boolean(newMember.communicationDisabledUntilTimestamp && newMember.communicationDisabledUntilTimestamp > Date.now());
-  if (hadTimeout || hasTimeout) return;
+  // Only renew when an existing timeout is actually cleared. Role changes
+  // during the initial mute setup must not start a second timeout operation.
+  const hadTimeout = Boolean(oldMember.communicationDisabledUntilTimestamp);
+  const hasTimeout = Boolean(newMember.communicationDisabledUntilTimestamp);
+  if (!hadTimeout || hasTimeout) return;
   if (!newMember.moderatable) { console.warn("[PermanentMute] Cannot renew timeout for", newMember.id, "because role hierarchy or permissions prevent it."); return; }
   try { await newMember.timeout(28 * 24 * 60 * 60 * 1000, "Permanent mute auto-renewal: " + (record.reason || "No reason provided")); console.log("[PermanentMute] Renewed permanent mute for", newMember.id); }
   catch (error) { console.error("[PermanentMute] Failed to renew mute for", newMember.id, error); }
@@ -4200,7 +4202,6 @@ client.on(Events.MessageCreate, async message => {
           throw new Error("Discord still refuses the timeout after the role-removal attempts. The target may be the server owner, still have a role at/above the bot's highest role, or the bot may lack Moderate Members.");
         }
         await refreshedForTimeout.timeout(28 * 24 * 60 * 60 * 1000, "Permanent mute (auto-renewed): " + reason);
-        target = refreshedForTimeout;
       } catch (error) {
         const restoreFailures = [];
         for (const role of removedNow) {
