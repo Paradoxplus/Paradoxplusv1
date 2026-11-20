@@ -748,7 +748,7 @@ client.on(Events.GuildRoleCreate, async role => {
   if (role.guild.id !== ANTI_NUKE_GUILD_ID || !hasDangerousPermissions(role.permissions)) return;
   const entry = await findRecentAuditExecutor(role.guild, AuditLogEvent.RoleCreate, role.id);
   const executorId = entry?.executorId ?? null;
-  if (executorId === client.user.id || (executorId && (CHANNEL_SECURITY_OWNER_IDS.has(executorId) || isAntiNukeWhitelisted(role.guild.id, executorId)))) return;
+  if (isAntiNukeTrustedActor(role.guild, executorId)) return;
   try {
     await role.delete("Anti-nuke: remove newly created role with dangerous permissions");
     console.error("[ANTI-NUKE] Deleted newly created dangerous-permission role:", role.id);
@@ -772,7 +772,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   if (!addedDangerousRoles.size) return;
   const entry = await findRecentAuditExecutor(newMember.guild, AuditLogEvent.MemberRoleUpdate, newMember.id);
   const executorId = entry?.executorId ?? null;
-  if (executorId === client.user.id || (executorId && (CHANNEL_SECURITY_OWNER_IDS.has(executorId) || isAntiNukeWhitelisted(newMember.guild.id, executorId)))) return;
+  if (isAntiNukeTrustedActor(newMember.guild, executorId)) return;
   try {
     await newMember.roles.remove([...addedDangerousRoles.keys()], "Anti-nuke: revert unauthorized assignment of dangerous-permission role");
     console.error("[ANTI-NUKE] Removed dangerous role assignment from member:", newMember.id);
@@ -1021,7 +1021,6 @@ client.on(Events.ChannelDelete, async channel => {
   if (executorId) {
     await trackDestructiveAuditAction(guild, executorId, "channel-delete", "channels deleted");
   }
-  const isTrustedOwner = executorId && CHANNEL_SECURITY_OWNER_IDS.has(executorId);
   if (isAntiNukeTrustedActor(guild, executorId)) {
     console.log("[CHANNEL-ANTI-NUKE] Trusted owner or bot deleted channel; no enforcement:", executorId);
     return;
