@@ -2843,6 +2843,7 @@ client.on(Events.InteractionCreate, async interaction => {
       }
       if (cmd === "timeout") {
         if (isAntiNukeWhitelisted(interaction.guildId, user.id) || isBotOwner(user.id)) return replyError(interaction, "🛡️ That member is protected as a bot owner / trusted owner and cannot be timed out.");
+        if (actor.id !== interaction.guild.ownerId && target.roles.highest.comparePositionTo(actor.roles.highest) >= 0) return replyError(interaction, "🛡️ You cannot timeout a member whose highest role is equal to or higher than yours.");
         const mins=interaction.options.getInteger("minutes",true);
         if (!target.moderatable) return replyError(interaction,"I can't timeout that member.");
         await target.timeout(mins*60000,reason);
@@ -4198,6 +4199,14 @@ client.on(Events.MessageCreate, async message => {
       if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) return fail("I need Manage Roles to temporarily remove and restore removable roles.");
       const freshTarget = await message.guild.members.fetch({ user: target.id, force: true }).catch(() => null);
       if (!freshTarget) return fail("I could not refresh that member. Please try again.");
+      const actorMember = await message.guild.members.fetch(message.author.id).catch(() => null);
+      if (!actorMember) return fail("I could not verify your server role.");
+      if (actorMember.id !== message.guild.ownerId && freshTarget.roles.highest.comparePositionTo(actorMember.roles.highest) >= 0) {
+        return fail("🛡️ You cannot mute a member whose highest role is equal to or higher than yours.");
+      }
+      if (freshTarget.roles.highest.comparePositionTo(botMember.roles.highest) >= 0) {
+        return fail("🛡️ I cannot mute this member because their highest role is equal to or higher than mine.");
+      }
       const existing = config.permanentMutes.find(item => item.memberId === target.id);
       const previouslyRemovedIds = Array.isArray(existing?.removedRoleIds) ? existing.removedRoleIds : [];
       const removableRoles = [...freshTarget.roles.cache.values()].filter(role =>
