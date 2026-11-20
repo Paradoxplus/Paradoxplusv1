@@ -3871,7 +3871,7 @@ client.on(Events.MessageCreate, async message => {
         .setImage(EXILE_AS_BANNER_URL)
         .setFooter({ text: message.guild.name })
         .setTimestamp();
-      const recruitChannel = await message.guild.channels.fetch("1568943820509290518").catch(() => null);
+      const recruitChannel = await message.guild.channels.fetch("1572968553617817769").catch(() => null);
       if (!recruitChannel?.isTextBased() || !recruitChannel.permissionsFor(message.guild.members.me)?.has(PermissionFlagsBits.SendMessages)) {
         return fail("I cannot access the recruit announcement channel. Check View Channel and Send Messages permissions.");
       }
