@@ -7,6 +7,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { startDashboard } from "./dashboard.js";
 import { joinVoiceChannel, VoiceConnectionStatus, entersState, getVoiceConnection } from "@discordjs/voice";
+const EXILE_AS_BANNER_URL = EXILE_AS_BANNER_URL;
+
 import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot, importDatabaseSnapshot, archiveDiscordMessage, getArchivedChannelMessages } from "./recruitment.js";
 
  
@@ -1189,7 +1191,7 @@ client.on(Events.GuildMemberAdd, async member => {
   const channel = member.guild.channels.cache.get(config.welcomeChannelId)
     ?? await member.guild.channels.fetch(config.welcomeChannelId).catch(() => null);
   if (!channel?.isTextBased()) return;
-  const bannerUrl = "https://d2ol7oe51mr4n9.cloudfront.net/user_3LnTjrCm07BcsWANEl3eqURP53X/2c552c8e-1694-4602-ab5b-4e8430de9597.gif";
+  const bannerUrl = EXILE_AS_BANNER_URL;
   const count = member.guild.memberCount;
   const embed = new EmbedBuilder()
     .setColor(0x7c5cff)
@@ -1471,7 +1473,7 @@ function buildTicketPanel(guild, botUser) {
       "**NOTE:** Create a ticket only for one of the support types listed above."
     )
     .setThumbnail(guild.iconURL({ size: 256 }) || botUser.displayAvatarURL())
-    .setImage("https://d2ol7oe51mr4n9.cloudfront.net/user_3LnTjrCm07BcsWANEl3eqURP53X/2c552c8e-1694-4602-ab5b-4e8430de9597.gif")
+    .setImage(EXILE_AS_BANNER_URL)
     .setFooter({ text: "Powered By Exile • Core" });
   return { embeds: [panel], components: [new ActionRowBuilder().addComponents(menu)] };
 }
@@ -2529,7 +2531,7 @@ client.on(Events.InteractionCreate, async interaction => {
         .setAuthor({ name: "APP", iconURL: interaction.client.user.displayAvatarURL() })
         .setTitle("New recruit")
         .setDescription("**.GG/PX**\n\n**Recruit:** " + target.toString() + "\n\n**Recruited by:** " + interaction.user.toString() + "\n\n**Recruit no.:** #" + (config.recruitCount + result.total) + "\n\n**PARADOXX**")
-        .setImage("https://d2ol7oe51mr4n9.cloudfront.net/user_3LnTjrCm07BcsWANEl3eqURP53X/2c552c8e-1694-4602-ab5b-4e8430de9597.gif")
+        .setImage(EXILE_AS_BANNER_URL)
         .setFooter({ text: interaction.guild.name })
         .setTimestamp();
       embed.addFields({ name: "Recruit perks", value: (perks.role ? "✅ Recruit role assigned" : "⚠️ Recruit role not assigned") + "\n" + (perks.nickname ? "✅ Server nickname updated" : "⚠️ Server nickname unchanged") + (perks.errors.length ? "\n" + perks.errors.join("\n") : ""), inline: false });
@@ -3737,7 +3739,7 @@ client.on(Events.MessageCreate, async message => {
         message.member.permissions.has(PermissionFlagsBits.ManageGuild);
       if (!canConfigure) return fail("You need Manage Server or Administrator to configure welcome messages.");
       if (sub === "test") {
-        const bannerUrl = "https://d2ol7oe51mr4n9.cloudfront.net/user_3LnTjrCm07BcsWANEl3eqURP53X/2c552c8e-1694-4602-ab5b-4e8430de9597.gif";
+        const bannerUrl = EXILE_AS_BANNER_URL;
         const count = message.guild.memberCount;
         const embed = new EmbedBuilder()
           .setColor(0x7c5cff)
@@ -3868,7 +3870,7 @@ client.on(Events.MessageCreate, async message => {
         .setAuthor({ name: "APP", iconURL: client.user.displayAvatarURL() })
         .setTitle("New recruit")
         .setDescription("**.GG/PX**\n\n**Recruit:** " + target.toString() + "\n\n**Recruited by:** " + message.author.toString() + "\n\n**Recruit no.:** #" + (config.recruitCount + result.total) + "\n\n**PARADOXX**")
-        .setImage("https://d2ol7oe51mr4n9.cloudfront.net/user_3LnTjrCm07BcsWANEl3eqURP53X/2c552c8e-1694-4602-ab5b-4e8430de9597.gif")
+        .setImage(EXILE_AS_BANNER_URL)
         .setFooter({ text: message.guild.name })
         .setTimestamp();
       const recruitChannel = await message.guild.channels.fetch("1568943820509290518").catch(() => null);
