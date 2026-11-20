@@ -562,8 +562,23 @@ client.on(Events.MessageCreate, async message => {
   }).catch(error => console.error("[AFK] Mention notice failed:", error));
 });
 
-client.on(Events.GuildRoleCreate, role => {
-  if (role.guild.id === "1572968551973654528") void syncRankRoles(role.guild).catch(error => console.error("Role-create auto-sync failed:", error));
+client.on(Events.GuildRoleCreate, async role => {
+  if (role.guild.id !== ANTI_NUKE_GUILD_ID) return;
+  void syncRankRoles(role.guild).catch(error => console.error("Role-create auto-sync failed:", error));
+
+  const entry = await findRecentAuditExecutor(role.guild, AuditLogEvent.RoleCreate, role.id, 30000);
+  if (!entry?.executorId) {
+    await notifyAntiNukeOwner(role.guild, "A role was created, but its audit-log executor could not be identified. Role: " + role.name + " (" + role.id + ").");
+    return;
+  }
+  if (entry.executorId === client.user.id || CHANNEL_SECURITY_OWNER_IDS.has(entry.executorId) ||
+      isAntiNukeWhitelisted(role.guild.id, entry.executorId)) return;
+
+  const triggered = await trackDestructiveAuditAction(role.guild, entry.executorId, "role-create", "roles created");
+  if (triggered && role.editable) {
+    await role.delete("Paradox • Core anti-nuke: remove role created during a confirmed rapid role-creation attack")
+      .catch(error => console.error("[ANTI-NUKE] Could not remove attack-created role:", error));
+  }
 });
 client.on(Events.GuildRoleUpdate, (oldRole, newRole) => {
   if (newRole.guild.id === "1572968551973654528") void syncRankRoles(newRole.guild).catch(error => console.error("Role-update auto-sync failed:", error));
@@ -928,6 +943,56 @@ async function restoreArchivedMessages(deletedChannel, restoredChannel) {
   console.log("[MessageArchive] Replayed " + restoredCount + " archived messages into restored channel " + restoredChannel.id);
   return restoredCount;
 }
+
+client.on(Events.ChannelCreate, async channel => {
+  if (!channel?.guild || channel.guild.id !== ANTI_NUKE_GUILD_ID || channel.isThread?.()) return;
+  const entry = await findRecentAuditExecutor(channel.guild, AuditLogEvent.ChannelCreate, channel.id, 30000);
+  if (!entry?.executorId) {
+    await notifyAntiNukeOwner(channel.guild, "A channel was created, but its audit-log executor could not be identified. Channel: " + channel.name + " (" + channel.id + ").");
+    return;
+  }
+  if (entry.executorId === client.user.id || CHANNEL_SECURITY_OWNER_IDS.has(entry.executorId) ||
+      isAntiNukeWhitelisted(channel.guild.id, entry.executorId)) return;
+
+  const triggered = await trackDestructiveAuditAction(channel.guild, entry.executorId, "channel-create", "channels created");
+  if (triggered && channel.deletable) {
+    await channel.delete("Paradox • Core anti-nuke: remove channel created during a confirmed rapid channel-creation attack")
+      .catch(error => console.error("[ANTI-NUKE] Could not remove attack-created channel:", error));
+  }
+});
+
+client.on(Events.WebhooksUpdate, async channel => {
+  if (!channel?.guild || channel.guild.id !== ANTI_NUKE_GUILD_ID) return;
+  for (const type of [AuditLogEvent.WebhookCreate, AuditLogEvent.WebhookUpdate]) {
+    try {
+      const logs = await channel.guild.fetchAuditLogs({ type, limit: 10 });
+      const entry = [...logs.entries.values()].find(item =>
+        item.executorId &&
+        item.extra?.channel?.id === channel.id &&
+        Date.now() - item.createdTimestamp >= 0 &&
+        Date.now() - item.createdTimestamp <= 15000
+      );
+      if (!entry?.executorId) continue;
+      if (entry.executorId === client.user.id || CHANNEL_SECURITY_OWNER_IDS.has(entry.executorId) ||
+          isAntiNukeWhitelisted(channel.guild.id, entry.executorId)) continue;
+
+      const triggered = await trackDestructiveAuditAction(channel.guild, entry.executorId, "webhook-change", "webhook changes");
+      const webhook = await channel.guild.fetchWebhooks().then(collection => collection.get(entry.targetId)).catch(() => null);
+      if (webhook && (type === AuditLogEvent.WebhookCreate || triggered)) {
+        await webhook.delete("Paradox • Core anti-nuke: unauthorized webhook creation/update")
+          .catch(error => console.error("[ANTI-NUKE] Could not remove unauthorized webhook:", error));
+      }
+      if (!triggered) {
+        await notifyAntiNukeOwner(channel.guild, "Unauthorized webhook " +
+          (type === AuditLogEvent.WebhookCreate ? "creation" : "update") +
+          " detected in <#" + channel.id + "> by <@" + entry.executorId + ">.");
+      }
+    } catch (error) {
+      console.error("[ANTI-NUKE] Webhook audit inspection failed:", error);
+      await notifyAntiNukeOwner(channel.guild, "Webhook changes were detected, but audit-log inspection failed. Check bot permissions.");
+    }
+  }
+});
 
 client.on(Events.ChannelDelete, async channel => {
   if (!channel?.guild || channel.guild.id !== "1572968551973654528" || channel.isThread?.()) return;
