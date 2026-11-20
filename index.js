@@ -1670,7 +1670,6 @@ setInterval(async () => {
 // Self-role reaction panel. Only the configured panel message in the main server is actionable.
 const SELF_ROLE_GUILD_ID = "1572968551973654528";
 const SELF_ROLE_MAP = {
-  "🛡️": "1572968552208797698",
   "🤡": "1572968552024121478",
   "📤": "1572968552024121480",
   "🧠": "1572968552024121479",
@@ -2411,7 +2410,6 @@ client.on(Events.InteractionCreate, async interaction => {
       const missingRoles = Object.values(SELF_ROLE_MAP).filter(roleId => !interaction.guild.roles.cache.has(roleId));
       if (missingRoles.length) return replyError(interaction, "One or more configured self-roles no longer exist: " + missingRoles.join(", "));
       const content = "# **SELF ROLES**\n\n" +
-        "🛡️ <:arrow_yellow:1571561291640742010> [ <@&1572968552208797698> ]\n" +
         "🤡 <:arrow_yellow:1571561291640742010> [ <@&1572968552024121478> ]\n" +
         "📤 <:arrow_yellow:1571561291640742010> [ <@&1572968552024121480> ]\n" +
         "🧠 <:arrow_yellow:1571561291640742010> [ <@&1572968552024121479> ]\n" +
@@ -2422,7 +2420,6 @@ client.on(Events.InteractionCreate, async interaction => {
       await interaction.deferReply({ ephemeral: true });
       try {
         const panelMessage = await targetChannel.send({ embeds: [panelEmbed], allowedMentions: { parse: [] } });
-        await panelMessage.react("🛡️");
         await panelMessage.react("🤡");
         await panelMessage.react("📤");
         await panelMessage.react("🧠");
@@ -2430,7 +2427,7 @@ client.on(Events.InteractionCreate, async interaction => {
         const config = getGuildConfig(interaction.guildId);
         config.selfRolePanel = { channelId: targetChannel.id, messageId: panelMessage.id, updatedAt: new Date().toISOString() };
         await saveDatabase();
-        return interaction.editReply("✅ Self-role panel published in " + targetChannel.toString() + ". Members can click any of the five emojis to add or remove the matching role.");
+        return interaction.editReply("✅ Self-role panel published in " + targetChannel.toString() + ". Members can click any of the four emojis to add or remove the matching role.");
       } catch (error) {
         console.error("[SelfRoles] Could not publish panel:", error);
         return interaction.editReply("I couldn't publish the panel or add its reactions. Check the channel permissions and that the custom emojis are available to the bot.");
@@ -3523,7 +3520,7 @@ const prefixEmbed = (title, description) => new EmbedBuilder()
 const mentionedId = (value, role = false) => value?.match(role ? /^<@&(\d+)>$/ : /^<@!?(\d+)>$/)?.[1] || null;
 
 async function applyRecruitPerks(guild, target) {
-  const roleIds = ["1568943817858744344", "1568943817858744347"];
+  const roleIds = ["1572968552208797698"];
   const botMember = guild.members.me ?? await guild.members.fetchMe();
   const results = { role: false, nickname: false, errors: [] };
   let rolesAdded = 0;
@@ -3538,7 +3535,7 @@ async function applyRecruitPerks(guild, target) {
     catch (error) { results.errors.push('Role <@&' + roleId + '> assignment failed: ' + (error.message || 'check permissions.')); }
   }
   results.role = rolesAdded === roleIds.length;
-  const desiredNickname = ("PX ϟ " + target.user.username).slice(0, 32);
+  const desiredNickname = ("Exl 么 " + target.user.username).slice(0, 32);
   if (!botMember.permissions.has(PermissionFlagsBits.ManageNicknames) && !botMember.permissions.has(PermissionFlagsBits.Administrator)) {
     results.errors.push('I need Manage Nicknames to set the recruit\'s server nickname.');
   } else if (target.roles.highest.position >= botMember.roles.highest.position && guild.ownerId !== target.id) {
@@ -3891,7 +3888,7 @@ client.on(Events.MessageCreate, async message => {
       const record = await removeRecruit(message.guild.id, id);
       if (!record) return fail("That member is not recorded as a recruit in this server.");
       const results = [];
-      const roleIds = ["1568943817858744344", "1568943817858744347"];
+      const roleIds = ["1572968552208797698"];
       const botMember = message.guild.members.me ?? await message.guild.members.fetchMe();
       for (const roleId of roleIds) {
         const role = await message.guild.roles.fetch(roleId).catch(() => null);
