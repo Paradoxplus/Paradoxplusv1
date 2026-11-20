@@ -7,8 +7,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { startDashboard } from "./dashboard.js";
 import { joinVoiceChannel, VoiceConnectionStatus, entersState, getVoiceConnection } from "@discordjs/voice";
-const EXILE_AS_BANNER_URL = "https://kommodo.ai/i/7GMXqpQZLSNrc1rfctNW";
-const RECRUIT_BANNER_URL = "https://kommodo.ai/i/5w9GWzIHSQjOCUJC2fHz";
+const EXILE_AS_BANNER_URL = "https://plain-eeur-prod-public.komododecks.com/202611/20/7GMXqpQZLSNrc1rfctNW/image.gif";
+const RECRUIT_BANNER_URL = "https://plain-eeur-prod-public.komododecks.com/202611/20/5w9GWzIHSQjOCUJC2fHz/image.gif";
 const WELCOME_BANNER_URL = "https://d2ol7oe51mr4n9.cloudfront.net/user_3LnTjrCm07BcsWANEl3eqURP53X/752328ad-804d-4e11-95b5-75dfcfe06cf1.gif";
 
 import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot, importDatabaseSnapshot, archiveDiscordMessage, getArchivedChannelMessages } from "./recruitment.js";
