@@ -2466,7 +2466,9 @@ client.on(Events.InteractionCreate, async interaction => {
       await interaction.editReply("🏷️ Starting 𝝨𝝬𝗟 么 tagging for **" + targets.length + "** members with " + selectedRole.toString() + ". Members without that role will not be changed.");
       for (const member of targets) {
         processed++;
-        const originalName = member.nickname || member.user.globalName || member.user.username;
+        // displayName is Discord's effective server display name (nickname first),
+        // unlike user.username, which is the account's original username.
+        const originalName = member.displayName || member.nickname || member.user.globalName || member.user.username;
         const currentName = originalName.replace(/^(?:PX ϟ |Exl 么 |𝝨𝝬𝗟 么 )/, "");
         if (originalName.startsWith(prefix)) {
           alreadyTagged++;
