@@ -4153,55 +4153,75 @@ client.on(Events.MessageCreate, async message => {
       if (target.id === message.author.id) return fail("You cannot mute yourself.");
       if (!Array.isArray(config.permanentMutes)) config.permanentMutes = [];
       const reason = args.slice(1).join(" ").trim() || "No reason provided";
-      const botMember = message.guild.members.me ?? await message.guild.members.fetchMe();
+      const botMember = await message.guild.members.fetchMe({ force: true });
       if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) return fail("I need Manage Roles to temporarily remove and restore removable roles.");
+      const freshTarget = await message.guild.members.fetch({ user: target.id, force: true }).catch(() => null);
+      if (!freshTarget) return fail("I could not refresh that member. Please try again.");
       const existing = config.permanentMutes.find(item => item.memberId === target.id);
-      const removableRoles = existing
-        ? []
-        : [...target.roles.cache.values()].filter(role =>
-            role.id !== message.guild.id &&
-            !role.managed &&
-            role.editable &&
-            role.position < botMember.roles.highest.position
-          );
-      const removedRoleIds = existing && Array.isArray(existing.removedRoleIds)
-        ? existing.removedRoleIds
-        : removableRoles.map(role => role.id);
+      const previouslyRemovedIds = Array.isArray(existing?.removedRoleIds) ? existing.removedRoleIds : [];
+      const removableRoles = [...freshTarget.roles.cache.values()].filter(role =>
+        role.id !== message.guild.id &&
+        !role.managed &&
+        role.editable &&
+        role.position < botMember.roles.highest.position
+      );
+      const removedRoleIds = new Set(previouslyRemovedIds);
+      const removedNow = [];
+      const roleFailures = [];
       try {
-        // Remove every role the bot is permitted to manage before attempting
-        // the timeout. Discord's own hierarchy and permission checks still apply.
-        if (!existing && removableRoles.length) {
-          await target.roles.remove(removableRoles, "Temporarily removed for permanent mute by " + message.author.tag);
+        // Refresh and attempt roles one at a time so Discord's exact rejection
+        // is visible instead of silently skipping a whole bulk role update.
+        for (const role of removableRoles) {
+          try {
+            await freshTarget.roles.remove(role, "Temporarily removed for permanent mute by " + message.author.tag);
+            removedNow.push(role);
+            removedRoleIds.add(role.id);
+          } catch (roleError) {
+            roleFailures.push(role.name + ": " + String(roleError.message || roleError).slice(0, 180));
+          }
         }
+        const savedIds = [...removedRoleIds];
         if (existing) {
           existing.reason = reason;
           existing.moderatorId = message.author.id;
-          if (!Array.isArray(existing.removedRoleIds)) existing.removedRoleIds = [];
+          existing.removedRoleIds = savedIds;
         } else {
           config.permanentMutes.push({
             memberId: target.id,
             moderatorId: message.author.id,
             reason,
             createdAt: new Date().toISOString(),
-            removedRoleIds
+            removedRoleIds: savedIds
           });
         }
         await saveDatabase();
-        if (!target.moderatable) {
-          throw new Error("Discord still does not allow me to timeout this member after removing manageable roles. Check whether they own the server or still have a role at/above my highest role, and confirm Moderate Members.");
+        const refreshedForTimeout = await message.guild.members.fetch({ user: target.id, force: true });
+        if (!refreshedForTimeout.moderatable) {
+          throw new Error("Discord still refuses the timeout after the role-removal attempts. The target may be the server owner, still have a role at/above the bot's highest role, or the bot may lack Moderate Members.");
         }
-        await target.timeout(28 * 24 * 60 * 60 * 1000, "Permanent mute (auto-renewed): " + reason);
+        await refreshedForTimeout.timeout(28 * 24 * 60 * 60 * 1000, "Permanent mute (auto-renewed): " + reason);
+        target = refreshedForTimeout;
       } catch (error) {
-        if (!existing) {
+        const restoreFailures = [];
+        for (const role of removedNow) {
+          try {
+            const current = await message.guild.members.fetch({ user: target.id, force: true });
+            if (!current.roles.cache.has(role.id) && role.editable) await current.roles.add(role, "Mute failed; restoring role");
+          } catch (restoreError) {
+            restoreFailures.push(role.name + ": " + String(restoreError.message || restoreError).slice(0, 120));
+          }
+        }
+        if (existing) {
+          existing.removedRoleIds = previouslyRemovedIds;
+        } else {
           const recordIndex = config.permanentMutes.findIndex(item => item.memberId === target.id);
           if (recordIndex !== -1) config.permanentMutes.splice(recordIndex, 1);
         }
-        const restoreable = removableRoles.filter(role => role.editable && !target.roles.cache.has(role.id));
-        if (restoreable.length) await target.roles.add(restoreable, "Mute failed; restoring roles").catch(restoreError =>
-          console.error("[PermanentMute] Failed to roll back roles for " + target.id, restoreError)
-        );
         await saveDatabase();
-        return fail("I could not apply the mute. Any roles I removed were restored where possible. " + error.message);
+        const roleReport = "Role removals succeeded: " + removedNow.length + "/" + removableRoles.length +
+          (roleFailures.length ? "\\nRole removal errors: " + roleFailures.join("; ") : "") +
+          (restoreFailures.length ? "\\nRole restore errors: " + restoreFailures.join("; ") : "");
+        return fail("I could not apply the mute. " + error.message + "\\n" + roleReport);
       }
       addPrefixCase("PERMANENT_MUTE", target.id, reason);
       await saveDatabase();
