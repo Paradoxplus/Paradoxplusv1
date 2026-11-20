@@ -974,6 +974,109 @@ client.on(Events.ChannelCreate, async channel => {
   }
 });
 
+
+
+// Detect permission escalation through channel overwrites (including @everyone,
+// role overwrites, and member-specific overwrites). Unknown audit actors are
+// alerted, never treated as proof of an attack.
+const ANTI_NUKE_CHANNEL_DANGEROUS_PERMISSIONS = [
+  PermissionFlagsBits.Administrator,
+  PermissionFlagsBits.BanMembers,
+  PermissionFlagsBits.KickMembers,
+  PermissionFlagsBits.ManageGuild,
+  PermissionFlagsBits.ManageRoles,
+  PermissionFlagsBits.ManageChannels,
+  PermissionFlagsBits.ManageWebhooks,
+  PermissionFlagsBits.ManageMessages,
+  PermissionFlagsBits.MentionEveryone,
+  PermissionFlagsBits.ManageThreads
+];
+
+async function inspectChannelPermissionEscalation(oldChannel, newChannel) {
+  if (!newChannel?.guild || newChannel.guild.id !== ANTI_NUKE_GUILD_ID ||
+      !oldChannel?.permissionOverwrites?.cache || !newChannel.permissionOverwrites?.cache) return;
+  const changedTargets = [];
+  for (const [targetId, next] of newChannel.permissionOverwrites.cache) {
+    const previous = oldChannel.permissionOverwrites.cache.get(targetId);
+    const granted = ANTI_NUKE_CHANNEL_DANGEROUS_PERMISSIONS.filter(permission =>
+      next.allow.has(permission) && !previous?.allow.has(permission)
+    );
+    if (granted.length) changedTargets.push({ targetId, previous, next, granted });
+  }
+  if (!changedTargets.length) return;
+
+  let entry = null;
+  for (const type of [
+    AuditLogEvent.ChannelOverwriteUpdate,
+    AuditLogEvent.ChannelOverwriteCreate
+  ]) {
+    try {
+      const logs = await newChannel.guild.fetchAuditLogs({ type, limit: 10 });
+      entry = [...logs.entries.values()].find(item =>
+        item.executorId &&
+        item.extra?.channel?.id === newChannel.id &&
+        Date.now() - item.createdTimestamp >= 0 &&
+        Date.now() - item.createdTimestamp <= 15000
+      ) || null;
+      if (entry) break;
+    } catch (error) {
+      console.error("[ANTI-NUKE] Channel-overwrite audit lookup failed:", error);
+    }
+  }
+
+  const executorId = entry?.executorId ?? null;
+  if (!executorId) {
+    await notifyAntiNukeOwner(newChannel.guild,
+      "A channel overwrite granted dangerous permissions, but the audit-log actor could not be identified. No automatic rollback was attempted. Channel: " +
+      newChannel.name + " (" + newChannel.id + "). Review the audit log immediately.");
+    return;
+  }
+  if (isAntiNukeTrustedActor(newChannel.guild, executorId)) return;
+
+  for (const change of changedTargets) {
+    try {
+      if (change.previous) {
+        await newChannel.permissionOverwrites.edit(change.targetId, {
+          allow: change.previous.allow.bitfield,
+          deny: change.previous.deny.bitfield
+        }, { reason: "Paradox • Core anti-nuke: revert unauthorized dangerous channel permission escalation" });
+      } else {
+        await newChannel.permissionOverwrites.delete(change.targetId,
+          "Paradox • Core anti-nuke: remove unauthorized dangerous channel permission overwrite");
+      }
+    } catch (error) {
+      console.error("[ANTI-NUKE] Failed to revert channel overwrite:", newChannel.id, change.targetId, error);
+      await notifyAntiNukeOwner(newChannel.guild,
+        "Could not revert a dangerous channel permission overwrite. Channel: " + newChannel.name +
+        "; target: " + change.targetId + "; actor: <@" + executorId + ">.");
+    }
+  }
+  await punishAntiNukeExecutor(newChannel.guild, executorId,
+    "granting dangerous channel permissions in " + newChannel.name);
+}
+
+client.on(Events.ChannelUpdate, (oldChannel, newChannel) => {
+  void inspectChannelPermissionEscalation(oldChannel, newChannel)
+    .catch(error => console.error("[ANTI-NUKE] Channel permission inspection failed:", error));
+});
+
+const antiNukeJoinWindows = new Map();
+function trackAntiNukeJoin(member) {
+  if (member.guild.id !== ANTI_NUKE_GUILD_ID || member.user.bot) return;
+  const now = Date.now();
+  const recent = (antiNukeJoinWindows.get(member.guild.id) || []).filter(item => now - item.at <= 15000);
+  recent.push({ at: now, userId: member.id, createdAt: member.user.createdTimestamp });
+  antiNukeJoinWindows.set(member.guild.id, recent);
+  if (recent.length === 8) {
+    const youngAccounts = recent.filter(item => now - item.createdAt < 7 * 24 * 60 * 60 * 1000);
+    void notifyAntiNukeOwner(member.guild,
+      "Possible join raid: " + recent.length + " members joined within 15 seconds." +
+      (youngAccounts.length ? " " + youngAccounts.length + " have accounts younger than 7 days." : "") +
+      " No members were automatically punished; review joins and enable Discord verification/raid protections if needed.");
+  }
+  if (recent.length > 100) antiNukeJoinWindows.set(member.guild.id, recent.slice(-100));
+}
+
 client.on(Events.WebhooksUpdate, async channel => {
   if (!channel?.guild || channel.guild.id !== ANTI_NUKE_GUILD_ID) return;
   for (const type of [AuditLogEvent.WebhookCreate, AuditLogEvent.WebhookUpdate]) {
@@ -1264,6 +1367,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   catch (error) { console.error("[PermanentMute] Failed to renew mute for", newMember.id, error); }
 });
 client.on(Events.GuildMemberAdd, async member => {
+  trackAntiNukeJoin(member);
   if (await inspectNewBot(member)) return;
   const config = getGuildConfig(member.guild.id);
   const autobanEntry = config.autobanList.find(entry => entry && entry.userId === member.id);
