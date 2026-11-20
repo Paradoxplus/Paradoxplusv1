@@ -7,7 +7,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { startDashboard } from "./dashboard.js";
 import { joinVoiceChannel, VoiceConnectionStatus, entersState, getVoiceConnection } from "@discordjs/voice";
-const EXILE_AS_BANNER_URL = EXILE_AS_BANNER_URL;
+const EXILE_AS_BANNER_URL = "https://d2ol7oe51mr4n9.cloudfront.net/user_3LnTjrCm07BcsWANEl3eqURP53X/2c552c8e-1694-4602-ab5b-4e8430de9597.gif";
 
 import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot, importDatabaseSnapshot, archiveDiscordMessage, getArchivedChannelMessages } from "./recruitment.js";
 
