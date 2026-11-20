@@ -1619,6 +1619,112 @@ async function backupGuildStickers(guild, reason = "scheduled") {
   return records.length;
 }
 
+async function backupGuildEmojis(guild, reason = "scheduled") {
+  if (!guild || guild.id !== ANTI_NUKE_GUILD_ID) return 0;
+  const emojis = await guild.emojis.fetch();
+  const backupDir = path.join(DATA_DIR, "emoji-backups", guild.id);
+  await fs.mkdir(backupDir, { recursive: true });
+  const records = [];
+  for (const emoji of emojis.values()) {
+    try {
+      const extension = emoji.animated ? "gif" : "png";
+      const fileName = emoji.id + "." + extension;
+      const response = await fetch(emoji.imageURL({ extension: emoji.animated ? "gif" : "png", forceStatic: false }));
+      if (!response.ok) throw new Error("CDN returned HTTP " + response.status);
+      await fs.writeFile(path.join(backupDir, fileName), Buffer.from(await response.arrayBuffer()));
+      records.push({
+        id: emoji.id, name: emoji.name, animated: emoji.animated,
+        roles: [...emoji.roles.cache.keys()], file: fileName,
+        backedUpAt: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("[EmojiBackup] Could not back up emoji:", emoji.id, error);
+      await notifyAntiNukeOwner(guild, "Could not back up emoji " + (emoji.name || emoji.id) + ". " + String(error?.message || error).slice(0, 200));
+    }
+  }
+  const manifestPath = path.join(backupDir, "manifest.json");
+  const tempPath = manifestPath + ".tmp";
+  await fs.writeFile(tempPath, JSON.stringify({
+    schemaVersion: 1, guildId: guild.id, reason,
+    backedUpAt: new Date().toISOString(), emojis: records
+  }, null, 2), "utf8");
+  await fs.rename(tempPath, manifestPath);
+  console.log("[EmojiBackup] Saved " + records.length + " custom emoji asset(s) for " + guild.name + ".");
+  return records.length;
+}
+
+async function restoreDeletedGuildEmoji(emoji) {
+  const guild = emoji.guild;
+  if (!guild || guild.id !== ANTI_NUKE_GUILD_ID) return;
+  let entry = null;
+  try {
+    const logs = await guild.fetchAuditLogs({ type: AuditLogEvent.EmojiDelete, limit: 10 });
+    entry = [...logs.entries.values()].find(item =>
+      item.target?.id === emoji.id &&
+      Date.now() - item.createdTimestamp >= 0 &&
+      Date.now() - item.createdTimestamp <= 20000
+    ) || null;
+  } catch (error) {
+    console.error("[EmojiBackup] Emoji-delete audit lookup failed:", error);
+    await notifyAntiNukeOwner(guild, "Custom emoji deletion detected for " + (emoji.name || emoji.id) + ", but audit-log lookup failed. Automatic restoration was paused.");
+    return;
+  }
+  const executorId = entry?.executorId ?? null;
+  if (!executorId) {
+    await notifyAntiNukeOwner(guild, "Custom emoji " + (emoji.name || emoji.id) + " was deleted, but its executor could not be identified. Review the audit log.");
+    return;
+  }
+  if (isAntiNukeTrustedActor(guild, executorId)) return;
+  const backupDir = path.join(DATA_DIR, "emoji-backups", guild.id);
+  let manifest;
+  try {
+    manifest = JSON.parse(await fs.readFile(path.join(backupDir, "manifest.json"), "utf8"));
+  } catch (error) {
+    await notifyAntiNukeOwner(guild, "Unauthorized deletion of custom emoji " + (emoji.name || emoji.id) + " by <@" + executorId + "> was detected, but no readable emoji backup exists.");
+    await punishAntiNukeExecutor(guild, executorId, "deleting custom emoji " + (emoji.name || emoji.id));
+    return;
+  }
+  const saved = manifest.emojis?.find(item => item.id === emoji.id);
+  if (!saved?.file) {
+    await notifyAntiNukeOwner(guild, "Unauthorized deletion of custom emoji " + (emoji.name || emoji.id) + " by <@" + executorId + "> was detected, but it was not present in the latest backup.");
+    await punishAntiNukeExecutor(guild, executorId, "deleting custom emoji " + (emoji.name || emoji.id));
+    return;
+  }
+  try {
+    const file = await fs.readFile(path.join(backupDir, path.basename(saved.file)));
+    const restored = await guild.emojis.create({
+      attachment: file,
+      name: String(saved.name || emoji.name || "restored_emoji").slice(0, 32),
+      reason: "Paradox • Core anti-nuke: restore unauthorized deleted custom emoji"
+    });
+    if (saved.roles?.length) {
+      const validRoles = saved.roles.filter(roleId => guild.roles.cache.has(roleId));
+      if (validRoles.length) await restored.roles.set(validRoles, "Restore saved custom emoji role restrictions").catch(error =>
+        console.error("[EmojiBackup] Could not restore emoji role restrictions:", error));
+    }
+    await notifyAntiNukeOwner(guild, "Restored custom emoji " + (saved.name || emoji.name) + " as " + restored.id + ". Original animation: " + (saved.animated ? "GIF" : "static") + ". Deleter: <@" + executorId + ">.");
+    await punishAntiNukeExecutor(guild, executorId, "deleting custom emoji " + (saved.name || emoji.name));
+  } catch (error) {
+    console.error("[EmojiBackup] Emoji restoration failed:", error);
+    await notifyAntiNukeOwner(guild, "Detected unauthorized deletion of custom emoji " + (saved.name || emoji.name) + " by <@" + executorId + ">, but restoration failed: " + String(error?.message || error).slice(0, 250));
+    await punishAntiNukeExecutor(guild, executorId, "deleting custom emoji " + (saved.name || emoji.name));
+  }
+}
+
+client.on(Events.GuildEmojiCreate, emoji => {
+  if (emoji.guild?.id === ANTI_NUKE_GUILD_ID) {
+    void backupGuildEmojis(emoji.guild, "emoji-created").catch(error => console.error("[EmojiBackup] Create-event backup failed:", error));
+  }
+});
+client.on(Events.GuildEmojiUpdate, (_oldEmoji, newEmoji) => {
+  if (newEmoji.guild?.id === ANTI_NUKE_GUILD_ID) {
+    void backupGuildEmojis(newEmoji.guild, "emoji-updated").catch(error => console.error("[EmojiBackup] Update-event backup failed:", error));
+  }
+});
+client.on(Events.GuildEmojiDelete, emoji => {
+  void restoreDeletedGuildEmoji(emoji).catch(error => console.error("[EmojiBackup] Delete-event recovery failed:", error));
+});
+
 async function restoreDeletedGuildSticker(sticker) {
   const guild = sticker.guild;
   if (!guild || guild.id !== ANTI_NUKE_GUILD_ID) return;
@@ -1696,6 +1802,10 @@ async function createGuildChannelBackup(guild, reason = "hourly") {
     await backupGuildStickers(guild, reason).catch(error => {
       console.error("[StickerBackup] Scheduled sticker backup failed:", error);
       void notifyAntiNukeOwner(guild, "Sticker backup failed: " + String(error?.message || error).slice(0, 250));
+    });
+    await backupGuildEmojis(guild, reason).catch(error => {
+      console.error("[EmojiBackup] Scheduled emoji backup failed:", error);
+      void notifyAntiNukeOwner(guild, "Custom emoji/GIF backup failed: " + String(error?.message || error).slice(0, 250));
     });
   }
   const snapshot = {
@@ -2452,7 +2562,7 @@ client.on(Events.InteractionCreate, async interaction => {
             { name: "02  /  Permission escalation", value: "Dangerous role-permission grants, dangerous role assignments, and channel-overwrite permission escalation are checked and reverted when an unauthorized actor is identified.", inline: false },
             { name: "03  /  Bot security", value: "New bots with elevated moderation or server-management permissions are detected and removed when the inviter is not trusted.", inline: false },
             { name: "04  /  Raid signals", value: "A burst of 8 human joins within 15 seconds triggers an owner alert. Join detection is alert-only; it does not mass-kick ordinary members.", inline: false },
-            { name: "05  /  Recovery & backups", value: "Channel configuration recovery, archived-message records, and sticker asset backups are available when snapshots exist. Unauthorized sticker deletion triggers automatic re-upload when the saved asset is available. " + backupFiles.length + " channel snapshot file(s) found; hourly backups are enabled.", inline: false },
+            { name: "05  /  Recovery & backups", value: "Channel configuration recovery, archived-message records, sticker backups, and custom emoji/GIF backups are available when snapshots exist. Unauthorized sticker or custom emoji deletion triggers automatic re-upload when the saved asset is available. " + backupFiles.length + " channel snapshot file(s) found; hourly backups are enabled.", inline: false },
             { name: "06  /  Message deletion", value: "Bulk deletion of 10 or more messages triggers an owner alert with the identified actor when Discord audit logs provide one. Archived message records are retained for later review/export; Discord messages are not automatically reposted.", inline: false },
             { name: "BOT PERMISSIONS", value: missingSecurityPermissions.length ? "**MISSING:** " + missingSecurityPermissions.join(", ") : "All required anti-nuke permissions are present.", inline: false },
             { name: "LATEST SNAPSHOT", value: latestBackup || "No snapshot file found.", inline: true },
