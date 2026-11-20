@@ -2528,7 +2528,9 @@ client.on(Events.InteractionCreate, async interaction => {
         return replyError(interaction, "I cannot access the recruit announcement channel. Check View Channel and Send Messages permissions.");
       }
       await recruitChannel.send({
-        content: (interaction.guild.emojis.cache.find(emoji => emoji.name === "GreenCrown")?.toString() || ":GreenCrown:") + " **New recruit** " + (interaction.guild.emojis.cache.find(emoji => emoji.name === "GreenCrown")?.toString() || ":GreenCrown:") + "\n\n> " + target.toString() + " joined the team.\n\n<:bluearrow:1573207744171737098> **Recruited by:** " + interaction.user.toString() + "\n<:bluearrow:1573207744171737098> **Total recruits:** `" + result.total + "`",
+        embeds: [new EmbedBuilder()
+          .setColor("#000000")
+          .setDescription((interaction.guild.emojis.cache.find(emoji => emoji.name === "GreenCrown")?.toString() || ":GreenCrown:") + " **New recruit** " + (interaction.guild.emojis.cache.find(emoji => emoji.name === "GreenCrown")?.toString() || ":GreenCrown:") + "\n\n> " + target.toString() + " joined the team.\n\n<:bluearrow:1573207744171737098> **Recruited by:** " + interaction.user.toString() + "\n<:bluearrow:1573207744171737098> **Total recruits:** `" + result.total + "`")],
         allowedMentions: { users: [target.id, interaction.user.id], parse: [] }
       });
       return interaction.reply({ content: "✅ Recruit announcement posted in " + recruitChannel.toString() + ".", ephemeral: true });
@@ -3864,7 +3866,9 @@ client.on(Events.MessageCreate, async message => {
         return fail("I cannot access the recruit announcement channel. Check View Channel and Send Messages permissions.");
       }
       await recruitChannel.send({
-        content: (message.guild.emojis.cache.find(emoji => emoji.name === "GreenCrown")?.toString() || ":GreenCrown:") + " **New recruit** " + (message.guild.emojis.cache.find(emoji => emoji.name === "GreenCrown")?.toString() || ":GreenCrown:") + "\n\n> " + target.toString() + " joined the team.\n\n<:bluearrow:1573207744171737098> **Recruited by:** " + message.author.toString() + "\n<:bluearrow:1573207744171737098> **Total recruits:** `" + result.total + "`",
+        embeds: [new EmbedBuilder()
+          .setColor("#000000")
+          .setDescription((message.guild.emojis.cache.find(emoji => emoji.name === "GreenCrown")?.toString() || ":GreenCrown:") + " **New recruit** " + (message.guild.emojis.cache.find(emoji => emoji.name === "GreenCrown")?.toString() || ":GreenCrown:") + "\n\n> " + target.toString() + " joined the team.\n\n<:bluearrow:1573207744171737098> **Recruited by:** " + message.author.toString() + "\n<:bluearrow:1573207744171737098> **Total recruits:** `" + result.total + "`")],
         allowedMentions: { users: [target.id, message.author.id], parse: [] }
       });
       return message.react("✅");
