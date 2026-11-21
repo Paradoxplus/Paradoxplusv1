@@ -49,6 +49,11 @@ const commands = [
     .addSubcommand(sc => sc.setName("all").setDescription("Tag members who have the selected team role.")
       .addRoleOption(o => o.setName("role").setDescription("Only members with this role will be tagged").setRequired(true))
       .addBooleanOption(o => o.setName("confirm").setDescription("Confirm tagging members with this role").setRequired(true))),
+  new SlashCommandBuilder().setName("welcome").setDescription("Customize the welcome message; the banner remains fixed.")
+    .addSubcommand(sc=>sc.setName("message").setDescription("Change the welcome message text.")
+      .addStringOption(o=>o.setName("text").setDescription("Message text; supports {user}, {server}, {memberCount}").setMaxLength(3500).setRequired(true)))
+    .addSubcommand(sc=>sc.setName("reset").setDescription("Restore the default welcome message."))
+    .addSubcommand(sc=>sc.setName("test").setDescription("DM yourself a preview of the current welcome message.")),
   new SlashCommandBuilder().setName("prefix").setDescription("Change this server’s text command prefix.")
     .addStringOption(o=>o.setName("new_prefix").setDescription("New prefix (1–5 characters, no spaces)").setMinLength(1).setMaxLength(5).setRequired(true)),
   new SlashCommandBuilder().setName("recruit").setDescription("Record a new Paradoxplus recruit.")
