@@ -628,8 +628,7 @@ client.on(Events.GuildRoleCreate, async role => {
     await notifyAntiNukeOwner(role.guild, "A role was created, but its audit-log executor could not be identified. Role: " + role.name + " (" + role.id + ").");
     return;
   }
-  if (entry.executorId === client.user.id || CHANNEL_SECURITY_OWNER_IDS.has(entry.executorId) ||
-      isAntiNukeWhitelisted(role.guild.id, entry.executorId)) return;
+  if (isAntiNukeTrustedActor(role.guild, entry.executorId)) return;
 
   const triggered = await trackDestructiveAuditAction(role.guild, entry.executorId, "role-create", "roles created");
   if (triggered && role.editable) {
@@ -640,11 +639,15 @@ client.on(Events.GuildRoleCreate, async role => {
 client.on(Events.GuildRoleUpdate, (oldRole, newRole) => {
   if (newRole.guild.id === "1572968551973654528") void syncRankRoles(newRole.guild).catch(error => console.error("Role-update auto-sync failed:", error));
 });
-const CHANNEL_SECURITY_OWNER_IDS = new Set(["1191997911144349738", BOT_OWNER_ID]);
-
 function isAntiNukeTrustedActor(guild, userId) {
-  return Boolean(userId) && (userId === guild.ownerId || userId === client.user?.id ||
-    CHANNEL_SECURITY_OWNER_IDS.has(userId) || isAntiNukeWhitelisted(guild.id, userId));
+  // Only the actual server owner, this bot, the configured bot owner, and
+  // users explicitly added by the bot owner are exempt from anti-nuke enforcement.
+  return Boolean(userId) && (
+    userId === guild.ownerId ||
+    userId === client.user?.id ||
+    userId === BOT_OWNER_ID ||
+    isAntiNukeWhitelisted(guild.id, userId)
+  );
 }
 
 // Anti-nuke coverage for bot invitations and rapid member bans.
@@ -767,7 +770,7 @@ client.on(Events.GuildBanAdd, ban => {
 });
 
 async function punishAntiNukeExecutor(guild, executorId, reason) {
-  if (!executorId || executorId === guild.ownerId || executorId === client.user.id || CHANNEL_SECURITY_OWNER_IDS.has(executorId) || isAntiNukeWhitelisted(guild.id, executorId)) {
+  if (!executorId || isAntiNukeTrustedActor(guild, executorId)) {
     if (executorId === guild.ownerId) console.error("[ANTI-NUKE] Server owner performed a protected action; Discord does not allow bots to ban the owner.");
     return false;
   }
@@ -2800,8 +2803,8 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 
     if (interaction.commandName === "antinuke") {
-      if (![ "1191997911144349738", BOT_OWNER_ID ].includes(interaction.user.id)) {
-        return replyError(interaction, "Only the designated Paradox • Core owners can manage anti-nuke tools.");
+      if (!isBotOwner(interaction.user.id)) {
+        return replyError(interaction, "Only Fearless, the configured Paradox • Core bot owner, can manage anti-nuke tools.");
       }
       if (interaction.guildId !== "1572968551973654528") {
         return replyError(interaction, "Anti-nuke controls are configured for the Paradoxplus main server only.");
@@ -2843,7 +2846,7 @@ client.on(Events.InteractionCreate, async interaction => {
             { name: "06  /  Message deletion", value: "Bulk deletion of 10 or more messages triggers an owner alert with the identified actor when Discord audit logs provide one. Archived message records are retained for later review/export; Discord messages are not automatically reposted.", inline: false },
             { name: "BOT PERMISSIONS", value: missingSecurityPermissions.length ? "**MISSING:** " + missingSecurityPermissions.join(", ") : "All required anti-nuke permissions are present.", inline: false },
             { name: "LATEST SNAPSHOT", value: latestBackup || "No snapshot file found.", inline: true },
-            { name: "TRUST MODEL", value: "Server owner, configured security owners, bot, and owner-managed whitelist are exempt from automated punishment.", inline: true },
+            { name: "TRUST MODEL", value: "Only the actual server owner, Paradox • Core bot, configured bot owner, and users explicitly added to the owner-managed whitelist are exempt. Server administrators and moderators are not automatically trusted.", inline: true },
             { name: "CURRENT LIMITATIONS", value: "No panic-lockdown or quarantine workflow yet. This is not full Wick parity; deleted webhook tokens and all deleted server assets cannot be restored automatically.", inline: false }
           )
           .setFooter({ text: "PARADOX • CORE  /  SECURITY OPERATIONS" })
