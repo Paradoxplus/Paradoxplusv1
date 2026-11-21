@@ -2602,7 +2602,7 @@ client.on(Events.InteractionCreate, async interaction => {
       dropper.enabled = true;
       await saveDatabase();
       return interaction.reply({
-        content: "✅ PacksMC auto-dropper enabled in " + targetChannel.toString() + ". I'll post one new pack every **5 minutes**. Use /tpackdisable to stop it or /tpackstatus to check it.",
+        content: "✅ Modrinth auto-dropper enabled in " + targetChannel.toString() + ". I'll post one new pack every **5 minutes**. Use /tpackdisable to stop it or /tpackstatus to check it.",
         ephemeral: true
       });
     }
