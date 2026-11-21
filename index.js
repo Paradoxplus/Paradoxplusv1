@@ -2512,7 +2512,7 @@ client.on(Events.InteractionCreate, async interaction => {
         if (!ids.length) {
           return interaction.reply({ content: "🛡️ The anti-nuke owner whitelist is empty.", ephemeral: true });
         }
-        const lines = ids.map((id, index) => (index + 1) + ". <@" + id + "> — \`" + id + "\`");
+        const lines = ids.map((id, index) => (index + 1) + ". <@" + id + "> — `" + id + "`");
         const chunks = [];
         let chunk = "**Anti-nuke trusted users (" + ids.length + ")**\n";
         for (const line of lines) {
