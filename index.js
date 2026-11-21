@@ -1489,12 +1489,12 @@ client.on(Events.GuildMemberAdd, async member => {
     "" + (member.guild.emojis.cache.get("1415376887265628250")?.toString() || "✨") + " Welcome " + member.toString() + " to ExileAS | 1.9+ ! " + (member.guild.emojis.cache.get("1415376887265628250")?.toString() || "✨") + "\n\n" +
     "**Hey there " + member.toString() + "**\n" +
     "**We're hyped to have you here — enjoy your stay!**\n\n" +
-    "> - <:arrow_yellow:1571561291640742010> [allies](https://discord.com/channels/1572968551973654528/1572968553617817764)\n" +
-    "> - <:arrow_yellow:1571561291640742010> [war logs](https://discord.com/channels/1572968551973654528/1572968553617817767)\n" +
-    "> - <:arrow_yellow:1571561291640742010> [rosters](https://discord.com/channels/1572968551973654528/1572968553617817763)\n" +
-    "> - <:arrow_yellow:1571561291640742010> [tvt](https://discord.com/channels/1572968551973654528/1572968553617817766)\n" +
-    "> - <:arrow_yellow:1571561291640742010> [clowns](https://discord.com/channels/1572968551973654528/1572968553320157201)\n" +
-    "> - <:arrow_yellow:1571561291640742010> [memories](https://discord.com/channels/1572968551973654528/1572968553320157203)"
+    "> - <:arrow_yellow:1573218795319730176> [allies](https://discord.com/channels/1572968551973654528/1572968553617817764)\n" +
+    "> - <:arrow_yellow:1573218795319730176> [war logs](https://discord.com/channels/1572968551973654528/1572968553617817767)\n" +
+    "> - <:arrow_yellow:1573218795319730176> [rosters](https://discord.com/channels/1572968551973654528/1572968553617817763)\n" +
+    "> - <:arrow_yellow:1573218795319730176> [tvt](https://discord.com/channels/1572968551973654528/1572968553617817766)\n" +
+    "> - <:arrow_yellow:1573218795319730176> [clowns](https://discord.com/channels/1572968551973654528/1572968553320157201)\n" +
+    "> - <:arrow_yellow:1573218795319730176> [memories](https://discord.com/channels/1572968551973654528/1572968553320157203)"
 
   )
     .setThumbnail(member.user.displayAvatarURL({ extension: "png", size: 256 }))
@@ -4569,12 +4569,12 @@ client.on(Events.MessageCreate, async message => {
               "" + (message.guild.emojis.cache.get("1415376887265628250")?.toString() || "✨") + " Welcome " + message.member.toString() + " to ExileAS | 1.9+ ! " + (message.guild.emojis.cache.get("1415376887265628250")?.toString() || "✨") + "\n\n" +
             "**Hey there " + message.member.toString() + "**\n" +
               "**We're hyped to have you here — enjoy your stay!**\n\n" +
-              "> - <:arrow_yellow:1571561291640742010> [allies](https://discord.com/channels/1572968551973654528/1572968553617817764)\n" +
-              "> - <:arrow_yellow:1571561291640742010> [war logs](https://discord.com/channels/1572968551973654528/1572968553617817767)\n" +
-              "> - <:arrow_yellow:1571561291640742010> [rosters](https://discord.com/channels/1572968551973654528/1572968553617817763)\n" +
-              "> - <:arrow_yellow:1571561291640742010> [tvt](https://discord.com/channels/1572968551973654528/1572968553617817766)\n" +
-              "> - <:arrow_yellow:1571561291640742010> [clowns](https://discord.com/channels/1572968551973654528/1572968553320157201)\n" +
-              "> - <:arrow_yellow:1571561291640742010> [memories](https://discord.com/channels/1572968551973654528/1572968553320157203)"
+              "> - <:arrow_yellow:1573218795319730176> [allies](https://discord.com/channels/1572968551973654528/1572968553617817764)\n" +
+              "> - <:arrow_yellow:1573218795319730176> [war logs](https://discord.com/channels/1572968551973654528/1572968553617817767)\n" +
+              "> - <:arrow_yellow:1573218795319730176> [rosters](https://discord.com/channels/1572968551973654528/1572968553617817763)\n" +
+              "> - <:arrow_yellow:1573218795319730176> [tvt](https://discord.com/channels/1572968551973654528/1572968553617817766)\n" +
+              "> - <:arrow_yellow:1573218795319730176> [clowns](https://discord.com/channels/1572968551973654528/1572968553320157201)\n" +
+              "> - <:arrow_yellow:1573218795319730176> [memories](https://discord.com/channels/1572968551973654528/1572968553320157203)"
 
             )
           .setThumbnail(message.author.displayAvatarURL({ extension: "png", size: 256 }))
