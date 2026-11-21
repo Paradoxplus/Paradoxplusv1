@@ -1930,7 +1930,7 @@ client.once(Events.ClientReady, async readyClient => {
   console.log(`Online as ${readyClient.user.tag}`);
   console.log(`Serving ${readyClient.guilds.cache.size} server(s).`);
   startHourlyChannelBackups(readyClient);
-  startPacksMCDropper();
+  startModrinthTextureDropper();
   console.log("[MessageArchive] Permanent retention enabled; archived messages are not automatically deleted.");
   void connectOwnerVoice(readyClient);
 });
@@ -2189,96 +2189,188 @@ setInterval(async () => {
 }, 30000);
 
 
-// PacksMC texture-pack dropper. Only embeds catalog metadata and links back to the creator's PacksMC page.
+// Modrinth texture-pack dropper. Uses the public API; only explicitly permissive licences are eligible for file re-upload.
+const MODRINTH_USER_AGENT = "Paradoxplus/1.0.0 (Discord texture-pack dropper)";
+const MODRINTH_MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+const MODRINTH_REDISTRIBUTABLE_LICENSES = new Set([
+  "CC0-1.0", "CC-BY-4.0", "CC-BY-SA-4.0",
+  "MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause"
+]);
 let tpackDropperRunning = false;
-async function runPacksMCDropper() {
+
+async function readResponseWithLimit(response, maxBytes) {
+  if (!response.body) throw new Error("The download response had no body.");
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => null);
+        throw new Error("Texture pack exceeds the safe Discord upload size.");
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks, total);
+}
+
+async function runModrinthTextureDropper() {
   if (tpackDropperRunning || !client.isReady()) return;
-  const apiKey = process.env.PACKSMC_API_KEY;
-  if (!apiKey) return;
   tpackDropperRunning = true;
   try {
     for (const guild of client.guilds.cache.values()) {
       const config = getGuildConfig(guild.id);
       const dropper = config.tpackDropper;
       if (!dropper?.enabled || !dropper.channelId) continue;
+
       const channel = await guild.channels.fetch(dropper.channelId).catch(() => null);
       if (!channel || ![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(channel.type)) {
         dropper.enabled = false;
         await saveDatabase();
-        console.warn("[PacksMC] Disabled dropper because its channel is missing or not a text channel:", guild.id);
+        console.warn("[Modrinth] Disabled dropper because its channel is missing or not a text channel:", guild.id);
         continue;
       }
+
       const me = guild.members.me ?? await guild.members.fetchMe().catch(() => null);
-      if (!me || !channel.permissionsFor(me)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
-        console.warn("[PacksMC] Missing channel permissions; skipping this cycle in", guild.id);
+      const requiredPermissions = [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.EmbedLinks,
+        PermissionFlagsBits.AttachFiles
+      ];
+      if (!me || !channel.permissionsFor(me)?.has(requiredPermissions)) {
+        console.warn("[Modrinth] Missing channel permissions (including Attach Files); skipping this cycle in", guild.id);
         continue;
       }
+
       try {
-        const response = await fetch("https://packsmc.com/api/v1/packs?sort=recent&limit=100", {
-          headers: { Authorization: "Bearer " + apiKey, Accept: "application/json" },
+        const allowedLicenses = [...MODRINTH_REDISTRIBUTABLE_LICENSES];
+        const facets = [
+          ["project_type:resourcepack"],
+          allowedLicenses.map(license => "license:" + license)
+        ];
+        const params = new URLSearchParams({
+          facets: JSON.stringify(facets),
+          limit: "100",
+          index: "newest",
+          offset: String(Math.floor(Math.random() * 3000))
+        });
+        const response = await fetch("https://api.modrinth.com/v2/search?" + params.toString(), {
+          headers: { "User-Agent": MODRINTH_USER_AGENT, Accept: "application/json" },
           signal: AbortSignal.timeout(15000)
         });
         if (!response.ok) {
-          const body = await response.text().catch(() => "");
-          console.error("[PacksMC] API request failed:", response.status, body.slice(0, 300));
+          console.error("[Modrinth] Search request failed:", response.status, (await response.text().catch(() => "")).slice(0, 250));
           continue;
         }
+
         const payload = await response.json();
-        const packs = Array.isArray(payload.data) ? payload.data : [];
+        const packs = Array.isArray(payload.hits) ? payload.hits.filter(pack =>
+          pack && typeof pack.project_id === "string" &&
+          typeof pack.latest_version === "string" &&
+          typeof pack.title === "string" &&
+          MODRINTH_REDISTRIBUTABLE_LICENSES.has(pack.license)
+        ) : [];
         if (!packs.length) {
-          console.warn("[PacksMC] API returned no public packs.");
+          console.warn("[Modrinth] No eligible resource packs were returned by the public API.");
           continue;
         }
+
         const posted = new Set(dropper.postedIds);
-        let candidates = packs.filter(pack => pack && pack.id && !posted.has(String(pack.id)) &&
-          typeof pack.name === "string" && typeof pack.download_url === "string" &&
-          /^https:\/\/packsmc\.com\/pack\//i.test(pack.download_url));
+        let candidates = packs.filter(pack => !posted.has(pack.project_id + ":" + pack.latest_version));
         if (!candidates.length) {
           dropper.postedIds = [];
-          candidates = packs.filter(pack => pack && pack.id && typeof pack.name === "string" &&
-            typeof pack.download_url === "string" && /^https:\/\/packsmc\.com\/pack\//i.test(pack.download_url));
+          candidates = [...packs];
         }
-        if (!candidates.length) continue;
-        const pack = candidates[Math.floor(Math.random() * candidates.length)];
-        const author = pack.author?.display_name || pack.author?.username || "Unknown creator";
-        const description = String(pack.description || "A community-made Minecraft resource pack.")
-          .replace(/<@!?\d+>|@everyone|@here/g, "")
-          .replace(/\s+/g, " ").trim().slice(0, 850);
-        const embed = new EmbedBuilder()
-          .setColor(0x36b37e)
-          .setTitle(String(pack.name).slice(0, 250))
-          .setURL(pack.download_url)
-          .setDescription(description)
-          .addFields(
-            { name: "Creator", value: String(author).slice(0, 200), inline: true },
-            { name: "Resolution", value: String(pack.resolution || "Not listed").slice(0, 100), inline: true },
-            { name: "Downloads", value: Number.isFinite(Number(pack.downloads)) ? Number(pack.downloads).toLocaleString() : "—", inline: true }
-          )
-          .setFooter({ text: "PacksMC • Community texture pack • Opens the original pack page" })
-          .setTimestamp();
-        if (Array.isArray(pack.gamemodes) && pack.gamemodes.length) {
-          embed.addFields({ name: "Categories", value: pack.gamemodes.slice(0, 8).map(x => String(x).replace(/_/g, " ")).join(" • ").slice(0, 1000), inline: false });
+        for (let i = candidates.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
         }
-        if (Array.isArray(pack.mc_versions) && pack.mc_versions.length) {
-          embed.addFields({ name: "Minecraft versions", value: pack.mc_versions.slice(0, 12).join(", ").slice(0, 1000), inline: false });
+
+        let published = false;
+        for (const pack of candidates.slice(0, 10)) {
+          try {
+            const versionResponse = await fetch("https://api.modrinth.com/v2/version/" + encodeURIComponent(pack.latest_version), {
+              headers: { "User-Agent": MODRINTH_USER_AGENT, Accept: "application/json" },
+              signal: AbortSignal.timeout(15000)
+            });
+            if (!versionResponse.ok) continue;
+            const version = await versionResponse.json();
+            if (version.project_id !== pack.project_id || !Array.isArray(version.files)) continue;
+
+            const file = version.files.find(item => item?.primary && typeof item.url === "string")
+              || version.files.find(item => typeof item?.url === "string");
+            if (!file || !/^https:\/\/cdn\.modrinth\.com\//i.test(file.url)) continue;
+            const filename = String(file.filename || "texture-pack.zip");
+            if (!/\.(zip|mcpack)$/i.test(filename)) continue;
+            if (!Number.isFinite(Number(file.size)) || Number(file.size) <= 0 || Number(file.size) > MODRINTH_MAX_UPLOAD_BYTES) continue;
+
+            const download = await fetch(file.url, {
+              headers: { "User-Agent": MODRINTH_USER_AGENT },
+              signal: AbortSignal.timeout(30000)
+            });
+            if (!download.ok) continue;
+            const buffer = await readResponseWithLimit(download, MODRINTH_MAX_UPLOAD_BYTES);
+            if (buffer.length < 4 || buffer[0] !== 0x50 || buffer[1] !== 0x4b) {
+              console.warn("[Modrinth] Skipped a file that did not look like a ZIP archive:", pack.project_id);
+              continue;
+            }
+
+            const projectUrl = "https://modrinth.com/resourcepack/" + encodeURIComponent(pack.slug || pack.project_id);
+            const safeDescription = String(pack.description || "A community-made Minecraft resource pack.")
+              .replace(/<@!?\d+>|@everyone|@here/g, "")
+              .replace(/\s+/g, " ").trim().slice(0, 700);
+            const embed = new EmbedBuilder()
+              .setColor(0x1bd96a)
+              .setTitle(String(pack.title).slice(0, 250))
+              .setURL(projectUrl)
+              .setDescription(safeDescription)
+              .addFields(
+                { name: "Creator", value: String(pack.author || "Unknown creator").slice(0, 180), inline: true },
+                { name: "Licence", value: String(pack.license), inline: true },
+                { name: "Minecraft versions", value: Array.isArray(version.game_versions) && version.game_versions.length ? version.game_versions.slice(0, 12).join(", ").slice(0, 900) : "Not listed", inline: false },
+                { name: "Download", value: "Attached below • " + (Number(buffer.length) / 1024 / 1024).toFixed(2) + " MB", inline: true }
+              )
+              .setFooter({ text: "Modrinth • Creator credited • " + String(version.version_number || version.name || "Latest version").slice(0, 70) })
+              .setTimestamp();
+            if (typeof pack.icon_url === "string" && /^https:\/\//i.test(pack.icon_url)) embed.setThumbnail(pack.icon_url);
+
+            const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 100) || "texture-pack.zip";
+            await channel.send({
+              embeds: [embed],
+              files: [new AttachmentBuilder(buffer, { name: safeFilename })],
+              allowedMentions: { parse: [] }
+            });
+
+            dropper.postedIds.push(pack.project_id + ":" + pack.latest_version);
+            if (dropper.postedIds.length > 5000) dropper.postedIds = dropper.postedIds.slice(-5000);
+            await saveDatabase();
+            console.log("[Modrinth] Uploaded", pack.title, "(" + pack.license + ") to", guild.id);
+            published = true;
+            break;
+          } catch (error) {
+            console.warn("[Modrinth] Skipped candidate " + pack.project_id + ":", error?.message || error);
+          }
         }
-        if (typeof pack.thumbnail_url === "string" && /^https:\/\//i.test(pack.thumbnail_url)) embed.setThumbnail(pack.thumbnail_url);
-        await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
-        dropper.postedIds.push(String(pack.id));
-        if (dropper.postedIds.length > 5000) dropper.postedIds = dropper.postedIds.slice(-5000);
-        await saveDatabase();
-        console.log("[PacksMC] Posted pack", pack.id, "to", guild.id);
+        if (!published) console.warn("[Modrinth] No eligible, downloadable pack under 8 MB could be uploaded this cycle for", guild.id);
       } catch (error) {
-        console.error("[PacksMC] Dropper cycle failed for guild " + guild.id + ":", error);
+        console.error("[Modrinth] Dropper cycle failed for guild " + guild.id + ":", error);
       }
     }
   } finally {
     tpackDropperRunning = false;
   }
 }
-function startPacksMCDropper() {
-  void runPacksMCDropper();
-  setInterval(() => { void runPacksMCDropper(); }, 5 * 60 * 1000);
+
+function startModrinthTextureDropper() {
+  void runModrinthTextureDropper();
+  setInterval(() => { void runModrinthTextureDropper(); }, 5 * 60 * 1000);
 }
 
 // Self-role reaction panel. Only the configured panel message in the main server is actionable.
@@ -2482,32 +2574,29 @@ client.on(Events.InteractionCreate, async interaction => {
         return replyError(interaction, "You need Manage Server or Administrator to manage the texture-pack dropper.");
       }
       if (interaction.guildId !== "1572968551973654528") {
-        return replyError(interaction, "The PacksMC dropper is configured for the Paradoxplus main server only.");
+        return replyError(interaction, "The Modrinth texture-pack dropper is configured for the Paradoxplus main server only.");
       }
       const dropper = config.tpackDropper;
       if (interaction.commandName === "tpackstatus") {
         return interaction.reply({
           content: dropper.enabled && dropper.channelId
-            ? "🟢 PacksMC auto-dropper is **enabled** in <#" + dropper.channelId + ">. It posts one pack every **5 minutes**."
-            : "⚪ PacksMC auto-dropper is **disabled**.",
+            ? "🟢 Modrinth auto-dropper is **enabled** in <#" + dropper.channelId + ">. It posts one pack every **5 minutes**."
+            : "⚪ Modrinth auto-dropper is **disabled**.",
           ephemeral: true
         });
       }
       if (interaction.commandName === "tpackdisable") {
         dropper.enabled = false;
         await saveDatabase();
-        return interaction.reply({ content: "⏸️ PacksMC auto-dropper disabled. No more packs will be posted.", ephemeral: true });
+        return interaction.reply({ content: "⏸️ Modrinth auto-dropper disabled. No more packs will be posted.", ephemeral: true });
       }
       const targetChannel = interaction.options.getChannel("channel", true);
       if (![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(targetChannel.type)) {
         return replyError(interaction, "Choose a text or announcement channel.");
       }
       const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
-      if (!targetChannel.permissionsFor(botMember)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
-        return replyError(interaction, "I need View Channel, Send Messages, and Embed Links in that channel.");
-      }
-      if (!process.env.PACKSMC_API_KEY) {
-        return replyError(interaction, "PacksMC API access is not configured yet. Apply at https://packsmc.com/api-access, then add the approved key to Railway as PACKSMC_API_KEY and retry.");
+      if (!targetChannel.permissionsFor(botMember)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.AttachFiles])) {
+        return replyError(interaction, "I need View Channel, Send Messages, Embed Links, and Attach Files in that channel.");
       }
       dropper.channelId = targetChannel.id;
       dropper.enabled = true;
