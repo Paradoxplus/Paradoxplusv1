@@ -147,6 +147,10 @@ function getGuildConfig(guildId) {
   if (typeof config.recoveryReviewChannelId !== "string") config.recoveryReviewChannelId = null;
   if (!Array.isArray(config.pendingDeletionApprovals)) config.pendingDeletionApprovals = [];
   if (typeof config.announceChannelId !== "string") config.announceChannelId = null;
+  if (!config.tpackDropper || typeof config.tpackDropper !== "object") config.tpackDropper = { enabled: false, channelId: null, postedIds: [] };
+  if (typeof config.tpackDropper.enabled !== "boolean") config.tpackDropper.enabled = false;
+  if (typeof config.tpackDropper.channelId !== "string") config.tpackDropper.channelId = null;
+  if (!Array.isArray(config.tpackDropper.postedIds)) config.tpackDropper.postedIds = [];
   config.ranks.sort((a, b) => a.position - b.position);
   return config;
 }
@@ -1926,6 +1930,7 @@ client.once(Events.ClientReady, async readyClient => {
   console.log(`Online as ${readyClient.user.tag}`);
   console.log(`Serving ${readyClient.guilds.cache.size} server(s).`);
   startHourlyChannelBackups(readyClient);
+  startPacksMCDropper();
   console.log("[MessageArchive] Permanent retention enabled; archived messages are not automatically deleted.");
   void connectOwnerVoice(readyClient);
 });
@@ -2184,6 +2189,98 @@ setInterval(async () => {
 }, 30000);
 
 
+// PacksMC texture-pack dropper. Only embeds catalog metadata and links back to the creator's PacksMC page.
+let tpackDropperRunning = false;
+async function runPacksMCDropper() {
+  if (tpackDropperRunning || !client.isReady()) return;
+  const apiKey = process.env.PACKSMC_API_KEY;
+  if (!apiKey) return;
+  tpackDropperRunning = true;
+  try {
+    for (const guild of client.guilds.cache.values()) {
+      const config = getGuildConfig(guild.id);
+      const dropper = config.tpackDropper;
+      if (!dropper?.enabled || !dropper.channelId) continue;
+      const channel = await guild.channels.fetch(dropper.channelId).catch(() => null);
+      if (!channel || ![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(channel.type)) {
+        dropper.enabled = false;
+        await saveDatabase();
+        console.warn("[PacksMC] Disabled dropper because its channel is missing or not a text channel:", guild.id);
+        continue;
+      }
+      const me = guild.members.me ?? await guild.members.fetchMe().catch(() => null);
+      if (!me || !channel.permissionsFor(me)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
+        console.warn("[PacksMC] Missing channel permissions; skipping this cycle in", guild.id);
+        continue;
+      }
+      try {
+        const response = await fetch("https://packsmc.com/api/v1/packs?sort=recent&limit=100", {
+          headers: { Authorization: "Bearer " + apiKey, Accept: "application/json" },
+          signal: AbortSignal.timeout(15000)
+        });
+        if (!response.ok) {
+          const body = await response.text().catch(() => "");
+          console.error("[PacksMC] API request failed:", response.status, body.slice(0, 300));
+          continue;
+        }
+        const payload = await response.json();
+        const packs = Array.isArray(payload.data) ? payload.data : [];
+        if (!packs.length) {
+          console.warn("[PacksMC] API returned no public packs.");
+          continue;
+        }
+        const posted = new Set(dropper.postedIds);
+        let candidates = packs.filter(pack => pack && pack.id && !posted.has(String(pack.id)) &&
+          typeof pack.name === "string" && typeof pack.download_url === "string" &&
+          /^https:\/\/packsmc\.com\/pack\//i.test(pack.download_url));
+        if (!candidates.length) {
+          dropper.postedIds = [];
+          candidates = packs.filter(pack => pack && pack.id && typeof pack.name === "string" &&
+            typeof pack.download_url === "string" && /^https:\/\/packsmc\.com\/pack\//i.test(pack.download_url));
+        }
+        if (!candidates.length) continue;
+        const pack = candidates[Math.floor(Math.random() * candidates.length)];
+        const author = pack.author?.display_name || pack.author?.username || "Unknown creator";
+        const description = String(pack.description || "A community-made Minecraft resource pack.")
+          .replace(/<@!?\d+>|@everyone|@here/g, "")
+          .replace(/\s+/g, " ").trim().slice(0, 850);
+        const embed = new EmbedBuilder()
+          .setColor(0x36b37e)
+          .setTitle(String(pack.name).slice(0, 250))
+          .setURL(pack.download_url)
+          .setDescription(description)
+          .addFields(
+            { name: "Creator", value: String(author).slice(0, 200), inline: true },
+            { name: "Resolution", value: String(pack.resolution || "Not listed").slice(0, 100), inline: true },
+            { name: "Downloads", value: Number.isFinite(Number(pack.downloads)) ? Number(pack.downloads).toLocaleString() : "—", inline: true }
+          )
+          .setFooter({ text: "PacksMC • Community texture pack • Opens the original pack page" })
+          .setTimestamp();
+        if (Array.isArray(pack.gamemodes) && pack.gamemodes.length) {
+          embed.addFields({ name: "Categories", value: pack.gamemodes.slice(0, 8).map(x => String(x).replace(/_/g, " ")).join(" • ").slice(0, 1000), inline: false });
+        }
+        if (Array.isArray(pack.mc_versions) && pack.mc_versions.length) {
+          embed.addFields({ name: "Minecraft versions", value: pack.mc_versions.slice(0, 12).join(", ").slice(0, 1000), inline: false });
+        }
+        if (typeof pack.thumbnail_url === "string" && /^https:\/\//i.test(pack.thumbnail_url)) embed.setThumbnail(pack.thumbnail_url);
+        await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
+        dropper.postedIds.push(String(pack.id));
+        if (dropper.postedIds.length > 5000) dropper.postedIds = dropper.postedIds.slice(-5000);
+        await saveDatabase();
+        console.log("[PacksMC] Posted pack", pack.id, "to", guild.id);
+      } catch (error) {
+        console.error("[PacksMC] Dropper cycle failed for guild " + guild.id + ":", error);
+      }
+    }
+  } finally {
+    tpackDropperRunning = false;
+  }
+}
+function startPacksMCDropper() {
+  void runPacksMCDropper();
+  setInterval(() => { void runPacksMCDropper(); }, 5 * 60 * 1000);
+}
+
 // Self-role reaction panel. Only the configured panel message in the main server is actionable.
 const SELF_ROLE_GUILD_ID = "1572968551973654528";
 const SELF_ROLE_MAP = {
@@ -2377,6 +2474,49 @@ client.on(Events.InteractionCreate, async interaction => {
 
   try {
     const config = getGuildConfig(interaction.guildId);
+
+    if (["tpackenable", "tpackdisable", "tpackstatus"].includes(interaction.commandName)) {
+      if (!isBotOwner(interaction.user.id) &&
+          !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) &&
+          !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+        return replyError(interaction, "You need Manage Server or Administrator to manage the texture-pack dropper.");
+      }
+      if (interaction.guildId !== "1572968551973654528") {
+        return replyError(interaction, "The PacksMC dropper is configured for the Paradoxplus main server only.");
+      }
+      const dropper = config.tpackDropper;
+      if (interaction.commandName === "tpackstatus") {
+        return interaction.reply({
+          content: dropper.enabled && dropper.channelId
+            ? "🟢 PacksMC auto-dropper is **enabled** in <#" + dropper.channelId + ">. It posts one pack every **5 minutes**."
+            : "⚪ PacksMC auto-dropper is **disabled**.",
+          ephemeral: true
+        });
+      }
+      if (interaction.commandName === "tpackdisable") {
+        dropper.enabled = false;
+        await saveDatabase();
+        return interaction.reply({ content: "⏸️ PacksMC auto-dropper disabled. No more packs will be posted.", ephemeral: true });
+      }
+      const targetChannel = interaction.options.getChannel("channel", true);
+      if (![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(targetChannel.type)) {
+        return replyError(interaction, "Choose a text or announcement channel.");
+      }
+      const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
+      if (!targetChannel.permissionsFor(botMember)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
+        return replyError(interaction, "I need View Channel, Send Messages, and Embed Links in that channel.");
+      }
+      if (!process.env.PACKSMC_API_KEY) {
+        return replyError(interaction, "PacksMC API access is not configured yet. Apply at https://packsmc.com/api-access, then add the approved key to Railway as PACKSMC_API_KEY and retry.");
+      }
+      dropper.channelId = targetChannel.id;
+      dropper.enabled = true;
+      await saveDatabase();
+      return interaction.reply({
+        content: "✅ PacksMC auto-dropper enabled in " + targetChannel.toString() + ". I'll post one new pack every **5 minutes**. Use /tpackdisable to stop it or /tpackstatus to check it.",
+        ephemeral: true
+      });
+    }
 
     if (interaction.commandName === "roleall") {
       if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageRoles)) return replyError(interaction, "You need Manage Roles to use this command.");
