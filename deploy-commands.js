@@ -404,6 +404,12 @@ const commands = [
       .addRoleOption(o=>o.setName("role").setDescription("Role to stop assigning").setRequired(true)))
     .addSubcommand(sc=>sc.setName("list").setDescription("Show all configured automatic join roles."))
     .addSubcommand(sc=>sc.setName("clear").setDescription("Remove every configured automatic join role.")),
+  new SlashCommandBuilder().setName("tpackenable").setDescription("Enable the automatic PacksMC texture-pack feed.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addChannelOption(o=>o.setName("channel").setDescription("Channel for the 5-minute texture-pack feed").addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement).setRequired(true)),
+  new SlashCommandBuilder().setName("tpackdisable").setDescription("Disable the automatic PacksMC texture-pack feed.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+  new SlashCommandBuilder().setName("tpackstatus").setDescription("Check the automatic PacksMC texture-pack feed."),
   new SlashCommandBuilder().setName("owner").setDescription("Manage trusted anti-nuke users.")
     .addSubcommandGroup(group => group.setName("whitelist").setDescription("Manage the anti-nuke trusted-user whitelist.")
       .addSubcommand(sc => sc.setName("add").setDescription("Protect a user from anti-nuke enforcement.")
