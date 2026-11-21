@@ -3323,6 +3323,45 @@ client.on(Events.InteractionCreate, async interaction => {
       return interaction.editReply(result.slice(0, 1950));
     }
 
+    if (interaction.commandName === "welcome") {
+      if (!isBotOwner(interaction.user.id) &&
+          !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) &&
+          !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+        return replyError(interaction, "You need Manage Server or Administrator to configure the welcome message.");
+      }
+      const subcommand = interaction.options.getSubcommand();
+      if (subcommand === "message") {
+        const nextMessage = interaction.options.getString("text", true).trim();
+        if (!nextMessage) return replyError(interaction, "Welcome message cannot be empty.");
+        config.welcomeMessage = nextMessage;
+        await saveDatabase();
+        return interaction.reply({ content: "✅ Welcome message updated. The existing banner is unchanged. Use /welcome test to preview it.", ephemeral: true });
+      }
+      if (subcommand === "reset") {
+        config.welcomeMessage = null;
+        await saveDatabase();
+        return interaction.reply({ content: "✅ Default welcome message restored. The banner is unchanged.", ephemeral: true });
+      }
+      if (subcommand === "test") {
+        const count = interaction.guild.memberCount;
+        const embed = new EmbedBuilder()
+          .setColor(0x7c5cff)
+          .setAuthor({ name: "Exile AS", iconURL: client.user.displayAvatarURL() })
+          .setTitle("WELCOME")
+          .setDescription(buildWelcomeDescription(interaction.guild, interaction.member))
+          .setThumbnail(interaction.user.displayAvatarURL({ extension: "png", size: 256 }))
+          .setImage(WELCOME_BANNER_URL)
+          .setFooter({ text: "Paradox • Core  •  Member #" + count })
+          .setTimestamp();
+        try {
+          await interaction.user.send({ embeds: [embed], allowedMentions: { parse: [] } });
+          return interaction.reply({ content: "✦ Welcome preview sent to your DMs.", ephemeral: true });
+        } catch {
+          return replyError(interaction, "I couldn't DM you. Enable direct messages from server members, then try again.");
+        }
+      }
+    }
+
     if (interaction.commandName === "prefix") {
       if (!isBotOwner(interaction.user.id) && !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) && !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) return replyError(interaction, "You need Manage Server or Administrator to change the prefix.");
       const nextPrefix = interaction.options.getString("new_prefix", true).trim();
