@@ -3347,7 +3347,6 @@ client.on(Events.InteractionCreate, async interaction => {
         const embed = new EmbedBuilder()
           .setColor(0x7c5cff)
           .setAuthor({ name: "Exile AS", iconURL: client.user.displayAvatarURL() })
-          .setTitle("WELCOME")
           .setDescription(buildWelcomeDescription(interaction.guild, interaction.member))
           .setThumbnail(interaction.user.displayAvatarURL({ extension: "png", size: 256 }))
           .setImage(WELCOME_BANNER_URL)
@@ -4606,9 +4605,7 @@ client.on(Events.MessageCreate, async message => {
         const embed = new EmbedBuilder()
           .setColor(0x7c5cff)
           .setAuthor({ name: "Exile AS", iconURL: client.user.displayAvatarURL() })
-          .setTitle("WELCOME")
-
-          .setDescription(buildWelcomeDescription(message.guild, message.member))
+                .setDescription(buildWelcomeDescription(message.guild, message.member))
           .setThumbnail(message.author.displayAvatarURL({ extension: "png", size: 256 }))
           .setImage(bannerUrl)
           .setFooter({ text: "Paradox • Core  •  Member #" + count })
