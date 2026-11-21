@@ -1499,7 +1499,6 @@ client.on(Events.GuildMemberAdd, async member => {
   const embed = new EmbedBuilder()
     .setColor(0x7c5cff)
     .setAuthor({ name: "Exile AS", iconURL: client.user.displayAvatarURL() })
-.setTitle("WELCOME")
 
     .setDescription(buildWelcomeDescription(member.guild, member))
     .setThumbnail(member.user.displayAvatarURL({ extension: "png", size: 256 }))
