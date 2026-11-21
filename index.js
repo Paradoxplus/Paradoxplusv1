@@ -1486,7 +1486,7 @@ client.on(Events.GuildMemberAdd, async member => {
 
   .setDescription(
 
-    "<a:1415376887265628250:1571576390044754000> Welcome " + member.toString() + " to ExileAS | 1.9+ ! <a:1415376887265628250:1571576390044754000>\n\n" +
+    "" + (member.guild.emojis.cache.get("1415376887265628250")?.toString() || "✨") + " Welcome " + member.toString() + " to ExileAS | 1.9+ ! " + (member.guild.emojis.cache.get("1415376887265628250")?.toString() || "✨") + "\n\n" +
     "**Hey there " + member.toString() + "**\n" +
     "**We're hyped to have you here — enjoy your stay!**\n\n" +
     "> - <:arrow_yellow:1571561291640742010> [allies](https://discord.com/channels/1572968551973654528/1572968553617817764)\n" +
@@ -4566,7 +4566,7 @@ client.on(Events.MessageCreate, async message => {
 
             .setDescription(
 
-              "<a:1415376887265628250:1571576390044754000> Welcome " + message.member.toString() + " to ExileAS | 1.9+ ! <a:1415376887265628250:1571576390044754000>\n\n" +
+              "" + (message.guild.emojis.cache.get("1415376887265628250")?.toString() || "✨") + " Welcome " + message.member.toString() + " to ExileAS | 1.9+ ! " + (message.guild.emojis.cache.get("1415376887265628250")?.toString() || "✨") + "\n\n" +
             "**Hey there " + message.member.toString() + "**\n" +
               "**We're hyped to have you here — enjoy your stay!**\n\n" +
               "> - <:arrow_yellow:1571561291640742010> [allies](https://discord.com/channels/1572968551973654528/1572968553617817764)\n" +
