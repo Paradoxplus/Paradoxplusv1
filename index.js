@@ -10,6 +10,22 @@ import { joinVoiceChannel, VoiceConnectionStatus, entersState, getVoiceConnectio
 const EXILE_AS_BANNER_URL = "https://plain-eeur-prod-public.komododecks.com/202611/20/7GMXqpQZLSNrc1rfctNW/image.gif";
 const RECRUIT_BANNER_URL = "https://plain-eeur-prod-public.komododecks.com/202611/20/5w9GWzIHSQjOCUJC2fHz/image.gif";
 const WELCOME_BANNER_URL = "https://d2ol7oe51mr4n9.cloudfront.net/user_3LnTjrCm07BcsWANEl3eqURP53X/752328ad-804d-4e11-95b5-75dfcfe06cf1.gif";
+function buildWelcomeDescription(guild, member) {
+  const emoji = guild.emojis.cache.get("1415376887265628250")?.toString() || "✨";
+  const defaultMessage =
+    emoji + " Welcome {user} to ExileAS | 1.9+ ! " + emoji + "\n\n" +
+    "**Hey there {user}**\n" +
+    "**We are hyped to have you here — enjoy your stay!**\n\n" +
+    "> - <:arrow_yellow:1573218795319730176> [allies](https://discord.com/channels/1572968551973654528/1572968553617817764)\n" +
+    "> - <:arrow_yellow:1573218795319730176> [war logs](https://discord.com/channels/1572968551973654528/1572968553617817767)\n" +
+    "> - <:arrow_yellow:1573218795319730176> [rosters](https://discord.com/channels/1572968551973654528/1572968553617817763)\n" +
+    "> - <:arrow_yellow:1573218795319730176> [tvt](https://discord.com/channels/1572968551973654528/1572968553617817766)\n" +
+    "> - <:arrow_yellow:1573218795319730176> [clowns](https://discord.com/channels/1572968551973654528/1572968553320157201)\n" +
+    "> - <:arrow_yellow:1573218795319730176> [memories](https://discord.com/channels/1572968551973654528/1572968553320157203)";
+  const template = getGuildConfig(guild.id).welcomeMessage || defaultMessage;
+  return template.replace(/\{user\}/gi, member.toString()).replace(/\{server\}/gi, guild.name).replace(/\{memberCount\}/gi, String(guild.memberCount));
+}
+
 
 import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot, importDatabaseSnapshot, archiveDiscordMessage, getArchivedChannelMessages } from "./recruitment.js";
 
@@ -147,6 +163,7 @@ function getGuildConfig(guildId) {
   if (typeof config.recoveryReviewChannelId !== "string") config.recoveryReviewChannelId = null;
   if (!Array.isArray(config.pendingDeletionApprovals)) config.pendingDeletionApprovals = [];
   if (typeof config.announceChannelId !== "string") config.announceChannelId = null;
+  if (typeof config.welcomeMessage !== "string") config.welcomeMessage = null;
   if (!config.tpackDropper || typeof config.tpackDropper !== "object") config.tpackDropper = { enabled: false, channelId: null, postedIds: [] };
   if (typeof config.tpackDropper.enabled !== "boolean") config.tpackDropper.enabled = false;
   if (typeof config.tpackDropper.channelId !== "string") config.tpackDropper.channelId = null;
@@ -1484,19 +1501,7 @@ client.on(Events.GuildMemberAdd, async member => {
     .setAuthor({ name: "Exile AS", iconURL: client.user.displayAvatarURL() })
 .setTitle("WELCOME")
 
-  .setDescription(
-
-    "" + (member.guild.emojis.cache.get("1415376887265628250")?.toString() || "✨") + " Welcome " + member.toString() + " to ExileAS | 1.9+ ! " + (member.guild.emojis.cache.get("1415376887265628250")?.toString() || "✨") + "\n\n" +
-    "**Hey there " + member.toString() + "**\n" +
-    "**We're hyped to have you here — enjoy your stay!**\n\n" +
-    "> - <:arrow_yellow:1573218795319730176> [allies](https://discord.com/channels/1572968551973654528/1572968553617817764)\n" +
-    "> - <:arrow_yellow:1573218795319730176> [war logs](https://discord.com/channels/1572968551973654528/1572968553617817767)\n" +
-    "> - <:arrow_yellow:1573218795319730176> [rosters](https://discord.com/channels/1572968551973654528/1572968553617817763)\n" +
-    "> - <:arrow_yellow:1573218795319730176> [tvt](https://discord.com/channels/1572968551973654528/1572968553617817766)\n" +
-    "> - <:arrow_yellow:1573218795319730176> [clowns](https://discord.com/channels/1572968551973654528/1572968553320157201)\n" +
-    "> - <:arrow_yellow:1573218795319730176> [memories](https://discord.com/channels/1572968551973654528/1572968553320157203)"
-
-  )
+    .setDescription(buildWelcomeDescription(member.guild, member))
     .setThumbnail(member.user.displayAvatarURL({ extension: "png", size: 256 }))
     .setImage(bannerUrl)
     .setFooter({ text: "Paradox • Core  •  Member #" + count })
@@ -4564,19 +4569,7 @@ client.on(Events.MessageCreate, async message => {
           .setAuthor({ name: "Exile AS", iconURL: client.user.displayAvatarURL() })
           .setTitle("WELCOME")
 
-            .setDescription(
-
-              "" + (message.guild.emojis.cache.get("1415376887265628250")?.toString() || "✨") + " Welcome " + message.member.toString() + " to ExileAS | 1.9+ ! " + (message.guild.emojis.cache.get("1415376887265628250")?.toString() || "✨") + "\n\n" +
-            "**Hey there " + message.member.toString() + "**\n" +
-              "**We're hyped to have you here — enjoy your stay!**\n\n" +
-              "> - <:arrow_yellow:1573218795319730176> [allies](https://discord.com/channels/1572968551973654528/1572968553617817764)\n" +
-              "> - <:arrow_yellow:1573218795319730176> [war logs](https://discord.com/channels/1572968551973654528/1572968553617817767)\n" +
-              "> - <:arrow_yellow:1573218795319730176> [rosters](https://discord.com/channels/1572968551973654528/1572968553617817763)\n" +
-              "> - <:arrow_yellow:1573218795319730176> [tvt](https://discord.com/channels/1572968551973654528/1572968553617817766)\n" +
-              "> - <:arrow_yellow:1573218795319730176> [clowns](https://discord.com/channels/1572968551973654528/1572968553320157201)\n" +
-              "> - <:arrow_yellow:1573218795319730176> [memories](https://discord.com/channels/1572968551973654528/1572968553320157203)"
-
-            )
+          .setDescription(buildWelcomeDescription(message.guild, message.member))
           .setThumbnail(message.author.displayAvatarURL({ extension: "png", size: 256 }))
           .setImage(bannerUrl)
           .setFooter({ text: "Paradox • Core  •  Member #" + count })
@@ -4587,6 +4580,19 @@ client.on(Events.MessageCreate, async message => {
         } catch {
           return fail("I couldn't DM you. Enable direct messages from server members, then try again.");
         }
+      }
+      if (sub === "message") {
+        const nextMessage = args.join(" ").trim();
+        if (!nextMessage) return fail("Usage: " + prefix + "welcome message <text>\\nPlaceholders: {user}, {server}, {memberCount}. Use " + prefix + "welcome reset to restore the default.");
+        if (nextMessage.length > 3500) return fail("Welcome message must be 3,500 characters or fewer.");
+        config.welcomeMessage = nextMessage;
+        await saveDatabase();
+        return send("✦ Welcome message updated", "The welcome text is saved. Your banner stays unchanged. Preview it with " + prefix + "welcome test.");
+      }
+      if (sub === "reset") {
+        config.welcomeMessage = null;
+        await saveDatabase();
+        return send("✦ Welcome message reset", "Restored the default welcome text. The banner is unchanged.");
       }
       if (sub === "set") {
         const channelId = args[0]?.match(/^<#(\d+)>$/)?.[1] || null;
@@ -4608,7 +4614,7 @@ client.on(Events.MessageCreate, async message => {
         await saveDatabase();
         return send("✦ Welcome messages disabled", "Removed the welcome channel <#" + previous + ">.");
       }
-      return fail("Usage: " + prefix + "welcome set #channel\n" + prefix + "welcome remove");
+      return fail("Usage: " + prefix + "welcome set #channel\\n" + prefix + "welcome message <text>\\n" + prefix + "welcome reset\\n" + prefix + "welcome test\\n" + prefix + "welcome remove");
     }
     if (command === "prefix") {
       if (!isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.Administrator) && !message.member.permissions.has(PermissionFlagsBits.ManageGuild)) return fail("You need Manage Server or Administrator to change the prefix.");
