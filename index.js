@@ -2501,25 +2501,69 @@ client.on(Events.InteractionCreate, async interaction => {
       if (interaction.guildId !== ANTI_NUKE_GUILD_ID) {
         return replyError(interaction, "The owner whitelist is configured for the Paradoxplus main server only.");
       }
-      if (interaction.options.getSubcommandGroup() !== "whitelist" || interaction.options.getSubcommand() !== "add") {
+      if (interaction.options.getSubcommandGroup() !== "whitelist") {
         return replyError(interaction, "Unknown owner whitelist action.");
       }
+      const action = interaction.options.getSubcommand();
+      const config = getGuildConfig(interaction.guildId);
+
+      if (action === "list") {
+        const ids = [...new Set(config.antiNukeWhitelist)].filter(id => id !== BOT_OWNER_ID);
+        if (!ids.length) {
+          return interaction.reply({ content: "🛡️ The anti-nuke owner whitelist is empty.", ephemeral: true });
+        }
+        const lines = ids.map((id, index) => (index + 1) + ". <@" + id + "> — \`" + id + "\`");
+        const chunks = [];
+        let chunk = "**Anti-nuke trusted users (" + ids.length + ")**\\n";
+        for (const line of lines) {
+          if ((chunk + line + "\\n").length > 1800) {
+            chunks.push(chunk);
+            chunk = "";
+          }
+          chunk += line + "\\n";
+        }
+        if (chunk) chunks.push(chunk);
+        await interaction.reply({ content: chunks[0], ephemeral: true, allowedMentions: { parse: [] } });
+        for (const extra of chunks.slice(1)) {
+          await interaction.followUp({ content: extra, ephemeral: true, allowedMentions: { parse: [] } });
+        }
+        return;
+      }
+
       const user = interaction.options.getUser("user", true);
       if (user.id === BOT_OWNER_ID) {
         return replyError(interaction, "Fearless is already the configured bot owner.");
       }
-      const config = getGuildConfig(interaction.guildId);
-      if (config.antiNukeWhitelist.includes(user.id)) {
-        return interaction.reply({ content: "✅ <@" + user.id + "> is already on the anti-nuke whitelist.", ephemeral: true, allowedMentions: { parse: [] } });
+
+      if (action === "add") {
+        if (config.antiNukeWhitelist.includes(user.id)) {
+          return interaction.reply({ content: "✅ <@" + user.id + "> is already on the anti-nuke whitelist.", ephemeral: true, allowedMentions: { parse: [] } });
+        }
+        config.antiNukeWhitelist.push(user.id);
+        await saveDatabase();
+        console.log("[ANTI-NUKE] Bot owner added trusted user:", user.id, "by", interaction.user.id);
+        return interaction.reply({
+          content: "🛡️ Added <@" + user.id + "> to the anti-nuke whitelist. They will be exempt from anti-nuke enforcement, but this does not grant bot-owner commands or permissions.",
+          ephemeral: true,
+          allowedMentions: { parse: [] }
+        });
       }
-      config.antiNukeWhitelist.push(user.id);
-      await saveDatabase();
-      console.log("[ANTI-NUKE] Bot owner added trusted user:", user.id, "by", interaction.user.id);
-      return interaction.reply({
-        content: "🛡️ Added <@" + user.id + "> to the anti-nuke whitelist. They will be exempt from anti-nuke enforcement, but this does not grant bot-owner commands or permissions.",
-        ephemeral: true,
-        allowedMentions: { parse: [] }
-      });
+
+      if (action === "remove") {
+        if (!config.antiNukeWhitelist.includes(user.id)) {
+          return interaction.reply({ content: "ℹ️ <@" + user.id + "> is not on the anti-nuke whitelist.", ephemeral: true, allowedMentions: { parse: [] } });
+        }
+        config.antiNukeWhitelist = config.antiNukeWhitelist.filter(id => id !== user.id);
+        await saveDatabase();
+        console.log("[ANTI-NUKE] Bot owner removed trusted user:", user.id, "by", interaction.user.id);
+        return interaction.reply({
+          content: "✅ Removed <@" + user.id + "> from the anti-nuke whitelist. Anti-nuke enforcement will apply to them again.",
+          ephemeral: true,
+          allowedMentions: { parse: [] }
+        });
+      }
+
+      return replyError(interaction, "Unknown owner whitelist action.");
     }
 
     if (interaction.commandName === "antinuke") {
