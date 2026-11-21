@@ -407,7 +407,10 @@ const commands = [
   new SlashCommandBuilder().setName("owner").setDescription("Manage trusted anti-nuke users.")
     .addSubcommandGroup(group => group.setName("whitelist").setDescription("Manage the anti-nuke trusted-user whitelist.")
       .addSubcommand(sc => sc.setName("add").setDescription("Protect a user from anti-nuke enforcement.")
-        .addUserOption(o => o.setName("user").setDescription("User to trust").setRequired(true)))),
+        .addUserOption(o => o.setName("user").setDescription("User to trust").setRequired(true)))
+      .addSubcommand(sc => sc.setName("remove").setDescription("Remove a user from anti-nuke protection.")
+        .addUserOption(o => o.setName("user").setDescription("User to untrust").setRequired(true)))
+      .addSubcommand(sc => sc.setName("list").setDescription("List all anti-nuke trusted users."))),
   new SlashCommandBuilder().setName("antinuke").setDescription("View and run Paradox • Core anti-nuke protection.")
     .addSubcommand(sc=>sc.setName("status").setDescription("View active anti-nuke protections and backup status."))
     .addSubcommand(sc=>sc.setName("backup-now").setDescription("Create an immediate channel-configuration backup.")),
