@@ -2514,13 +2514,13 @@ client.on(Events.InteractionCreate, async interaction => {
         }
         const lines = ids.map((id, index) => (index + 1) + ". <@" + id + "> — \`" + id + "\`");
         const chunks = [];
-        let chunk = "**Anti-nuke trusted users (" + ids.length + ")**\\n";
+        let chunk = "**Anti-nuke trusted users (" + ids.length + ")**\n";
         for (const line of lines) {
-          if ((chunk + line + "\\n").length > 1800) {
+          if ((chunk + line + "\n").length > 1800) {
             chunks.push(chunk);
             chunk = "";
           }
-          chunk += line + "\\n";
+          chunk += line + "\n";
         }
         if (chunk) chunks.push(chunk);
         await interaction.reply({ content: chunks[0], ephemeral: true, allowedMentions: { parse: [] } });
