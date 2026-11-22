@@ -5831,7 +5831,7 @@ async function startBotLeaseHeartbeat() {
       if (!IS_PRIMARY_INSTANCE && await isPrimaryPresenceFresh(BOT_PRIMARY_INSTANCE_LABEL, 15000)) {
         console.log("[Failover] PRIMARY_RETURNED — handing the Discord gateway back to Railway.");
         const lease = activeBotLease;
-        client.destroy();
+        await client.destroy();
         activeBotLease = null;
         await releaseBotLease(BOT_LEASE_KEY, BOT_INSTANCE_ID, lease.epoch);
         console.log("[Failover] Lease released; this host is returning to STANDBY.");
@@ -5851,7 +5851,7 @@ async function startBotLeaseHeartbeat() {
       }
     } catch (error) {
       console.error("[Failover] Lease heartbeat failed; disconnecting this bot immediately:", error);
-      client.destroy();
+      await client.destroy().catch(error => console.error("[Failover] Discord disconnect error:", error));
       process.exit(1);
     }
   }
@@ -5861,7 +5861,7 @@ async function startBotLeaseHeartbeat() {
 async function shutdownBot(signal) {
   console.log("[Failover] " + signal + " received; disconnecting before releasing the active lease.");
   if (botLeaseHeartbeat) clearInterval(botLeaseHeartbeat);
-  client.destroy();
+  await client.destroy().catch(error => console.error("[Failover] Discord disconnect error:", error));
   if (activeBotLease) {
     await releaseBotLease(BOT_LEASE_KEY, BOT_INSTANCE_ID, activeBotLease.epoch).catch(error =>
       console.error("[Failover] Could not release lease cleanly; it will expire automatically:", error)
