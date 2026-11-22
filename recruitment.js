@@ -4,6 +4,88 @@ const { Pool } = pg;
 let pool = null;
 let ready = false;
 
+
+async function migrateExistingDataToNeon(connectionString) {
+  const target = new Pool({ connectionString, max: 2, connectionTimeoutMillis: 10000 });
+  const supported = ["recruitment_records", "message_archive"];
+  try {
+    await target.query("SELECT 1");
+    await target.query("CREATE TABLE IF NOT EXISTS public.paradoxplus_migration_state (migration_key TEXT PRIMARY KEY, completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+    const done = await target.query("SELECT 1 FROM public.paradoxplus_migration_state WHERE migration_key = $1", ["railway-postgres-to-neon-v1"]);
+    if (done.rowCount) {
+      console.log("[Neon migration] Existing data migration was already completed; skipping.");
+      return;
+    }
+
+    const sourceTables = await pool.query(`
+      SELECT table_name FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+      ORDER BY table_name
+    `);
+    const names = sourceTables.rows.map(row => row.table_name);
+    const unsupported = names.filter(name => !supported.includes(name));
+    if (unsupported.length) {
+      throw new Error("Additional source tables need review before cutover: " + unsupported.join(", "));
+    }
+
+    let totalInserted = 0;
+    for (const table of supported) {
+      if (!names.includes(table)) continue;
+      const sourceColumns = await pool.query(`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = $1
+        ORDER BY ordinal_position
+      `, [table]);
+      const targetColumns = await target.query(`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = $1
+        ORDER BY ordinal_position
+      `, [table]);
+      const targetNames = new Set(targetColumns.rows.map(row => row.column_name));
+      const columns = sourceColumns.rows.map(row => row.column_name).filter(name => targetNames.has(name));
+      if (!columns.length) throw new Error("No compatible columns found for " + table);
+      const orderColumn = table === "recruitment_records" ? "id" : "message_id";
+      const countResult = await pool.query('SELECT COUNT(*)::bigint AS count FROM public."' + table + '"');
+      const sourceCount = Number(countResult.rows[0].count);
+      let offset = 0;
+      let inserted = 0;
+      while (offset < sourceCount) {
+        const batch = await pool.query(
+          'SELECT "' + columns.join('","') + '" FROM public."' + table + '" ORDER BY "' + orderColumn + '" LIMIT 500 OFFSET $1',
+          [offset]
+        );
+        if (!batch.rows.length) break;
+        const values = [];
+        const tuples = batch.rows.map((row, rowIndex) => {
+          const placeholders = columns.map((_, columnIndex) => {
+            values.push(row[columns[columnIndex]]);
+            return "$" + values.length;
+          });
+          return "(" + placeholders.join(",") + ")";
+        });
+        const result = await target.query(
+          'INSERT INTO public."' + table + '" ("' + columns.join('","') + '") VALUES ' + tuples.join(",") + " ON CONFLICT DO NOTHING",
+          values
+        );
+        inserted += result.rowCount;
+        offset += batch.rows.length;
+      }
+      if (table === "recruitment_records") {
+        await target.query("SELECT setval(pg_get_serial_sequence('public.recruitment_records','id'), COALESCE((SELECT MAX(id) FROM public.recruitment_records), 1), EXISTS (SELECT 1 FROM public.recruitment_records))");
+      }
+      totalInserted += inserted;
+      console.log("[Neon migration] " + table + ": source=" + sourceCount + ", newly copied=" + inserted);
+    }
+    await target.query(
+      "INSERT INTO public.paradoxplus_migration_state (migration_key) VALUES ($1) ON CONFLICT DO NOTHING",
+      ["railway-postgres-to-neon-v1"]
+    );
+    console.log("[Neon migration] Completed successfully; newly copied rows=" + totalInserted);
+  } finally {
+    await target.end().catch(() => {});
+  }
+}
+
 export async function initRecruitmentDatabase() {
   if (!process.env.DATABASE_URL) {
     console.warn("[Recruitment] DATABASE_URL is missing; recruitment database features are disabled.");
@@ -52,6 +134,14 @@ export async function initRecruitmentDatabase() {
     )`);
     await pool.query("CREATE INDEX IF NOT EXISTS message_archive_guild_channel_date_idx ON message_archive (guild_id, channel_id, created_at DESC)");
     await pool.query("CREATE INDEX IF NOT EXISTS message_archive_deleted_idx ON message_archive (guild_id, channel_id, deleted_at) WHERE deleted_at IS NOT NULL");
+
+    if (process.env.NEON_DATABASE_URL) {
+      try {
+        await migrateExistingDataToNeon(process.env.NEON_DATABASE_URL);
+      } catch (migrationError) {
+        console.error("[Neon migration] Not completed; keeping the current DATABASE_URL active:", migrationError.message);
+      }
+    }
 
     ready = true;
     console.log("[Recruitment] PostgreSQL connected; recruitment tables are ready.");
