@@ -4536,31 +4536,25 @@ client.on(Events.MessageCreate, async message => {
             if (!relative && item.name === "backups") continue;
             const absolute = path.join(directory, item.name);
             const rel = path.posix.join(relative.split(path.sep).join("/"), item.name);
-            if (item.isDirectory()) {
-              await collectBackupFiles(absolute, rel);
-            } else if (item.isFile()) {
+            if (item.isDirectory()) await collectBackupFiles(absolute, rel);
+            else if (item.isFile()) {
               entries.push({ name: "persistent-volume/" + rel, data: await fs.readFile(absolute) });
               volumeFileCount++;
             }
           }
         }
         await collectBackupFiles(DATA_DIR);
-
         const snapshot = await exportDatabaseSnapshot();
-        entries.push({
-          name: "paradoxplus-postgresql-backup.json",
-          data: Buffer.from(JSON.stringify(snapshot, null, 2), "utf8")
-        });
+        entries.push({ name: "paradoxplus-postgresql-backup.json", data: Buffer.from(JSON.stringify(snapshot, null, 2), "utf8") });
         const createdAt = new Date().toISOString();
         entries.push({
           name: "BACKUP-README.txt",
           data: Buffer.from(
-            "PARADOX • CORE FULL BACKUP\n" +
-            "Created: " + createdAt + "\n" +
-            "Persistent volume files: " + volumeFileCount + "\n" +
-            "PostgreSQL: exported successfully\n" +
-            "Environment variables, Discord tokens, and hosting credentials are intentionally excluded.\n" +
-            "Restore the persistent-volume files to /app/data and import the PostgreSQL JSON using the bot's supported restore workflow.\n",
+            "PARADOX • CORE FULL BACKUP\nCreated: " + createdAt +
+            "\nPersistent volume files: " + volumeFileCount +
+            "\nPostgreSQL: exported successfully" +
+            "\nEnvironment variables, Discord tokens, and hosting credentials are intentionally excluded." +
+            "\nRestore persistent-volume files to /app/data. Import the PostgreSQL JSON using the supported restore workflow.\n",
             "utf8"
           )
         });
@@ -4585,9 +4579,9 @@ client.on(Events.MessageCreate, async message => {
 
         const configuredDomain = process.env.BACKUP_PUBLIC_URL ||
           (process.env.RAILWAY_PUBLIC_DOMAIN
-            ? "https://" + process.env.RAILWAY_PUBLIC_DOMAIN.replace(/^https?:\\/\\//, "")
+            ? "https://" + process.env.RAILWAY_PUBLIC_DOMAIN.replace(/^https?:\/\//, "")
             : "https://paradoxplusv1-production.up.railway.app");
-        const downloadUrl = configuredDomain.replace(/\\/$/, "") + "/backup/download/" + token;
+        const downloadUrl = configuredDomain.replace(/\/$/, "") + "/backup/download/" + token;
         try {
           await message.author.send({
             content:
@@ -4608,61 +4602,6 @@ client.on(Events.MessageCreate, async message => {
       } catch (error) {
         console.error("[Backup] Archive creation failed:", error);
         return fail("Backup failed before a download link could be issued: " + String(error?.message || error).slice(0, 500));
-      }
-    }
-olumeFiles.push({
-              name: "volume-" + rel.replace(/[\\/]/g, "_"),
-              data: await fs.readFile(absolute)
-            });
-          }
-        }
-      }
-      await collectBackupFiles(DATA_DIR);
-      const files = volumeFiles.map(file => new AttachmentBuilder(file.data, { name: file.name }));
-      let databaseStatus = "PostgreSQL export unavailable.";
-      try {
-        const snapshot = await exportDatabaseSnapshot();
-        const dbBuffer = Buffer.from(JSON.stringify(snapshot, null, 2), "utf8");
-        if (dbBuffer.length > 8 * 1024 * 1024) {
-          throw new Error("PostgreSQL export exceeds the safe Discord attachment limit.");
-        }
-        files.push(new AttachmentBuilder(dbBuffer, { name: "paradoxplus-postgresql-backup.json" }));
-        databaseStatus = "PostgreSQL tables and rows exported.";
-      } catch (error) {
-        files.push(new AttachmentBuilder(Buffer.from(String(error.message || error), "utf8"), {
-          name: "postgres-backup-status.txt"
-        }));
-      }
-      if (!files.length) return fail("No volume files were found to back up.");
-      // Discord accepts at most 10 attachments per message. Deliver the complete
-      // backup in sequential batches and report partial delivery accurately.
-      const batchSize = 10;
-      const totalBatches = Math.ceil(files.length / batchSize);
-      let sentBatches = 0;
-      try {
-        for (let offset = 0; offset < files.length; offset += batchSize) {
-          const batch = files.slice(offset, offset + batchSize);
-          const batchNumber = sentBatches + 1;
-          await message.author.send({
-            content: "PARADOX • CORE BACKUP" +
-              "\\nBatch: " + batchNumber + "/" + totalBatches +
-              (batchNumber === 1
-                ? "\\nPersistent volume files: " + volumeFiles.length +
-                  "\\nDatabase: " + databaseStatus +
-                  "\\nCreated: " + new Date().toISOString() +
-                  "\\nEnvironment variables and Discord tokens are intentionally excluded."
-                : "\\nBackup continuation — keep every batch together.") +
-              "\\nAttachments in this batch: " + batch.length,
-            files: batch
-          });
-          sentBatches++;
-        }
-      } catch (error) {
-        console.error("[Backup] DM delivery stopped:", error);
-        return fail("Backup delivery stopped after " + sentBatches + "/" + totalBatches +
-          " batches. " + (sentBatches * batchSize) + "/" + files.length +
-          " files were sent. Check your DMs before retrying. Error: " +
-          String(error?.message || error).slice(0, 300));
       }
     }
     if (command === "restore") {
