@@ -29,7 +29,7 @@ function buildWelcomeDescription(guild, member) {
 }
 
 
-import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot, importDatabaseSnapshot, archiveDiscordMessage, getArchivedChannelMessages } from "./recruitment.js";
+import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot, importDatabaseSnapshot, archiveDiscordMessage, getArchivedChannelMessages, loadSharedBotState, saveSharedBotState, tryAcquireBotLease, renewBotLease, releaseBotLease } from "./recruitment.js";
 
  
 // Discord does not support loading custom fonts, so use Unicode sans-serif bold
@@ -182,24 +182,42 @@ let saveQueue = Promise.resolve();
 
 async function loadDatabase() {
   await fs.mkdir(DATA_DIR, { recursive: true });
+  let localState = { guilds: {} };
   try {
     const raw = await fs.readFile(DATA_FILE, "utf8");
     const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object" && parsed.guilds) database = parsed;
+    if (parsed && typeof parsed === "object" && parsed.guilds) localState = parsed;
   } catch (error) {
     if (error.code !== "ENOENT") {
       console.error("Could not read config database:", error);
       throw error;
     }
-    await saveDatabase();
   }
+
+  // Neon is authoritative across Railway and HOKAS. The local file is only
+  // used once to seed the shared state on the first upgraded deployment.
+  const sharedState = await loadSharedBotState("guild-config");
+  if (sharedState && typeof sharedState === "object" && sharedState.guilds) {
+    database = sharedState;
+    console.log("[Failover] Loaded shared guild configuration from Neon.");
+  } else {
+    database = localState;
+    await saveSharedBotState("guild-config", database);
+    console.log("[Failover] Seeded shared guild configuration in Neon from this host's local backup.");
+  }
+
+  const tempFile = `${DATA_FILE}.tmp`;
+  await fs.writeFile(tempFile, JSON.stringify(database, null, 2), "utf8");
+  await fs.rename(tempFile, DATA_FILE);
 }
 
 function saveDatabase() {
-  // Recover the queue after a failed disk write so later saves can still run.
+  // Shared Neon state is committed before the local cache so a standby host
+  // always sees the latest saved configuration after it acquires the lease.
   saveQueue = saveQueue.catch(error => {
     console.error("Previous database save failed; retrying with latest data:", error);
   }).then(async () => {
+    await saveSharedBotState("guild-config", database);
     await fs.mkdir(DATA_DIR, { recursive: true });
     const tempFile = `${DATA_FILE}.tmp`;
     await fs.writeFile(tempFile, JSON.stringify(database, null, 2), "utf8");
@@ -5787,7 +5805,92 @@ client.on(Events.MessageCreate, async message => {
   }
 });
 
-await loadDatabase();
+const BOT_LEASE_KEY = "paradoxplus-discord-gateway";
+const BOT_LEASE_TTL_MS = 20000;
+const BOT_INSTANCE_LABEL = process.env.BOT_INSTANCE_ID ||
+  process.env.RAILWAY_SERVICE_ID ||
+  process.env.HOSTNAME ||
+  "paradoxplus";
+const BOT_INSTANCE_ID = BOT_INSTANCE_LABEL + ":" + crypto.randomUUID();
+let activeBotLease = null;
+let botLeaseHeartbeat = null;
+
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function startBotLeaseHeartbeat() {
+  let heartbeatRunning = false;
+  botLeaseHeartbeat = setInterval(async () => {
+    if (heartbeatRunning) return;
+    heartbeatRunning = true;
+    try {
+      const renewed = await renewBotLease(
+        BOT_LEASE_KEY,
+        BOT_INSTANCE_ID,
+        activeBotLease.epoch,
+        BOT_LEASE_TTL_MS
+      );
+      if (!renewed) throw new Error("The active lease was lost or fenced by another host.");
+    } catch (error) {
+      console.error("[Failover] Lease heartbeat failed; disconnecting this bot immediately:", error);
+      clearInterval(botLeaseHeartbeat);
+      client.destroy();
+      process.exit(1);
+    } finally {
+      heartbeatRunning = false;
+    }
+  }, 5000);
+  botLeaseHeartbeat.unref?.();
+}
+
+async function shutdownBot(signal) {
+  console.log("[Failover] " + signal + " received; disconnecting before releasing the active lease.");
+  if (botLeaseHeartbeat) clearInterval(botLeaseHeartbeat);
+  client.destroy();
+  if (activeBotLease) {
+    await releaseBotLease(BOT_LEASE_KEY, BOT_INSTANCE_ID, activeBotLease.epoch).catch(error =>
+      console.error("[Failover] Could not release lease cleanly; it will expire automatically:", error)
+    );
+  }
+  process.exit(0);
+}
+process.once("SIGTERM", () => { void shutdownBot("SIGTERM"); });
+process.once("SIGINT", () => { void shutdownBot("SIGINT"); });
+
+async function acquireBotLeaseAndStart() {
+  if (!isRecruitmentDatabaseReady()) {
+    throw new Error("[Failover] Shared PostgreSQL is required. Refusing to start without the Neon database.");
+  }
+
+  while (!activeBotLease) {
+    try {
+      activeBotLease = await tryAcquireBotLease(BOT_LEASE_KEY, BOT_INSTANCE_ID, BOT_LEASE_TTL_MS);
+    } catch (error) {
+      console.error("[Failover] Cannot reach Neon to check the active lease; remaining disconnected:", error.message);
+    }
+
+    if (!activeBotLease) {
+      console.log("[Failover] STANDBY — another host owns the Discord gateway lease. Retrying in 5 seconds.");
+      await wait(5000);
+    }
+  }
+
+  console.log("[Failover] ACTIVE — this host owns the Discord gateway lease (epoch " + activeBotLease.epoch + ").");
+  await startBotLeaseHeartbeat();
+  await loadDatabase();
+  startDashboard({ client, getGuildConfig, saveDatabase });
+
+  try {
+    await client.login(TOKEN);
+  } catch (error) {
+    if (botLeaseHeartbeat) clearInterval(botLeaseHeartbeat);
+    await releaseBotLease(BOT_LEASE_KEY, BOT_INSTANCE_ID, activeBotLease.epoch).catch(() => {});
+    activeBotLease = null;
+    throw error;
+  }
+}
+
 await initRecruitmentDatabase();
-startDashboard({ client, getGuildConfig, saveDatabase });
-client.login(TOKEN);
+if (!isRecruitmentDatabaseReady()) {
+  throw new Error("[Failover] PostgreSQL initialization failed. Bot startup is blocked until Neon is reachable.");
+}
+await acquireBotLeaseAndStart();

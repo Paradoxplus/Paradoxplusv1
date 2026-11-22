@@ -62,7 +62,7 @@ To enable prefix commands, turn on **Message Content Intent** in the Discord Dev
 
 ## Storage
 
-Configuration, rank history, log channel, and announcement channel are stored in `data/guild-config.json`. Mount persistent storage at `/app/data` on Railway so data survives redeploys.
+Configuration, rank history, log channel, and announcement channel are shared through Neon PostgreSQL (`paradoxplus_bot_state`). Each host also keeps a local `data/guild-config.json` cache on its persistent volume.
 
 The bot keeps the most recent 1,000 rank changes per server. Backups are downloaded privately as JSON.
 
@@ -73,3 +73,33 @@ The bot keeps the most recent 1,000 rank changes per server. Backups are downloa
 - The bot never grants Administrator.
 - The bot checks staff and bot role hierarchy before changing member roles.
 - Bulk changes and automatic promotions are intentionally not enabled.
+
+
+## High availability: Railway primary + HOKAS standby
+
+Both hosts must run the **same Git revision** and use the **same Neon `DATABASE_URL`** and **same Discord bot token**. Do not run an older bot build on HOKAS beside the lease-enabled Railway build.
+
+The bot uses a PostgreSQL lease (`paradoxplus_bot_lease`) with a 20-second expiry and a 5-second heartbeat. Only the lease holder logs into Discord. A host that cannot reach Neon stays disconnected. If the active host loses the lease or cannot renew it, it disconnects and exits; the other host takes over after the lease expires. The guild configuration is loaded from Neon after a host acquires the lease, so the standby does not overwrite shared settings with its local files.
+
+### Railway primary
+
+- Keep `DATABASE_URL` pointed at the shared Neon database.
+- Railway's `RAILWAY_SERVICE_ID` is used as its instance label when `BOT_INSTANCE_ID` is not set.
+- Keep the Railway service running normally.
+
+### HOKAS standby
+
+- Deploy the same repository revision that contains the Neon lease code.
+- Set `DISCORD_TOKEN` to the same bot token used by Railway.
+- Set `CLIENT_ID` to the same Discord application ID.
+- Set `DATABASE_URL` to the same Neon database used by Railway (not HOKAS's local MySQL database).
+- Set `BOT_INSTANCE_ID=hokas-standby`.
+- Keep the HOKAS process running. It will log `[Failover] STANDBY` and will not connect to Discord while Railway owns the lease.
+
+### Verification
+
+- Active host logs: `[Failover] ACTIVE`
+- Standby host logs: `[Failover] STANDBY`
+- After a controlled primary outage, standby should acquire the lease and log `ACTIVE`.
+- Never test by starting two copies of an older build. Test failover only after both hosts run the lease-enabled revision.
+- Keep a current backup before changing hosting or database configuration.
