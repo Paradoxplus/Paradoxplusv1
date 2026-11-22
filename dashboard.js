@@ -1,6 +1,7 @@
 import http from "node:http";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
+import { createReadStream } from "node:fs";
 import path from "node:path";
 const htmlPath = path.join(process.cwd(), "dashboard", "index.html");
 const json = (res,status,data) => { res.writeHead(status,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"}); res.end(JSON.stringify(data)); };
@@ -40,7 +41,7 @@ export function startDashboard({client,getGuildConfig,saveDatabase}) {
     let stat;
     try{stat=await fs.stat(archivePath);}catch{return json(res,404,{error:"The backup archive is no longer available."});}
     res.writeHead(200,{"content-type":"application/zip","content-length":stat.size,"content-disposition":'attachment; filename="Paradoxplus-Full-Backup.zip"',"cache-control":"private, no-store"});
-    return fs.createReadStream(archivePath).pipe(res);
+    return createReadStream(archivePath).pipe(res);
    }
    if(url.pathname.startsWith("/api/")){
     if(!unpack(cookie.pp_admin))return json(res,401,{error:"Enter the dashboard password to continue."});
