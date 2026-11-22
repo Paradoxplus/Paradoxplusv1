@@ -139,6 +139,19 @@ export async function initRecruitmentDatabase() {
     await pool.query("CREATE INDEX IF NOT EXISTS message_archive_guild_channel_date_idx ON message_archive (guild_id, channel_id, created_at DESC)");
     await pool.query("CREATE INDEX IF NOT EXISTS message_archive_deleted_idx ON message_archive (guild_id, channel_id, deleted_at) WHERE deleted_at IS NOT NULL");
 
+    await pool.query(`CREATE TABLE IF NOT EXISTS public.paradoxplus_bot_state (
+      state_key TEXT PRIMARY KEY,
+      state_json JSONB NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS public.paradoxplus_bot_lease (
+      lease_key TEXT PRIMARY KEY,
+      owner_id TEXT NOT NULL,
+      epoch BIGINT NOT NULL DEFAULT 1,
+      expires_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
+
     if (process.env.NEON_DATABASE_URL) {
       try {
         await migrateExistingDataToNeon(process.env.NEON_DATABASE_URL);
@@ -218,6 +231,75 @@ export async function getRecruitLeaderboard(guildId, period = "all") {
 
 export function isRecruitmentDatabaseReady() {
   return ready;
+}
+
+export async function loadSharedBotState(stateKey) {
+  requireDatabase();
+  const result = await pool.query(
+    "SELECT state_json FROM public.paradoxplus_bot_state WHERE state_key = $1",
+    [stateKey]
+  );
+  return result.rows[0]?.state_json ?? null;
+}
+
+export async function saveSharedBotState(stateKey, state) {
+  requireDatabase();
+  await pool.query(
+    `INSERT INTO public.paradoxplus_bot_state (state_key, state_json, updated_at)
+     VALUES ($1, $2::jsonb, NOW())
+     ON CONFLICT (state_key) DO UPDATE
+       SET state_json = EXCLUDED.state_json, updated_at = NOW()`,
+    [stateKey, JSON.stringify(state)]
+  );
+}
+
+export async function tryAcquireBotLease(leaseKey, ownerId, ttlMs = 20000) {
+  requireDatabase();
+  const result = await pool.query(
+    `INSERT INTO public.paradoxplus_bot_lease
+       (lease_key, owner_id, epoch, expires_at, updated_at)
+     VALUES ($1, $2, 1, NOW() + ($3::bigint * INTERVAL '1 millisecond'), NOW())
+     ON CONFLICT (lease_key) DO UPDATE SET
+       owner_id = EXCLUDED.owner_id,
+       epoch = CASE
+         WHEN public.paradoxplus_bot_lease.owner_id = EXCLUDED.owner_id
+           THEN public.paradoxplus_bot_lease.epoch
+         ELSE public.paradoxplus_bot_lease.epoch + 1
+       END,
+       expires_at = EXCLUDED.expires_at,
+       updated_at = NOW()
+     WHERE public.paradoxplus_bot_lease.expires_at <= NOW()
+        OR public.paradoxplus_bot_lease.owner_id = EXCLUDED.owner_id
+     RETURNING owner_id, epoch, expires_at`,
+    [leaseKey, ownerId, ttlMs]
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function renewBotLease(leaseKey, ownerId, epoch, ttlMs = 20000) {
+  requireDatabase();
+  const result = await pool.query(
+    `UPDATE public.paradoxplus_bot_lease
+       SET expires_at = NOW() + ($4::bigint * INTERVAL '1 millisecond'),
+           updated_at = NOW()
+     WHERE lease_key = $1 AND owner_id = $2 AND epoch = $3
+       AND expires_at > NOW()
+     RETURNING owner_id`,
+    [leaseKey, ownerId, epoch, ttlMs]
+  );
+  return result.rowCount === 1;
+}
+
+export async function releaseBotLease(leaseKey, ownerId, epoch) {
+  requireDatabase();
+  const result = await pool.query(
+    `UPDATE public.paradoxplus_bot_lease
+       SET expires_at = NOW(), updated_at = NOW()
+     WHERE lease_key = $1 AND owner_id = $2 AND epoch = $3
+     RETURNING owner_id`,
+    [leaseKey, ownerId, epoch]
+  );
+  return result.rowCount === 1;
 }
 
 
