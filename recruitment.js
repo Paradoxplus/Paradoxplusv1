@@ -37,11 +37,12 @@ async function migrateExistingDataToNeon(connectionString) {
         ORDER BY ordinal_position
       `, [table]);
       const targetColumns = await target.query(`
-        SELECT column_name FROM information_schema.columns
+        SELECT column_name, data_type FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = $1
         ORDER BY ordinal_position
       `, [table]);
       const targetNames = new Set(targetColumns.rows.map(row => row.column_name));
+      const targetTypes = new Map(targetColumns.rows.map(row => [row.column_name, row.data_type]));
       const columns = sourceColumns.rows.map(row => row.column_name).filter(name => targetNames.has(name));
       if (!columns.length) throw new Error("No compatible columns found for " + table);
       const orderColumn = table === "recruitment_records" ? "id" : "message_id";
@@ -50,8 +51,11 @@ async function migrateExistingDataToNeon(connectionString) {
       let offset = 0;
       let inserted = 0;
       while (offset < sourceCount) {
+        const selectColumns = columns.map(name => targetTypes.get(name) === "jsonb"
+          ? '"' + name + '"::text AS "' + name + '"'
+          : '"' + name + '"');
         const batch = await pool.query(
-          'SELECT "' + columns.join('","') + '" FROM public."' + table + '" ORDER BY "' + orderColumn + '" LIMIT 500 OFFSET $1',
+          'SELECT ' + selectColumns.join(",") + ' FROM public."' + table + '" ORDER BY "' + orderColumn + '" LIMIT 500 OFFSET $1',
           [offset]
         );
         if (!batch.rows.length) break;
