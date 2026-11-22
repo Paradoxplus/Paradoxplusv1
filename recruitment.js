@@ -130,30 +130,54 @@ export function isRecruitmentDatabaseReady() {
 export async function importDatabaseSnapshot(snapshot) {
   requireDatabase();
   if (!snapshot || snapshot.format !== "paradoxplus-postgresql-json-v1" || !Array.isArray(snapshot.tables)) throw new Error("This is not a supported Paradoxplus PostgreSQL backup.");
-  const allowedTables = new Set(["recruitment_records"]);
-  const table = snapshot.tables.find(item => item?.schema === "public" && item?.name === "recruitment_records");
-  if (snapshot.tables.some(item => item?.schema !== "public" || !allowedTables.has(item?.name))) throw new Error("The backup contains an unknown table. Restore stopped to protect the new database.");
-  if (!table) return { restored: 0, tables: 0 };
-  const allowedColumns = ["id", "guild_id", "recruit_id", "recruiter_id", "recruited_at", "source", "original_nickname", "nickname_saved"];
-  const columns = Array.isArray(table.columns) ? table.columns.map(column => column.column_name) : [];
-  if (columns.some(column => !allowedColumns.includes(column))) throw new Error("The backup contains an unsupported database column.");
+
+  const tableRules = {
+    recruitment_records: ["id", "guild_id", "recruit_id", "recruiter_id", "recruited_at", "source", "original_nickname", "nickname_saved"],
+    message_archive: ["message_id", "guild_id", "channel_id", "channel_name", "author_id", "author_tag", "content", "attachments", "embeds", "stickers", "created_at", "edited_at", "archived_at", "deleted_at", "message_url", "event_type"]
+  };
+  const selected = snapshot.tables.filter(item => item?.schema === "public" && Object.hasOwn(tableRules, item?.name));
+  if (snapshot.tables.some(item => item?.schema !== "public" || !Object.hasOwn(tableRules, item?.name))) {
+    throw new Error("The backup contains an unknown table. Restore stopped to protect the new database.");
+  }
+  if (!selected.length) return { restored: 0, tables: 0 };
+
+  for (const table of selected) {
+    const allowedColumns = tableRules[table.name];
+    const columns = Array.isArray(table.columns) ? table.columns.map(column => column.column_name) : [];
+    if (!columns.length || columns.some(column => !allowedColumns.includes(column))) {
+      throw new Error("The backup contains unsupported columns for " + table.name + ".");
+    }
+    if (!Array.isArray(table.rows)) throw new Error("The backup rows are invalid for " + table.name + ".");
+  }
+
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query("TRUNCATE TABLE public.recruitment_records RESTART IDENTITY");
+    if (selected.some(table => table.name === "message_archive")) await client.query("TRUNCATE TABLE public.message_archive");
+    if (selected.some(table => table.name === "recruitment_records")) await client.query("TRUNCATE TABLE public.recruitment_records RESTART IDENTITY");
+
     let restored = 0;
-    for (const row of (Array.isArray(table.rows) ? table.rows : [])) {
-      if (!row || typeof row !== "object" || Array.isArray(row)) throw new Error("Invalid row in database backup.");
-      const present = allowedColumns.filter(column => Object.prototype.hasOwnProperty.call(row, column));
-      if (!present.length) continue;
-      const values = present.map(column => row[column]);
-      const placeholders = present.map((_, index) => "$" + (index + 1));
-      await client.query("INSERT INTO public.recruitment_records (" + present.map(column => '"' + column + '"').join(",") + ") VALUES (" + placeholders.join(",") + ")", values);
-      restored++;
+    for (const table of selected) {
+      const allowedColumns = tableRules[table.name];
+      for (const row of table.rows) {
+        if (!row || typeof row !== "object" || Array.isArray(row)) throw new Error("Invalid row in database backup.");
+        const present = allowedColumns.filter(column => Object.hasOwn(row, column));
+        if (!present.length) continue;
+        const values = present.map(column => row[column]);
+        const placeholders = present.map((_, index) => "$" + (index + 1));
+        await client.query(
+          "INSERT INTO public." + table.name + " (" + present.map(column => '"' + column + '"').join(",") + ") VALUES (" + placeholders.join(",") + ")",
+          values
+        );
+        restored++;
+      }
     }
-    await client.query("SELECT setval(pg_get_serial_sequence('public.recruitment_records','id'), COALESCE((SELECT MAX(id) FROM public.recruitment_records), 1), EXISTS (SELECT 1 FROM public.recruitment_records))");
+
+    if (selected.some(table => table.name === "recruitment_records")) {
+      await client.query("SELECT setval(pg_get_serial_sequence('public.recruitment_records','id'), COALESCE((SELECT MAX(id) FROM public.recruitment_records), 1), EXISTS (SELECT 1 FROM public.recruitment_records))");
+    }
     await client.query("COMMIT");
-    return { restored, tables: 1 };
+    return { restored, tables: selected.length };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;
