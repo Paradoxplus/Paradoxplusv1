@@ -5809,7 +5809,7 @@ const BOT_LEASE_KEY = "paradoxplus-discord-gateway";
 const BOT_LEASE_TTL_MS = 20000;
 const BOT_PRIMARY_INSTANCE_LABEL = process.env.BOT_PRIMARY_INSTANCE_ID ||
   process.env.RAILWAY_SERVICE_ID ||
-  "railway-primary";
+  "fc6f5e09-caa1-4d90-9375-484fac5fc50b";
 const BOT_INSTANCE_LABEL = process.env.BOT_INSTANCE_ID ||
   process.env.RAILWAY_SERVICE_ID ||
   process.env.HOSTNAME ||
