@@ -4524,7 +4524,46 @@ client.on(Events.MessageCreate, async message => {
       }
       if (sub === "add") {
         const token = args.shift() || "";
-        const user    if (command === "backup") {
+        const userId = token.replace(/[<@!>]/g, "");
+        if (!/^[0-9]{17,20}$/.test(userId)) return fail("Usage: ?autoban add @user-or-ID [reason]");
+        const reason = args.join(" ").trim().slice(0, 450) || "Added by bot owner";
+        if (config.autobanList.some(entry => entry && entry.userId === userId)) return fail("That user is already on the autoban list.");
+        const entry = { userId, reason, addedBy: message.author.id, addedAt: new Date().toISOString() };
+        config.autobanList.push(entry);
+        await saveDatabase();
+        const currentMember = await message.guild.members.fetch(userId).catch(() => null);
+        let immediate = "They will be automatically banned if they join this server.";
+        if (currentMember) {
+          if (!currentMember.bannable) {
+            config.autobanList = config.autobanList.filter(item => item.userId !== userId);
+            await saveDatabase();
+            return fail("I saved no entry because Discord won't let me ban that member. Check my Ban Members permission and role position.");
+          }
+          try {
+            await currentMember.ban({ reason: "Paradox • Core autoban: " + reason });
+            immediate = "They were also banned immediately because they are currently in the server.";
+          } catch (error) {
+            config.autobanList = config.autobanList.filter(item => item.userId !== userId);
+            await saveDatabase();
+            console.error("[AutoBan] Immediate ban failed:", error);
+            return fail("Discord rejected the immediate ban, so I removed the autoban entry. Check my Ban Members permission and role position.");
+          }
+        }
+        return send("🛡️ Added to AutoBan", "<@" + userId + "> is now on the permanent autoban list.\n" + immediate + "\n**Reason:** " + reason);
+      }
+      if (sub === "remove" || sub === "delete") {
+        const token = args.shift() || "";
+        const userId = token.replace(/[<@!>]/g, "");
+        if (!/^[0-9]{17,20}$/.test(userId)) return fail("Usage: ?autoban remove @user-or-ID");
+        const before = config.autobanList.length;
+        config.autobanList = config.autobanList.filter(entry => !entry || entry.userId !== userId);
+        if (config.autobanList.length === before) return fail("That user isn't on the autoban list.");
+        await saveDatabase();
+        return send("✅ Removed from AutoBan", "<@" + userId + "> will no longer be automatically banned when joining. This does not unban them if they are currently banned.");
+      }
+      return fail("Owner-only commands:\n`?autoban add @user-or-ID [reason]`\n`?autoban remove @user-or-ID`\n`?autoban list`");
+    }
+    if (command === "backup") {
       if (!isBotOwner(message.author.id)) return fail("This backup command is restricted to the bot owner.");
       try {
         await saveDatabase();
@@ -4558,7 +4597,6 @@ client.on(Events.MessageCreate, async message => {
             "utf8"
           )
         });
-
         const archive = createZip(entries);
         const backupDir = path.join(DATA_DIR, "backups");
         await fs.mkdir(backupDir, { recursive: true });
@@ -4576,7 +4614,6 @@ client.on(Events.MessageCreate, async message => {
           size: archive.length,
           createdAt
         }, null, 2));
-
         const configuredDomain = process.env.BACKUP_PUBLIC_URL ||
           (process.env.RAILWAY_PUBLIC_DOMAIN
             ? "https://" + process.env.RAILWAY_PUBLIC_DOMAIN.replace(/^https?:\/\//, "")
