@@ -5881,6 +5881,10 @@ async function acquireBotLeaseAndStart() {
     try {
       if (IS_PRIMARY_INSTANCE) {
         await announcePrimaryPresence(BOT_PRIMARY_INSTANCE_LABEL);
+      } else if (await isPrimaryPresenceFresh(BOT_PRIMARY_INSTANCE_LABEL, 15000)) {
+        console.log("[Failover] STANDBY — Railway primary is present; waiting for its lease.");
+        await wait(5000);
+        continue;
       }
 
       if (!activeBotLease) {
