@@ -5,6 +5,8 @@ import {
 } from "discord.js";
 import fs from "node:fs/promises";
 import path from "node:path";
+import crypto from "node:crypto";
+import { deflateRawSync } from "node:zlib";
 import { startDashboard } from "./dashboard.js";
 import { joinVoiceChannel, VoiceConnectionStatus, entersState, getVoiceConnection } from "@discordjs/voice";
 const EXILE_AS_BANNER_URL = "https://plain-eeur-prod-public.komododecks.com/202611/20/7GMXqpQZLSNrc1rfctNW/image.gif";
@@ -95,6 +97,80 @@ if (!TOKEN) {
 
 const DATA_DIR = path.resolve("data");
 const DATA_FILE = path.join(DATA_DIR, "guild-config.json");
+
+function crc32(buffer) {
+  let crc = 0xffffffff;
+  for (let i = 0; i < buffer.length; i++) {
+    crc ^= buffer[i];
+    for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function createZip(entries) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  const now = new Date();
+  const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | Math.floor(now.getSeconds() / 2);
+  const dosDate = ((Math.max(1980, now.getFullYear()) - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+
+  for (const entry of entries) {
+    const name = Buffer.from(entry.name.replace(/\\\\/g, "/"), "utf8");
+    const source = Buffer.isBuffer(entry.data) ? entry.data : Buffer.from(entry.data);
+    const compressed = deflateRawSync(source);
+    const crc = crc32(source);
+
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0, 6);
+    local.writeUInt16LE(8, 8);
+    local.writeUInt16LE(dosTime, 10);
+    local.writeUInt16LE(dosDate, 12);
+    local.writeUInt32LE(crc, 14);
+    local.writeUInt32LE(compressed.length, 18);
+    local.writeUInt32LE(source.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    local.writeUInt16LE(0, 28);
+    localParts.push(local, name, compressed);
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0, 8);
+    central.writeUInt16LE(8, 10);
+    central.writeUInt16LE(dosTime, 12);
+    central.writeUInt16LE(dosDate, 14);
+    central.writeUInt32LE(crc, 16);
+    central.writeUInt32LE(compressed.length, 20);
+    central.writeUInt32LE(source.length, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt16LE(0, 30);
+    central.writeUInt16LE(0, 32);
+    central.writeUInt16LE(0, 34);
+    central.writeUInt16LE(0, 36);
+    central.writeUInt32LE(0, 38);
+    central.writeUInt32LE(offset, 42);
+    centralParts.push(central, name);
+
+    offset += local.length + name.length + compressed.length;
+  }
+
+  const centralDirectory = Buffer.concat(centralParts);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(0, 4);
+  end.writeUInt16LE(0, 6);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralDirectory.length, 12);
+  end.writeUInt32LE(offset, 16);
+  end.writeUInt16LE(0, 20);
+  return Buffer.concat([...localParts, centralDirectory, end]);
+}
+
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildVoiceStates],
@@ -4448,62 +4524,93 @@ client.on(Events.MessageCreate, async message => {
       }
       if (sub === "add") {
         const token = args.shift() || "";
-        const userId = token.replace(/[<@!>]/g, "");
-        if (!/^[0-9]{17,20}$/.test(userId)) return fail("Usage: ?autoban add @user-or-ID [reason]");
-        const reason = args.join(" ").trim().slice(0, 450) || "Added by bot owner";
-        if (config.autobanList.some(entry => entry && entry.userId === userId)) return fail("That user is already on the autoban list.");
-        const entry = { userId, reason, addedBy: message.author.id, addedAt: new Date().toISOString() };
-        config.autobanList.push(entry);
+        const user    if (command === "backup") {
+      if (!isBotOwner(message.author.id)) return fail("This backup command is restricted to the bot owner.");
+      try {
         await saveDatabase();
-        const currentMember = await message.guild.members.fetch(userId).catch(() => null);
-        let immediate = "They will be automatically banned if they join this server.";
-        if (currentMember) {
-          if (!currentMember.bannable) {
-            config.autobanList = config.autobanList.filter(item => item.userId !== userId);
-            await saveDatabase();
-            return fail("I saved no entry because Discord won't let me ban that member. Check my Ban Members permission and role position.");
-          }
-          try {
-            await currentMember.ban({ reason: "Paradox • Core autoban: " + reason });
-            immediate = "They were also banned immediately because they are currently in the server.";
-          } catch (error) {
-            config.autobanList = config.autobanList.filter(item => item.userId !== userId);
-            await saveDatabase();
-            console.error("[AutoBan] Immediate ban failed:", error);
-            return fail("Discord rejected the immediate ban, so I removed the autoban entry. Check my Ban Members permission and role position.");
+        const entries = [];
+        let volumeFileCount = 0;
+        async function collectBackupFiles(directory, relative = "") {
+          const items = await fs.readdir(directory, { withFileTypes: true });
+          for (const item of items) {
+            if (!relative && item.name === "backups") continue;
+            const absolute = path.join(directory, item.name);
+            const rel = path.posix.join(relative.split(path.sep).join("/"), item.name);
+            if (item.isDirectory()) {
+              await collectBackupFiles(absolute, rel);
+            } else if (item.isFile()) {
+              entries.push({ name: "persistent-volume/" + rel, data: await fs.readFile(absolute) });
+              volumeFileCount++;
+            }
           }
         }
-        return send("🛡️ Added to AutoBan", "<@" + userId + "> is now on the permanent autoban list.\n" + immediate + "\n**Reason:** " + reason);
+        await collectBackupFiles(DATA_DIR);
+
+        const snapshot = await exportDatabaseSnapshot();
+        entries.push({
+          name: "paradoxplus-postgresql-backup.json",
+          data: Buffer.from(JSON.stringify(snapshot, null, 2), "utf8")
+        });
+        const createdAt = new Date().toISOString();
+        entries.push({
+          name: "BACKUP-README.txt",
+          data: Buffer.from(
+            "PARADOX • CORE FULL BACKUP\n" +
+            "Created: " + createdAt + "\n" +
+            "Persistent volume files: " + volumeFileCount + "\n" +
+            "PostgreSQL: exported successfully\n" +
+            "Environment variables, Discord tokens, and hosting credentials are intentionally excluded.\n" +
+            "Restore the persistent-volume files to /app/data and import the PostgreSQL JSON using the bot's supported restore workflow.\n",
+            "utf8"
+          )
+        });
+
+        const archive = createZip(entries);
+        const backupDir = path.join(DATA_DIR, "backups");
+        await fs.mkdir(backupDir, { recursive: true });
+        const archivePath = path.join(backupDir, "Paradoxplus-Full-Backup.zip");
+        const metadataPath = path.join(backupDir, "download.json");
+        const token = crypto.randomBytes(32).toString("hex");
+        const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+        const tempArchivePath = archivePath + ".tmp";
+        await fs.writeFile(tempArchivePath, archive);
+        await fs.rename(tempArchivePath, archivePath);
+        await fs.writeFile(metadataPath, JSON.stringify({
+          tokenHash: crypto.createHash("sha256").update(token).digest("hex"),
+          expiresAt,
+          filename: "Paradoxplus-Full-Backup.zip",
+          size: archive.length,
+          createdAt
+        }, null, 2));
+
+        const configuredDomain = process.env.BACKUP_PUBLIC_URL ||
+          (process.env.RAILWAY_PUBLIC_DOMAIN
+            ? "https://" + process.env.RAILWAY_PUBLIC_DOMAIN.replace(/^https?:\\/\\//, "")
+            : "https://paradoxplusv1-production.up.railway.app");
+        const downloadUrl = configuredDomain.replace(/\\/$/, "") + "/backup/download/" + token;
+        try {
+          await message.author.send({
+            content:
+              "✦ **PARADOX • CORE — FULL BACKUP READY**\n" +
+              "**Archive:** `Paradoxplus-Full-Backup.zip`\n" +
+              "**Files:** " + volumeFileCount + " persistent-volume files + PostgreSQL export\n" +
+              "**Size:** " + (archive.length / 1024 / 1024).toFixed(2) + " MB\n" +
+              "**Created:** " + createdAt + "\n" +
+              "**Download:** " + downloadUrl + "\n" +
+              "This private link expires in 24 hours. Generate a new backup to get a fresh link.\n" +
+              "Environment variables and Discord tokens are not included."
+          });
+        } catch (dmError) {
+          console.error("[Backup] Could not DM the download link:", dmError);
+          return fail("The ZIP was created, but I couldn't DM the download link. Enable DMs from server members and run ?backup again.");
+        }
+        return send("✦ FULL BACKUP READY", "A single compressed ZIP was created and the private 24-hour download link was sent to your DMs. Check your DMs for **Paradoxplus-Full-Backup.zip**.");
+      } catch (error) {
+        console.error("[Backup] Archive creation failed:", error);
+        return fail("Backup failed before a download link could be issued: " + String(error?.message || error).slice(0, 500));
       }
-      if (sub === "remove" || sub === "delete") {
-        const token = args.shift() || "";
-        const userId = token.replace(/[<@!>]/g, "");
-        if (!/^[0-9]{17,20}$/.test(userId)) return fail("Usage: ?autoban remove @user-or-ID");
-        const before = config.autobanList.length;
-        config.autobanList = config.autobanList.filter(entry => !entry || entry.userId !== userId);
-        if (config.autobanList.length === before) return fail("That user isn't on the autoban list.");
-        await saveDatabase();
-        return send("✅ Removed from AutoBan", "<@" + userId + "> will no longer be automatically banned when joining. This does not unban them if they are currently banned.");
-      }
-      return fail("Owner-only commands:\n`?autoban add @user-or-ID [reason]`\n`?autoban remove @user-or-ID`\n`?autoban list`");
     }
-    if (command === "backup") {
-      if (!isBotOwner(message.author.id)) return fail("This backup command is restricted to the bot owner.");
-      await saveDatabase();
-      const volumeFiles = [];
-      async function collectBackupFiles(directory, relative = "") {
-        const entries = await fs.readdir(directory, { withFileTypes: true });
-        for (const entry of entries) {
-          const absolute = path.join(directory, entry.name);
-          const rel = path.join(relative, entry.name);
-          if (entry.isDirectory()) {
-            await collectBackupFiles(absolute, rel);
-          } else if (entry.isFile()) {
-            const stat = await fs.stat(absolute);
-            if (stat.size > 8 * 1024 * 1024) {
-              throw new Error("Volume file is larger than the safe Discord attachment limit: " + rel);
-            }
-            volumeFiles.push({
+olumeFiles.push({
               name: "volume-" + rel.replace(/[\\/]/g, "_"),
               data: await fs.readFile(absolute)
             });
