@@ -4527,14 +4527,36 @@ client.on(Events.MessageCreate, async message => {
         }));
       }
       if (!files.length) return fail("No volume files were found to back up.");
-      await message.author.send({
-        content: "PARADOX • CORE BACKUP\nPersistent volume files: " + volumeFiles.length +
-          "\nDatabase: " + databaseStatus +
-          "\nCreated: " + new Date().toISOString() +
-          "\nKeep these files somewhere outside Railway. Environment variables and Discord tokens are intentionally excluded.",
-        files
-      });
-      return send("✦ BACKUP SENT", "Your backup files have been sent to your Discord DMs. Check that the attachments arrived and save them outside Railway.");
+      // Discord accepts at most 10 attachments per message. Deliver the complete
+      // backup in sequential batches and report partial delivery accurately.
+      const batchSize = 10;
+      const totalBatches = Math.ceil(files.length / batchSize);
+      let sentBatches = 0;
+      try {
+        for (let offset = 0; offset < files.length; offset += batchSize) {
+          const batch = files.slice(offset, offset + batchSize);
+          const batchNumber = sentBatches + 1;
+          await message.author.send({
+            content: "PARADOX • CORE BACKUP" +
+              "\\nBatch: " + batchNumber + "/" + totalBatches +
+              (batchNumber === 1
+                ? "\\nPersistent volume files: " + volumeFiles.length +
+                  "\\nDatabase: " + databaseStatus +
+                  "\\nCreated: " + new Date().toISOString() +
+                  "\\nEnvironment variables and Discord tokens are intentionally excluded."
+                : "\\nBackup continuation — keep every batch together.") +
+              "\\nAttachments in this batch: " + batch.length,
+            files: batch
+          });
+          sentBatches++;
+        }
+      } catch (error) {
+        console.error("[Backup] DM delivery stopped:", error);
+        return fail("Backup delivery stopped after " + sentBatches + "/" + totalBatches +
+          " batches. " + (sentBatches * batchSize) + "/" + files.length +
+          " files were sent. Check your DMs before retrying. Error: " +
+          String(error?.message || error).slice(0, 300));
+      }
     }
     if (command === "restore") {
       if (!isBotOwner(message.author.id)) return fail("This restore command is restricted to the bot owner.");
