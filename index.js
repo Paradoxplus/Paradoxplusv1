@@ -6,6 +6,7 @@ import {
 import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
+import { spawn } from "node:child_process";
 import { deflateRawSync } from "node:zlib";
 import { startDashboard } from "./dashboard.js";
 import { joinVoiceChannel, VoiceConnectionStatus, entersState, getVoiceConnection } from "@discordjs/voice";
@@ -5834,8 +5835,16 @@ async function startBotLeaseHeartbeat() {
         await client.destroy();
         activeBotLease = null;
         await releaseBotLease(BOT_LEASE_KEY, BOT_INSTANCE_ID, lease.epoch);
-        console.log("[Failover] Lease released; this host is returning to STANDBY.");
-        return "handoff";
+        console.log("[Failover] Lease released; restarting this standby process so it can safely reconnect later.");
+        // A discord.js Client cannot reliably be reused after destroy(). Start a fresh
+        // process with a fresh Client, then let this process exit.
+        const child = spawn(process.execPath, process.argv.slice(1), {
+          detached: true,
+          stdio: "ignore",
+          env: process.env
+        });
+        child.unref();
+        process.exit(0);
       }
 
       const renewed = await renewBotLease(
