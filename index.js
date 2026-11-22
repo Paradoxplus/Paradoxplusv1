@@ -1431,10 +1431,27 @@ async function syncMemberCounter(guild) {
       ? guild.channels.cache.get(config.memberCounterChannelId) ?? await guild.channels.fetch(config.memberCounterChannelId).catch(() => null)
       : null;
 
-    if (channel && channel.type !== ChannelType.GuildText) {
-      console.warn("[MemberCounter] Saved counter channel is no longer a text channel; creating a replacement.");
-      channel = null;
-      config.memberCounterChannelId = null;
+    // Recover the existing counter by its marker/name before considering creation.
+    // This prevents duplicate channels if the saved channel ID is missing or stale.
+    if (!channel || channel.type !== ChannelType.GuildText) {
+      const existingCounter = guild.channels.cache.find(candidate =>
+        candidate.type === ChannelType.GuildText &&
+        (
+          candidate.topic?.includes("PARADOXPLUS LIVE COMMUNITY COUNT") ||
+          /^✦・members・[\\d,]+$/.test(candidate.name)
+        )
+      );
+      if (existingCounter) {
+        channel = existingCounter;
+        if (config.memberCounterChannelId !== channel.id) {
+          config.memberCounterChannelId = channel.id;
+          await saveDatabase();
+        }
+        console.log("[MemberCounter] Recovered existing counter channel " + channel.id + "; keeping its ID.");
+      } else {
+        channel = null;
+        config.memberCounterChannelId = null;
+      }
     }
 
     if (!channel) {
