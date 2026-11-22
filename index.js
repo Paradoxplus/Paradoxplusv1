@@ -1859,14 +1859,10 @@ async function createGuildChannelBackup(guild, reason = "hourly") {
   await fs.writeFile(tempPath, JSON.stringify(snapshot), "utf8");
   await fs.rename(tempPath, finalPath);
 
-  // Keep the latest 48 hourly snapshots (approximately two days).
-  const files = (await fs.readdir(backupDir))
-    .filter(file => file.endsWith(".json"))
-    .sort();
-  for (const oldFile of files.slice(0, Math.max(0, files.length - 48))) {
-    await fs.unlink(path.join(backupDir, oldFile)).catch(() => {});
-  }
-  console.log(`[ChannelBackup] Saved ${snapshot.channels.length} channels for ${guild.name} (${reason}).`);
+  // Permanent retention: do not automatically delete older hourly snapshots.
+  // Keep this directory on the persistent /app/data volume and monitor its storage usage.
+  const files = (await fs.readdir(backupDir)).filter(file => file.endsWith(".json"));
+  console.log(`[ChannelBackup] Saved ${snapshot.channels.length} channels for ${guild.name} (${reason}); ${files.length} retained snapshots.`);
   return snapshot.channels.length;
 }
 
