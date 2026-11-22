@@ -253,6 +253,28 @@ export async function saveSharedBotState(stateKey, state) {
   );
 }
 
+export async function announcePrimaryPresence(primaryId) {
+  requireDatabase();
+  await pool.query(
+    `INSERT INTO public.paradoxplus_bot_state (state_key, state_json, updated_at)
+     VALUES ($1, $2::jsonb, NOW())
+     ON CONFLICT (state_key) DO UPDATE
+       SET state_json = EXCLUDED.state_json, updated_at = NOW()`,
+    ["primary-presence:" + primaryId, JSON.stringify({ primaryId })]
+  );
+}
+
+export async function isPrimaryPresenceFresh(primaryId, freshnessMs = 15000) {
+  requireDatabase();
+  const result = await pool.query(
+    `SELECT updated_at > NOW() - ($2::bigint * INTERVAL '1 millisecond') AS fresh
+     FROM public.paradoxplus_bot_state
+     WHERE state_key = $1`,
+    ["primary-presence:" + primaryId, freshnessMs]
+  );
+  return result.rows[0]?.fresh === true;
+}
+
 export async function tryAcquireBotLease(leaseKey, ownerId, ttlMs = 20000) {
   requireDatabase();
   const result = await pool.query(

@@ -6,6 +6,7 @@ import {
 import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
+import { spawn } from "node:child_process";
 import { deflateRawSync } from "node:zlib";
 import { startDashboard } from "./dashboard.js";
 import { joinVoiceChannel, VoiceConnectionStatus, entersState, getVoiceConnection } from "@discordjs/voice";
@@ -29,7 +30,7 @@ function buildWelcomeDescription(guild, member) {
 }
 
 
-import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot, importDatabaseSnapshot, archiveDiscordMessage, getArchivedChannelMessages, loadSharedBotState, saveSharedBotState, tryAcquireBotLease, renewBotLease, releaseBotLease } from "./recruitment.js";
+import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot, importDatabaseSnapshot, archiveDiscordMessage, getArchivedChannelMessages, loadSharedBotState, saveSharedBotState, tryAcquireBotLease, renewBotLease, releaseBotLease, announcePrimaryPresence, isPrimaryPresenceFresh } from "./recruitment.js";
 
  
 // Discord does not support loading custom fonts, so use Unicode sans-serif bold
@@ -5807,22 +5808,45 @@ client.on(Events.MessageCreate, async message => {
 
 const BOT_LEASE_KEY = "paradoxplus-discord-gateway";
 const BOT_LEASE_TTL_MS = 20000;
+const BOT_PRIMARY_INSTANCE_LABEL = process.env.BOT_PRIMARY_INSTANCE_ID ||
+  process.env.RAILWAY_SERVICE_ID ||
+  "fc6f5e09-caa1-4d90-9375-484fac5fc50b";
 const BOT_INSTANCE_LABEL = process.env.BOT_INSTANCE_ID ||
   process.env.RAILWAY_SERVICE_ID ||
   process.env.HOSTNAME ||
   "paradoxplus";
 const BOT_INSTANCE_ID = BOT_INSTANCE_LABEL + ":" + crypto.randomUUID();
+const IS_PRIMARY_INSTANCE = BOT_INSTANCE_LABEL === BOT_PRIMARY_INSTANCE_LABEL;
 let activeBotLease = null;
 let botLeaseHeartbeat = null;
+let dashboardStarted = false;
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function startBotLeaseHeartbeat() {
-  let heartbeatRunning = false;
-  botLeaseHeartbeat = setInterval(async () => {
-    if (heartbeatRunning) return;
-    heartbeatRunning = true;
+  while (activeBotLease) {
+    await wait(5000);
+    if (!activeBotLease) return "released";
+
     try {
+      if (!IS_PRIMARY_INSTANCE && await isPrimaryPresenceFresh(BOT_PRIMARY_INSTANCE_LABEL, 15000)) {
+        console.log("[Failover] PRIMARY_RETURNED — handing the Discord gateway back to Railway.");
+        const lease = activeBotLease;
+        await client.destroy();
+        activeBotLease = null;
+        await releaseBotLease(BOT_LEASE_KEY, BOT_INSTANCE_ID, lease.epoch);
+        console.log("[Failover] Lease released; restarting this standby process so it can safely reconnect later.");
+        // A discord.js Client cannot reliably be reused after destroy(). Start a fresh
+        // process with a fresh Client, then let this process exit.
+        const child = spawn(process.execPath, process.argv.slice(1), {
+          detached: true,
+          stdio: "ignore",
+          env: process.env
+        });
+        child.unref();
+        process.exit(0);
+      }
+
       const renewed = await renewBotLease(
         BOT_LEASE_KEY,
         BOT_INSTANCE_ID,
@@ -5830,22 +5854,23 @@ async function startBotLeaseHeartbeat() {
         BOT_LEASE_TTL_MS
       );
       if (!renewed) throw new Error("The active lease was lost or fenced by another host.");
+
+      if (IS_PRIMARY_INSTANCE) {
+        await announcePrimaryPresence(BOT_PRIMARY_INSTANCE_LABEL);
+      }
     } catch (error) {
       console.error("[Failover] Lease heartbeat failed; disconnecting this bot immediately:", error);
-      clearInterval(botLeaseHeartbeat);
-      client.destroy();
+      await client.destroy().catch(error => console.error("[Failover] Discord disconnect error:", error));
       process.exit(1);
-    } finally {
-      heartbeatRunning = false;
     }
-  }, 5000);
-  botLeaseHeartbeat.unref?.();
+  }
+  return "released";
 }
 
 async function shutdownBot(signal) {
   console.log("[Failover] " + signal + " received; disconnecting before releasing the active lease.");
   if (botLeaseHeartbeat) clearInterval(botLeaseHeartbeat);
-  client.destroy();
+  await client.destroy().catch(error => console.error("[Failover] Discord disconnect error:", error));
   if (activeBotLease) {
     await releaseBotLease(BOT_LEASE_KEY, BOT_INSTANCE_ID, activeBotLease.epoch).catch(error =>
       console.error("[Failover] Could not release lease cleanly; it will expire automatically:", error)
@@ -5861,9 +5886,19 @@ async function acquireBotLeaseAndStart() {
     throw new Error("[Failover] Shared PostgreSQL is required. Refusing to start without the Neon database.");
   }
 
-  while (!activeBotLease) {
+  while (true) {
     try {
-      activeBotLease = await tryAcquireBotLease(BOT_LEASE_KEY, BOT_INSTANCE_ID, BOT_LEASE_TTL_MS);
+      if (IS_PRIMARY_INSTANCE) {
+        await announcePrimaryPresence(BOT_PRIMARY_INSTANCE_LABEL);
+      } else if (await isPrimaryPresenceFresh(BOT_PRIMARY_INSTANCE_LABEL, 15000)) {
+        console.log("[Failover] STANDBY — Railway primary is present; waiting for its lease.");
+        await wait(5000);
+        continue;
+      }
+
+      if (!activeBotLease) {
+        activeBotLease = await tryAcquireBotLease(BOT_LEASE_KEY, BOT_INSTANCE_ID, BOT_LEASE_TTL_MS);
+      }
     } catch (error) {
       console.error("[Failover] Cannot reach Neon to check the active lease; remaining disconnected:", error.message);
     }
@@ -5871,21 +5906,30 @@ async function acquireBotLeaseAndStart() {
     if (!activeBotLease) {
       console.log("[Failover] STANDBY — another host owns the Discord gateway lease. Retrying in 5 seconds.");
       await wait(5000);
+      continue;
     }
-  }
 
-  console.log("[Failover] ACTIVE — this host owns the Discord gateway lease (epoch " + activeBotLease.epoch + ").");
-  await startBotLeaseHeartbeat();
-  await loadDatabase();
-  startDashboard({ client, getGuildConfig, saveDatabase });
+    console.log("[Failover] ACTIVE — this host owns the Discord gateway lease (epoch " + activeBotLease.epoch + ").");
+    if (!dashboardStarted) {
+      await loadDatabase();
+      startDashboard({ client, getGuildConfig, saveDatabase });
+      dashboardStarted = true;
+    }
 
-  try {
-    await client.login(TOKEN);
-  } catch (error) {
-    if (botLeaseHeartbeat) clearInterval(botLeaseHeartbeat);
-    await releaseBotLease(BOT_LEASE_KEY, BOT_INSTANCE_ID, activeBotLease.epoch).catch(() => {});
-    activeBotLease = null;
-    throw error;
+    try {
+      await client.login(TOKEN);
+      const result = await startBotLeaseHeartbeat();
+      if (result === "handoff") continue;
+      return;
+    } catch (error) {
+      console.error("[Failover] Bot login or active loop failed:", error);
+      if (activeBotLease) {
+        const lease = activeBotLease;
+        activeBotLease = null;
+        await releaseBotLease(BOT_LEASE_KEY, BOT_INSTANCE_ID, lease.epoch).catch(() => {});
+      }
+      throw error;
+    }
   }
 }
 
