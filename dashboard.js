@@ -28,6 +28,20 @@ export function startDashboard({client,getGuildConfig,saveDatabase}) {
     res.writeHead(200,{"set-cookie":"pp_admin="+session+"; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=43200","cache-control":"no-store"});return res.end(JSON.stringify({ok:true}));
    }
    if(req.method==="POST"&&url.pathname==="/auth/logout"){res.writeHead(200,{"set-cookie":"pp_admin=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0"});return res.end("ok");}
+   if(req.method==="GET"&&url.pathname.startsWith("/backup/download/")){
+    const token=url.pathname.slice("/backup/download/".length);
+    if(!/^[a-f0-9]{64}$/.test(token))return json(res,404,{error:"Download not found."});
+    const backupDir=path.join(process.cwd(),"data","backups");
+    let metadata;
+    try{metadata=JSON.parse(await fs.readFile(path.join(backupDir,"download.json"),"utf8"));}catch{return json(res,404,{error:"No backup is available."});}
+    const suppliedHash=crypto.createHash("sha256").update(token).digest("hex");
+    if(typeof metadata.tokenHash!=="string"||!equal(suppliedHash,metadata.tokenHash)||metadata.expiresAt<=Date.now())return json(res,403,{error:"This download link is invalid or has expired. Generate a new backup from Discord."});
+    const archivePath=path.join(backupDir,"Paradoxplus-Full-Backup.zip");
+    let stat;
+    try{stat=await fs.stat(archivePath);}catch{return json(res,404,{error:"The backup archive is no longer available."});}
+    res.writeHead(200,{"content-type":"application/zip","content-length":stat.size,"content-disposition":'attachment; filename="Paradoxplus-Full-Backup.zip"',"cache-control":"private, no-store"});
+    return fs.createReadStream(archivePath).pipe(res);
+   }
    if(url.pathname.startsWith("/api/")){
     if(!unpack(cookie.pp_admin))return json(res,401,{error:"Enter the dashboard password to continue."});
     if(req.headers.origin&&req.headers.host&&new URL(req.headers.origin).host!==req.headers.host)return json(res,403,{error:"Invalid request origin."});
