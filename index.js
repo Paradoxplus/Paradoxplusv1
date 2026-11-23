@@ -1742,6 +1742,8 @@ async function backupGuildStickers(guild, reason = "scheduled") {
   return records.length;
 }
 
+const emojiBackupAlertCooldown = new Map();
+
 async function backupGuildEmojis(guild, reason = "scheduled") {
   if (!guild || guild.id !== ANTI_NUKE_GUILD_ID) return 0;
   const emojis = await guild.emojis.fetch();
@@ -1752,17 +1754,56 @@ async function backupGuildEmojis(guild, reason = "scheduled") {
     try {
       const extension = emoji.animated ? "gif" : "png";
       const fileName = emoji.id + "." + extension;
-      const response = await fetch(emoji.imageURL({ extension: emoji.animated ? "gif" : "png", forceStatic: false }));
-      if (!response.ok) throw new Error("CDN returned HTTP " + response.status);
-      await fs.writeFile(path.join(backupDir, fileName), Buffer.from(await response.arrayBuffer()));
+      const urls = [
+        emoji.imageURL({ extension, forceStatic: false }),
+        "https://cdn.discordapp.com/emojis/" + emoji.id + "." + extension + "?size=4096&quality=lossless"
+      ];
+      let imageBuffer = null;
+      let lastError = null;
+      for (const url of [...new Set(urls)]) {
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            const response = await fetch(url, {
+              headers: { Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8" },
+              signal: AbortSignal.timeout(15000)
+            });
+            if (!response.ok) throw new Error("CDN returned HTTP " + response.status);
+            const contentType = response.headers.get("content-type") || "";
+            if (!contentType.toLowerCase().startsWith("image/")) {
+              throw new Error("CDN returned non-image content type: " + (contentType || "unknown"));
+            }
+            const data = Buffer.from(await response.arrayBuffer());
+            if (!data.length) throw new Error("CDN returned an empty image");
+            imageBuffer = data;
+            break;
+          } catch (error) {
+            lastError = error;
+            if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+          }
+        }
+        if (imageBuffer) break;
+      }
+      if (!imageBuffer) throw lastError || new Error("All CDN download attempts failed");
+      await fs.writeFile(path.join(backupDir, fileName), imageBuffer);
       records.push({
         id: emoji.id, name: emoji.name, animated: emoji.animated,
         roles: [...emoji.roles.cache.keys()], file: fileName,
         backedUpAt: new Date().toISOString()
       });
+      emojiBackupAlertCooldown.delete(emoji.id);
     } catch (error) {
       console.error("[EmojiBackup] Could not back up emoji:", emoji.id, error);
-      await notifyAntiNukeOwner(guild, "Could not back up emoji " + (emoji.name || emoji.id) + ". " + String(error?.message || error).slice(0, 200));
+      const now = Date.now();
+      const lastAlert = emojiBackupAlertCooldown.get(emoji.id) || 0;
+      if (now - lastAlert >= 6 * 60 * 60 * 1000) {
+        emojiBackupAlertCooldown.set(emoji.id, now);
+        if (emojiBackupAlertCooldown.size > 500) {
+          for (const [id, timestamp] of emojiBackupAlertCooldown) {
+            if (now - timestamp >= 24 * 60 * 60 * 1000) emojiBackupAlertCooldown.delete(id);
+          }
+        }
+        await notifyAntiNukeOwner(guild, "Could not back up emoji " + (emoji.name || emoji.id) + ". " + String(error?.message || error).slice(0, 200));
+      }
     }
   }
   const manifestPath = path.join(backupDir, "manifest.json");
