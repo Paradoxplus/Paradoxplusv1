@@ -1356,79 +1356,117 @@ client.on(Events.WebhooksUpdate, async channel => {
   }
 });
 
-client.on(Events.ChannelDelete, async channel => {
-  if (!channel?.guild || channel.guild.id !== "1572968551973654528" || channel.isThread?.()) return;
-  const guild = channel.guild;
-  console.error("[CHANNEL-ANTI-NUKE] Channel deletion detected:", channel.name, channel.id);
+const antiNukeChannelDeleteLocks = new Set();
 
-  // Audit entries can arrive after the gateway deletion event; retry briefly.
-  let entry = null;
-  for (let attempt = 0; attempt < 4 && !entry; attempt++) {
-    if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 600));
+async function findChannelDeleteExecutorFast(guild, channelId, eventStartedAt) {
+  // Query immediately, then briefly retry because Discord audit entries can lag gateway events.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 200));
     try {
       const audit = await guild.fetchAuditLogs({ type: AuditLogEvent.ChannelDelete, limit: 10 });
-      entry = audit.entries.find(item =>
-        item.targetId === channel.id &&
-        Date.now() - item.createdTimestamp < 30000
-      ) ?? null;
+      const entry = audit.entries.find(item =>
+        item.targetId === channelId &&
+        item.executorId &&
+        item.createdTimestamp >= eventStartedAt - 5000 &&
+        item.createdTimestamp <= Date.now() + 2000
+      );
+      if (entry?.executorId) return entry;
     } catch (error) {
-      console.error("[CHANNEL-ANTI-NUKE] Audit-log lookup failed:", error);
+      console.error("[CHANNEL-ANTI-NUKE] Fast audit-log lookup failed:", error);
     }
   }
+  return null;
+}
 
-  const executorId = entry?.executorId ?? null;
-  if (executorId) {
-    await trackDestructiveAuditAction(guild, executorId, "channel-delete", "channels deleted");
-  }
-  if (isAntiNukeTrustedActor(guild, executorId)) {
-    console.log("[CHANNEL-ANTI-NUKE] Trusted owner or bot deleted channel; no enforcement:", executorId);
-    return;
-  }
+client.on(Events.ChannelDelete, channel => {
+  if (!channel?.guild || channel.guild.id !== ANTI_NUKE_GUILD_ID || channel.isThread?.()) return;
+  const guild = channel.guild;
+  const eventStartedAt = Date.now();
+  if (antiNukeChannelDeleteLocks.has(channel.id)) return;
+  antiNukeChannelDeleteLocks.add(channel.id);
+  console.error("[CHANNEL-ANTI-NUKE] FIRST channel deletion detected; immediate protection started:", channel.name, channel.id);
 
-  // Restore immediately, then let the owner decide whether the deletion should stand.
-  let restoredChannel = null;
-  try {
-    restoredChannel = await restoreDeletedChannel(channel);
-    if (restoredChannel) await restoreArchivedMessages(channel, restoredChannel);
-  } catch (error) {
-    console.error("[CHANNEL-ANTI-NUKE] Recovery failed:", error);
-  }
-  if (!executorId) {
-    await notifyAntiNukeOwner(guild, "A channel was deleted, but Discord did not provide a matching audit-log executor. Recovery was attempted. Review the audit log and verify the restored channel.");
-    return;
-  }
-  if (executorId === guild.ownerId || executorId === client.user.id) return;
-  const cfg = getGuildConfig(guild.id);
-  const reviewChannel = cfg.recoveryReviewChannelId ? await guild.channels.fetch(cfg.recoveryReviewChannelId).catch(() => null) : null;
-  if (restoredChannel && reviewChannel?.isTextBased?.() && typeof reviewChannel.send === "function") {
-    const pending = { channelId: channel.id, channelName: channel.name, restoredChannelId: restoredChannel.id, executorId, requestedAt: new Date().toISOString(), status: "pending" };
-    cfg.pendingDeletionApprovals = cfg.pendingDeletionApprovals.filter(item => !(item.channelId === channel.id && item.status === "pending"));
-    cfg.pendingDeletionApprovals.push(pending);
-    if (cfg.pendingDeletionApprovals.length > 100) cfg.pendingDeletionApprovals = cfg.pendingDeletionApprovals.slice(-100);
-    await saveDatabase();
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("px_delete_approval:accept:" + channel.id).setLabel("Accept deletion").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId("px_delete_approval:reject:" + channel.id).setLabel("Reject & keep recovery").setStyle(ButtonStyle.Success)
-    );
-    await reviewChannel.send({
-      embeds: [new EmbedBuilder().setColor(0xe0a12b).setTitle("Channel deletion approval required")
-        .setDescription("A channel was deleted and has been recovered temporarily. Choose whether the deletion should stand.")
-        .addFields(
-          { name: "Channel", value: channel.name + " (" + channel.id + ")", inline: true },
-          { name: "Executor", value: "<@" + executorId + "> (" + executorId + ")", inline: true },
-          { name: "Recovered copy", value: "<#" + restoredChannel.id + ">", inline: false }
-        ).setTimestamp()],
-      components: [row],
-      allowedMentions: { users: [guild.ownerId], parse: [] }
-    }).catch(error => console.error("[DeletionApproval] Could not send approval request:", error));
-    return;
-  }
-  // No review channel or no recoverable snapshot: retain automatic enforcement.
-  try {
-    await guild.members.ban(executorId, { reason: "Paradox • Core anti-nuke: unauthorized channel deletion (approval route unavailable)" });
-  } catch (error) {
-    console.error("[CHANNEL-ANTI-NUKE] Could not ban channel deleter:", error);
-  }
+  // Start recovery immediately; do not wait for audit-log attribution.
+  const recoveryTask = (async () => {
+    let restoredChannel = null;
+    try {
+      restoredChannel = await restoreDeletedChannel(channel);
+      if (restoredChannel) await restoreArchivedMessages(channel, restoredChannel);
+    } catch (error) {
+      console.error("[CHANNEL-ANTI-NUKE] Immediate recovery failed:", error);
+      void notifyAntiNukeOwner(guild, "A channel was deleted and automatic recovery failed: " + String(error?.message || error).slice(0, 250));
+    }
+    return restoredChannel;
+  })();
+
+  const enforcementTask = (async () => {
+    const entry = await findChannelDeleteExecutorFast(guild, channel.id, eventStartedAt);
+    const executorId = entry?.executorId ?? null;
+
+    if (!executorId) {
+      console.warn("[CHANNEL-ANTI-NUKE] Executor not found after fast audit retries; no unverified punishment issued.");
+      await notifyAntiNukeOwner(guild, "🚨 A channel was deleted. The anti-nuke reacted immediately, but Discord's audit log did not identify the executor in time. Recovery is running; check the server audit log.");
+      return;
+    }
+
+    if (isAntiNukeTrustedActor(guild, executorId)) {
+      console.log("[CHANNEL-ANTI-NUKE] Trusted actor deletion; recovery only:", executorId);
+      return;
+    }
+
+    // One unauthorized channel deletion is sufficient: no 3-action threshold.
+    await punishAntiNukeExecutor(guild, executorId, "unauthorized deletion of channel " + channel.name + " (" + channel.id + "); first deletion triggers enforcement");
+  })();
+
+  void Promise.allSettled([recoveryTask, enforcementTask]).then(async results => {
+    const recoveryResult = results[0];
+    const restoredChannel = recoveryResult.status === "fulfilled" ? recoveryResult.value : null;
+    if (results[1].status === "rejected") {
+      console.error("[CHANNEL-ANTI-NUKE] Immediate enforcement failed:", results[1].reason);
+      await notifyAntiNukeOwner(guild, "Channel deletion enforcement failed: " + String(results[1].reason?.message || results[1].reason).slice(0, 250));
+    }
+
+    const executorEntry = await findChannelDeleteExecutorFast(guild, channel.id, eventStartedAt);
+    const executorId = executorEntry?.executorId ?? null;
+    if (!restoredChannel || !executorId || isAntiNukeTrustedActor(guild, executorId)) return;
+
+    const cfg = getGuildConfig(guild.id);
+    const reviewChannel = cfg.recoveryReviewChannelId
+      ? await guild.channels.fetch(cfg.recoveryReviewChannelId).catch(() => null)
+      : null;
+    if (reviewChannel?.isTextBased?.() && typeof reviewChannel.send === "function") {
+      const pending = {
+        channelId: channel.id,
+        channelName: channel.name,
+        restoredChannelId: restoredChannel.id,
+        executorId,
+        requestedAt: new Date().toISOString(),
+        status: "pending"
+      };
+      cfg.pendingDeletionApprovals = cfg.pendingDeletionApprovals.filter(item =>
+        !(item.channelId === channel.id && item.status === "pending")
+      );
+      cfg.pendingDeletionApprovals.push(pending);
+      if (cfg.pendingDeletionApprovals.length > 100) cfg.pendingDeletionApprovals = cfg.pendingDeletionApprovals.slice(-100);
+      await saveDatabase();
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId("px_delete_approval:accept:" + channel.id).setLabel("Accept deletion").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId("px_delete_approval:reject:" + channel.id).setLabel("Reject & keep recovery").setStyle(ButtonStyle.Success)
+      );
+      await reviewChannel.send({
+        embeds: [new EmbedBuilder().setColor(0xe0a12b).setTitle("Channel deletion approval required")
+          .setDescription("The first unauthorized deletion triggered anti-nuke enforcement. The channel has been recovered temporarily. Choose whether the deletion should stand.")
+          .addFields(
+            { name: "Channel", value: channel.name + " (" + channel.id + ")", inline: true },
+            { name: "Executor", value: "<@" + executorId + "> (" + executorId + ")", inline: true },
+            { name: "Recovered copy", value: "<#" + restoredChannel.id + ">", inline: false }
+          ).setTimestamp()],
+        components: [row],
+        allowedMentions: { users: [guild.ownerId], parse: [] }
+      }).catch(error => console.error("[DeletionApproval] Could not send approval request:", error));
+    }
+  }).catch(error => console.error("[CHANNEL-ANTI-NUKE] Finalization failed:", error))
+    .finally(() => antiNukeChannelDeleteLocks.delete(channel.id));
 });
 
 client.on(Events.GuildRoleDelete, async role => {
