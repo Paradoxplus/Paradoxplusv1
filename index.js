@@ -406,6 +406,7 @@ async function logRankChange(guild, config, action, target, oldRank, newRank, ac
 }
 
 async function applyRank(interaction, target, desiredRank, action, reason) {
+  if (isBotOwner(target.id)) return replyError(interaction, "🛡️ The Paradox • Core owner is protected from rank changes.");
   const config = getGuildConfig(interaction.guildId);
   if (config.ranks.length < 2) {
     return replyError(interaction, "The rank hierarchy needs at least two ranks. Ask an administrator to configure it with `/rank-config add`.");
@@ -930,6 +931,57 @@ client.on(Events.GuildRoleCreate, async role => {
 
 client.on(Events.GuildRoleUpdate, (oldRole, newRole) => {
   void inspectRolePermissionEscalation(oldRole, newRole).catch(error => console.error("[ANTI-NUKE] Role escalation handler failed:", error));
+});
+
+const ownerProtectionLocks = new Set();
+
+client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+  if (!isBotOwner(newMember.id)) return;
+  const config = getGuildConfig(newMember.guild.id);
+  const removedConfiguredRanks = oldMember.roles.cache.filter(role =>
+    !newMember.roles.cache.has(role.id) && config.ranks.some(rank => rank.id === role.id)
+  );
+  const newlyTimedOut = Boolean(newMember.communicationDisabledUntilTimestamp) &&
+    newMember.communicationDisabledUntilTimestamp !== oldMember.communicationDisabledUntilTimestamp;
+  if (!removedConfiguredRanks.size && !newlyTimedOut) return;
+  const lockKey = newMember.guild.id + ":" + newMember.id;
+  if (ownerProtectionLocks.has(lockKey)) return;
+  ownerProtectionLocks.add(lockKey);
+  try {
+    let entry = null;
+    const auditType = newlyTimedOut ? AuditLogEvent.MemberUpdate : AuditLogEvent.MemberRoleUpdate;
+    for (let attempt = 0; attempt < 6 && !entry; attempt++) {
+      if (attempt) await new Promise(resolve => setTimeout(resolve, 650));
+      try {
+        const logs = await newMember.guild.fetchAuditLogs({ type: auditType, limit: 15 });
+        entry = logs.entries.find(item => item.targetId === newMember.id && Date.now() - item.createdTimestamp >= 0 && Date.now() - item.createdTimestamp <= 15000) || null;
+      } catch (error) { console.warn("[OwnerProtection] Audit lookup failed:", error.message); }
+    }
+    if (newlyTimedOut && newMember.communicationDisabledUntilTimestamp) {
+      await newMember.timeout(null, "Paradox • Core owner protection: revert unauthorized timeout");
+    }
+    if (removedConfiguredRanks.size) {
+      const restorable = [...removedConfiguredRanks.values()].filter(role => role.editable);
+      if (restorable.length) await newMember.roles.add(restorable, "Paradox • Core owner protection: restore removed rank roles");
+    }
+    const executor = entry && entry.executor;
+    if (executor && executor.bot && executor.id !== client.user.id) {
+      const botMember = await newMember.guild.members.fetch(executor.id).catch(() => null);
+      if (botMember && botMember.kickable) {
+        await botMember.kick("Paradox • Core owner protection: attempted to timeout or demote bot owner");
+        await notifyAntiNukeOwner(newMember.guild, "🛡️ Kicked bot <@" + executor.id + "> after it attempted to timeout or remove configured rank roles from the bot owner.");
+      } else {
+        await notifyAntiNukeOwner(newMember.guild, "⚠️ Bot <@" + executor.id + "> attempted to target the bot owner, but I could not kick it. Check Kick Members permission and role position.");
+      }
+    } else {
+      await notifyAntiNukeOwner(newMember.guild, "🛡️ Blocked an unauthorized timeout or rank-role removal targeting the bot owner. Executor: " + (entry && entry.executorId ? "<@" + entry.executorId + ">" : "unknown") + ".");
+    }
+  } catch (error) {
+    console.error("[OwnerProtection] Failed to restore owner protection:", error);
+    await notifyAntiNukeOwner(newMember.guild, "🚨 Owner protection detected an attempted timeout/rank removal but could not fully revert it: " + String(error && (error.message || error)).slice(0, 220));
+  } finally {
+    ownerProtectionLocks.delete(lockKey);
+  }
 });
 
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
@@ -3830,6 +3882,7 @@ client.on(Events.InteractionCreate, async interaction => {
       const user = interaction.options.getUser("member",true);
       const target = await interaction.guild.members.fetch(user.id).catch(()=>null);
       if (!target) return replyError(interaction,"That member isn't in this server.");
+      if (isBotOwner(target.id)) return replyError(interaction, "🛡️ The Paradox • Core owner is protected from moderation actions.");
       if (target.id === interaction.user.id || target.id === client.user.id) return replyError(interaction,"You can't use this command on yourself or the bot.");
       const actor = await interaction.guild.members.fetch(interaction.user.id);
       if (!canActOnTarget(actor,target,interaction.guild)) return replyError(interaction,"That member has an equal or higher role than you.");
