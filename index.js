@@ -938,12 +938,16 @@ const ownerProtectionLocks = new Set();
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   if (!isBotOwner(newMember.id)) return;
   const config = getGuildConfig(newMember.guild.id);
-  const removedConfiguredRanks = oldMember.roles.cache.filter(role =>
-    !newMember.roles.cache.has(role.id) && config.ranks.some(rank => rank.id === role.id)
+  // Protect every ordinary role on the configured bot owner, not only rank roles.
+  // Discord-managed roles and @everyone cannot be restored through the bot.
+  const removedOwnerRoles = oldMember.roles.cache.filter(role =>
+    role.id !== newMember.guild.id &&
+    !role.managed &&
+    !newMember.roles.cache.has(role.id)
   );
   const newlyTimedOut = Boolean(newMember.communicationDisabledUntilTimestamp) &&
     newMember.communicationDisabledUntilTimestamp !== oldMember.communicationDisabledUntilTimestamp;
-  if (!removedConfiguredRanks.size && !newlyTimedOut) return;
+  if (!removedOwnerRoles.size && !newlyTimedOut) return;
   const lockKey = newMember.guild.id + ":" + newMember.id;
   if (ownerProtectionLocks.has(lockKey)) return;
   ownerProtectionLocks.add(lockKey);
@@ -960,21 +964,30 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
     if (newlyTimedOut && newMember.communicationDisabledUntilTimestamp) {
       await newMember.timeout(null, "Paradox • Core owner protection: revert unauthorized timeout");
     }
-    if (removedConfiguredRanks.size) {
-      const restorable = [...removedConfiguredRanks.values()].filter(role => role.editable);
-      if (restorable.length) await newMember.roles.add(restorable, "Paradox • Core owner protection: restore removed rank roles");
+    // If the configured owner deliberately removes their own roles, respect that.
+    // Otherwise restore every removed role the bot is allowed to manage, even if
+    // the attacker cannot be kicked, banned, or timed out.
+    if (removedOwnerRoles.size && entry?.executorId !== BOT_OWNER_ID) {
+      const restorable = [...removedOwnerRoles.values()].filter(role => role.editable);
+      const unmanageable = [...removedOwnerRoles.values()].filter(role => !role.editable);
+      if (restorable.length) {
+        await newMember.roles.add(restorable, "Paradox • Core owner protection: restore all removed manageable owner roles");
+      }
+      if (unmanageable.length) {
+        console.warn("[OwnerProtection] Could not restore roles above the bot or otherwise unmanageable:", unmanageable.map(role => role.id).join(", "));
+      }
     }
     const executor = entry && entry.executor;
     if (executor && executor.bot && executor.id !== client.user.id) {
       const botMember = await newMember.guild.members.fetch(executor.id).catch(() => null);
       if (botMember && botMember.kickable) {
         await botMember.kick("Paradox • Core owner protection: attempted to timeout or demote bot owner");
-        await notifyAntiNukeOwner(newMember.guild, "🛡️ Kicked bot <@" + executor.id + "> after it attempted to timeout or remove configured rank roles from the bot owner.");
+        await notifyAntiNukeOwner(newMember.guild, "🛡️ Kicked bot <@" + executor.id + "> after it attempted to timeout or remove roles from the bot owner.");
       } else {
         await notifyAntiNukeOwner(newMember.guild, "⚠️ Bot <@" + executor.id + "> attempted to target the bot owner, but I could not kick it. Check Kick Members permission and role position.");
       }
     } else {
-      await notifyAntiNukeOwner(newMember.guild, "🛡️ Blocked an unauthorized timeout or rank-role removal targeting the bot owner. Executor: " + (entry && entry.executorId ? "<@" + entry.executorId + ">" : "unknown") + ".");
+      await notifyAntiNukeOwner(newMember.guild, "🛡️ Blocked an unauthorized timeout or role removal targeting the bot owner. Executor: " + (entry && entry.executorId ? "<@" + entry.executorId + ">" : "unknown") + ".");
     }
   } catch (error) {
     console.error("[OwnerProtection] Failed to restore owner protection:", error);
