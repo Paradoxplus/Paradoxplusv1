@@ -1807,7 +1807,8 @@ async function backupGuildStickers(guild, reason = "scheduled") {
   return records.length;
 }
 
-const emojiBackupAlertCooldown = new Map();
+const EMOJI_BACKUP_ALERT_STATE_PATH = path.join(DATA_DIR, "emoji-backup-alert-state.json");
+const EMOJI_BACKUP_ALERT_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
 async function backupGuildEmojis(guild, reason = "scheduled") {
   if (!guild || guild.id !== ANTI_NUKE_GUILD_ID) return 0;
@@ -1815,6 +1816,15 @@ async function backupGuildEmojis(guild, reason = "scheduled") {
   const backupDir = path.join(DATA_DIR, "emoji-backups", guild.id);
   await fs.mkdir(backupDir, { recursive: true });
   const records = [];
+  const failedEmojis = [];
+  let alertState = { lastAlertAt: 0 };
+  try {
+    alertState = JSON.parse(await fs.readFile(EMOJI_BACKUP_ALERT_STATE_PATH, "utf8"));
+    if (!Number.isFinite(alertState.lastAlertAt)) alertState = { lastAlertAt: 0 };
+  } catch {
+    // A missing state file means no alert has been sent yet.
+  }
+
   for (const emoji of emojis.values()) {
     try {
       const extension = emoji.animated ? "gif" : "png";
@@ -1855,22 +1865,36 @@ async function backupGuildEmojis(guild, reason = "scheduled") {
         roles: [...emoji.roles.cache.keys()], file: fileName,
         backedUpAt: new Date().toISOString()
       });
-      emojiBackupAlertCooldown.delete(emoji.id);
     } catch (error) {
       console.error("[EmojiBackup] Could not back up emoji:", emoji.id, error);
-      const now = Date.now();
-      const lastAlert = emojiBackupAlertCooldown.get(emoji.id) || 0;
-      if (now - lastAlert >= 6 * 60 * 60 * 1000) {
-        emojiBackupAlertCooldown.set(emoji.id, now);
-        if (emojiBackupAlertCooldown.size > 500) {
-          for (const [id, timestamp] of emojiBackupAlertCooldown) {
-            if (now - timestamp >= 24 * 60 * 60 * 1000) emojiBackupAlertCooldown.delete(id);
-          }
-        }
-        await notifyAntiNukeOwner(guild, "Could not back up emoji " + (emoji.name || emoji.id) + ". " + String(error?.message || error).slice(0, 200));
-      }
+      failedEmojis.push({
+        id: emoji.id,
+        name: emoji.name || emoji.id,
+        error: String(error?.message || error).slice(0, 160)
+      });
     }
   }
+
+  if (failedEmojis.length && Date.now() - alertState.lastAlertAt >= EMOJI_BACKUP_ALERT_COOLDOWN_MS) {
+    alertState.lastAlertAt = Date.now();
+    alertState.failedEmojiIds = failedEmojis.map(item => item.id);
+    const tempStatePath = EMOJI_BACKUP_ALERT_STATE_PATH + ".tmp";
+    await fs.writeFile(tempStatePath, JSON.stringify(alertState, null, 2), "utf8");
+    await fs.rename(tempStatePath, EMOJI_BACKUP_ALERT_STATE_PATH);
+    const summary = failedEmojis.slice(0, 10).map(item =>
+      item.name + " (" + item.id + "): " + item.error
+    ).join("\n");
+    const remaining = failedEmojis.length - 10;
+    await notifyAntiNukeOwner(
+      guild,
+      "Emoji backup failed for " + failedEmojis.length + " emoji(s). " +
+      "I'll suppress further emoji-backup failure DMs for 6 hours.\n" +
+      summary + (remaining > 0 ? "\n…and " + remaining + " more." : "")
+    );
+  } else if (failedEmojis.length) {
+    console.warn("[EmojiBackup] Suppressed failure DM; persistent 6-hour cooldown is active for " + failedEmojis.length + " emoji(s).");
+  }
+
   const manifestPath = path.join(backupDir, "manifest.json");
   const tempPath = manifestPath + ".tmp";
   await fs.writeFile(tempPath, JSON.stringify({
