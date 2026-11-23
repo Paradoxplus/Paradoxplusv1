@@ -1135,6 +1135,52 @@ async function restoreDeletedChannel(channel, selectedSnapshot = null) {
 }
 
 
+async function fetchArchivedAuthorProfile(guild, authorId) {
+  if (!authorId) return null;
+  return guild.client.users.fetch(authorId).catch(() => null);
+}
+
+async function buildArchivedMessagePayload(guild, row) {
+  const author = await fetchArchivedAuthorProfile(guild, row.author_id);
+  const displayName = author?.globalName || author?.username || row.author_tag || "Unknown author";
+  const avatarUrl = author?.displayAvatarURL({ size: 128 });
+  const createdAt = row.created_at ? new Date(row.created_at) : null;
+  const parts = [];
+  if (row.content) parts.push(row.content);
+
+  for (const attachment of (Array.isArray(row.attachments) ? row.attachments : [])) {
+    if (attachment.url) parts.push("Attachment: " + (attachment.name || "file") + " — " + attachment.url);
+  }
+  for (const archivedEmbed of (Array.isArray(row.embeds) ? row.embeds : [])) {
+    if (archivedEmbed.title) parts.push("Embed title: " + String(archivedEmbed.title));
+    if (archivedEmbed.description) parts.push("Embed: " + String(archivedEmbed.description));
+    if (Array.isArray(archivedEmbed.fields)) {
+      for (const field of archivedEmbed.fields) {
+        if (field?.name || field?.value) parts.push(String(field?.name || "Field") + ": " + String(field?.value || ""));
+      }
+    }
+  }
+  for (const sticker of (Array.isArray(row.stickers) ? row.stickers : [])) {
+    parts.push("Sticker: " + (sticker.name || "sticker") + (sticker.url ? " — " + sticker.url : ""));
+  }
+
+  let description = parts.join("\n").trim();
+  if (!description) description = "[Archived message had no recoverable text or attachments.]";
+  if (description.length > 4000) description = description.slice(0, 3997) + "...";
+
+  const embed = new EmbedBuilder()
+    .setColor(0x7c5cff)
+    .setAuthor({ name: displayName, ...(avatarUrl ? { iconURL: avatarUrl } : {}) })
+    .setDescription(description)
+    .setFooter({ text: "Original author • Recovered by Paradox • Core" });
+  if (createdAt && !Number.isNaN(createdAt.getTime())) embed.setTimestamp(createdAt);
+
+  return {
+    embeds: [embed],
+    allowedMentions: { parse: [] }
+  };
+}
+
 async function restoreArchivedMessages(deletedChannel, restoredChannel) {
   if (typeof restoredChannel?.send !== "function") {
     console.log("[MessageArchive] Restored channel type does not support direct message replay:", restoredChannel?.id);
@@ -1148,40 +1194,12 @@ async function restoreArchivedMessages(deletedChannel, restoredChannel) {
 
   let restoredCount = 0;
   for (const row of rows) {
-    const createdAt = row.created_at ? new Date(row.created_at) : null;
-    const timestamp = createdAt && !Number.isNaN(createdAt.getTime())
-      ? " · " + createdAt.toISOString().replace("T", " ").slice(0, 19).replace("T", " ") + " UTC"
-      : "";
-    const parts = ["**" + (row.author_tag || "Unknown author") + "**" + timestamp];
-    if (row.content) parts.push(row.content);
-
-    for (const attachment of (Array.isArray(row.attachments) ? row.attachments : [])) {
-      if (attachment.url) parts.push("Attachment: " + (attachment.name || "file") + " — " + attachment.url);
-    }
-    for (const embed of (Array.isArray(row.embeds) ? row.embeds : [])) {
-      if (embed.title) parts.push("Embed title: " + String(embed.title));
-      if (embed.description) parts.push("Embed: " + String(embed.description));
-      if (Array.isArray(embed.fields)) {
-        for (const field of embed.fields) {
-          if (field?.name || field?.value) parts.push(String(field?.name || "Field") + ": " + String(field?.value || ""));
-        }
-      }
-    }
-    for (const sticker of (Array.isArray(row.stickers) ? row.stickers : [])) {
-      parts.push("Sticker: " + (sticker.name || "sticker") + (sticker.url ? " — " + sticker.url : ""));
-    }
-
-    let transcript = parts.join("\n");
-    if (!transcript.trim()) transcript = "[Archived message had no recoverable text or attachments.]";
-    if (transcript.length > 1950) transcript = transcript.slice(0, 1947) + "...";
-    await restoredChannel.send({
-      content: transcript,
-      allowedMentions: { parse: [] }
-    });
+    const payload = await buildArchivedMessagePayload(deletedChannel.guild, row);
+    await restoredChannel.send(payload);
     restoredCount++;
   }
 
-  console.log("[MessageArchive] Replayed " + restoredCount + " archived messages into restored channel " + restoredChannel.id);
+  console.log("[MessageArchive] Replayed " + restoredCount + " archived messages with author profiles into restored channel " + restoredChannel.id);
   return restoredCount;
 }
 
@@ -2939,9 +2957,8 @@ client.on(Events.InteractionCreate, async interaction => {
         if (!row) return replyError(interaction, "Message not found in the archive for that channel.");
         const destination = await interaction.guild.channels.fetch(channelId).catch(() => null);
         if (!destination || typeof destination.send !== "function") return replyError(interaction, "The original channel is unavailable. Restore it first.");
-        const parts = ["Recovered message • " + (row.author_tag || "Unknown author"), row.content || "[No text content archived]"];
-        for (const file of (Array.isArray(row.attachments) ? row.attachments : [])) if (file.url) parts.push("Attachment: " + (file.name || "file") + " — " + file.url);
-        const sent = await destination.send({ content: parts.join("\n").slice(0, 1950), allowedMentions: { parse: [] } });
+        const payload = await buildArchivedMessagePayload(interaction.guild, row);
+        const sent = await destination.send(payload);
         return interaction.reply({ content: "Message replayed: " + sent.url, ephemeral: true });
       }
       const backupDir = path.join(DATA_DIR, "channel-backups", interaction.guildId);
