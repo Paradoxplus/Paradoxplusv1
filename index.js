@@ -13,6 +13,22 @@ import { joinVoiceChannel, VoiceConnectionStatus, entersState, getVoiceConnectio
 const EXILE_AS_BANNER_URL = "https://plain-eeur-prod-public.komododecks.com/202611/20/7GMXqpQZLSNrc1rfctNW/image.gif";
 const RECRUIT_BANNER_URL = "https://plain-eeur-prod-public.komododecks.com/202611/20/5w9GWzIHSQjOCUJC2fHz/image.gif";
 const WELCOME_BANNER_URL = "https://d2ol7oe51mr4n9.cloudfront.net/user_3LnTjrCm07BcsWANEl3eqURP53X/752328ad-804d-4e11-95b5-75dfcfe06cf1.gif";
+function parseEmbedHexColor(value) {
+  const normalized = String(value || "").trim();
+  if (!/^#?[0-9a-fA-F]{6}$/.test(normalized)) return null;
+  return Number.parseInt(normalized.replace(/^#/, ""), 16);
+}
+
+function parseHttpImageUrl(value) {
+  if (!value) return null;
+  try {
+    const parsed = new URL(value);
+    return ["http:", "https:"].includes(parsed.protocol) ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 function buildWelcomeDescription(guild, member) {
   const emoji = guild.emojis.cache.get("1415376887265628250")?.toString() || "✨";
   const defaultMessage =
@@ -259,6 +275,9 @@ function getGuildConfig(guildId) {
   if (!Array.isArray(config.pendingDeletionApprovals)) config.pendingDeletionApprovals = [];
   if (typeof config.announceChannelId !== "string") config.announceChannelId = null;
   if (typeof config.welcomeMessage !== "string") config.welcomeMessage = null;
+  if (!Number.isInteger(config.welcomeColor)) config.welcomeColor = 0x7c5cff;
+  if (typeof config.welcomeImageUrl !== "string") config.welcomeImageUrl = null;
+  if (typeof config.welcomeThumbnailUrl !== "string") config.welcomeThumbnailUrl = null;
   if (!config.tpackDropper || typeof config.tpackDropper !== "object") config.tpackDropper = { enabled: false, channelId: null, postedIds: [] };
   if (typeof config.tpackDropper.enabled !== "boolean") config.tpackDropper.enabled = false;
   if (typeof config.tpackDropper.channelId !== "string") config.tpackDropper.channelId = null;
@@ -1730,15 +1749,13 @@ client.on(Events.GuildMemberAdd, async member => {
   const channel = member.guild.channels.cache.get(config.welcomeChannelId)
     ?? await member.guild.channels.fetch(config.welcomeChannelId).catch(() => null);
   if (!channel?.isTextBased()) return;
-  const bannerUrl = WELCOME_BANNER_URL;
   const count = member.guild.memberCount;
   const embed = new EmbedBuilder()
-    .setColor(0x7c5cff)
+    .setColor(config.welcomeColor)
     .setAuthor({ name: "Exile AS", iconURL: client.user.displayAvatarURL() })
-
     .setDescription(buildWelcomeDescription(member.guild, member))
-    .setThumbnail(member.user.displayAvatarURL({ extension: "png", size: 256 }))
-    .setImage(bannerUrl)
+    .setThumbnail(config.welcomeThumbnailUrl || member.user.displayAvatarURL({ extension: "png", size: 256 }))
+    .setImage(config.welcomeImageUrl || WELCOME_BANNER_URL)
     .setFooter({ text: "Paradox • Core  •  Member #" + count })
     .setTimestamp();
   await channel.send({
@@ -3618,6 +3635,71 @@ client.on(Events.InteractionCreate, async interaction => {
       return interaction.editReply(result.slice(0, 1950));
     }
 
+    if (interaction.commandName === "welcomeset") {
+      if (!isBotOwner(interaction.user.id) &&
+          !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) &&
+          !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+        return replyError(interaction, "You need Manage Server or Administrator to configure welcome messages.");
+      }
+      const channel = interaction.options.getChannel("channel", true);
+      const colorInput = interaction.options.getString("color", true);
+      const color = parseEmbedHexColor(colorInput);
+      if (color === null) return replyError(interaction, "Color must be a six-digit HEX value, for example #7C5CFF.");
+      const message = interaction.options.getString("message", true).trim();
+      if (!message) return replyError(interaction, "Welcome message cannot be empty.");
+      const imageInput = interaction.options.getString("image");
+      const thumbnailInput = interaction.options.getString("thumbnail");
+      const image = imageInput ? parseHttpImageUrl(imageInput) : null;
+      const thumbnail = thumbnailInput ? parseHttpImageUrl(thumbnailInput) : null;
+      if (imageInput && !image) return replyError(interaction, "Image must be a valid HTTP or HTTPS URL.");
+      if (thumbnailInput && !thumbnail) return replyError(interaction, "Thumbnail must be a valid HTTP or HTTPS URL.");
+      const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
+      const perms = channel.permissionsFor(botMember);
+      if (!channel.isTextBased() || !perms?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
+        return replyError(interaction, "I need View Channel, Send Messages, and Embed Links permissions in that text channel.");
+      }
+      config.welcomeChannelId = channel.id;
+      config.welcomeColor = color;
+      config.welcomeMessage = message;
+      config.welcomeImageUrl = image;
+      config.welcomeThumbnailUrl = thumbnail;
+      await saveDatabase();
+      return interaction.reply({
+        content: "✅ Welcome system saved. Channel: " + channel.toString() + " • Color: #" + color.toString(16).padStart(6, "0").toUpperCase() + "\nUse {user}, {server}, and {memberCount} in your message. Leave image/thumbnail empty to use the default banner/member avatar.",
+        ephemeral: true
+      });
+    }
+
+    if (interaction.commandName === "embed") {
+      if (!isBotOwner(interaction.user.id) &&
+          !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) &&
+          !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+        return replyError(interaction, "You need Manage Server or Administrator to send custom embeds.");
+      }
+      const channel = interaction.options.getChannel("channel", true);
+      const colorInput = interaction.options.getString("color", true);
+      const color = parseEmbedHexColor(colorInput);
+      if (color === null) return replyError(interaction, "Color must be a six-digit HEX value, for example #7C5CFF.");
+      const message = interaction.options.getString("message", true).trim();
+      if (!message) return replyError(interaction, "Embed message cannot be empty.");
+      const imageInput = interaction.options.getString("image");
+      const thumbnailInput = interaction.options.getString("thumbnail");
+      const image = imageInput ? parseHttpImageUrl(imageInput) : null;
+      const thumbnail = thumbnailInput ? parseHttpImageUrl(thumbnailInput) : null;
+      if (imageInput && !image) return replyError(interaction, "Image must be a valid HTTP or HTTPS URL.");
+      if (thumbnailInput && !thumbnail) return replyError(interaction, "Thumbnail must be a valid HTTP or HTTPS URL.");
+      const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
+      const perms = channel.permissionsFor(botMember);
+      if (!channel.isTextBased() || !perms?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
+        return replyError(interaction, "I need View Channel, Send Messages, and Embed Links permissions in that text channel.");
+      }
+      const embed = new EmbedBuilder().setColor(color).setDescription(message);
+      if (image) embed.setImage(image);
+      if (thumbnail) embed.setThumbnail(thumbnail);
+      await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
+      return interaction.reply({ content: "✅ Embed sent to " + channel.toString() + ".", ephemeral: true });
+    }
+
     if (interaction.commandName === "welcome") {
       if (!isBotOwner(interaction.user.id) &&
           !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) &&
@@ -3640,11 +3722,11 @@ client.on(Events.InteractionCreate, async interaction => {
       if (subcommand === "test") {
         const count = interaction.guild.memberCount;
         const embed = new EmbedBuilder()
-          .setColor(0x7c5cff)
+          .setColor(config.welcomeColor)
           .setAuthor({ name: "Exile AS", iconURL: client.user.displayAvatarURL() })
           .setDescription(buildWelcomeDescription(interaction.guild, interaction.member))
-          .setThumbnail(interaction.user.displayAvatarURL({ extension: "png", size: 256 }))
-          .setImage(WELCOME_BANNER_URL)
+          .setThumbnail(config.welcomeThumbnailUrl || interaction.user.displayAvatarURL({ extension: "png", size: 256 }))
+          .setImage(config.welcomeImageUrl || WELCOME_BANNER_URL)
           .setFooter({ text: "Paradox • Core  •  Member #" + count })
           .setTimestamp();
         try {
