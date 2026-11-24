@@ -49,6 +49,18 @@ const commands = [
     .addSubcommand(sc => sc.setName("all").setDescription("Tag members who have the selected team role.")
       .addRoleOption(o => o.setName("role").setDescription("Only members with this role will be tagged").setRequired(true))
       .addBooleanOption(o => o.setName("confirm").setDescription("Confirm tagging members with this role").setRequired(true))),
+  new SlashCommandBuilder().setName("welcomeset").setDescription("Configure the welcome channel, color, message, banner, and thumbnail.")
+    .addChannelOption(o=>o.setName("channel").setDescription("Welcome destination text channel").addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement).setRequired(true))
+    .addStringOption(o=>o.setName("color").setDescription("Six-digit HEX color, e.g. #7C5CFF").setMinLength(6).setMaxLength(7).setRequired(true))
+    .addStringOption(o=>o.setName("message").setDescription("Welcome text; supports {user}, {server}, {memberCount}").setMaxLength(3500).setRequired(true))
+    .addStringOption(o=>o.setName("image").setDescription("Optional banner image URL").setMaxLength(500))
+    .addStringOption(o=>o.setName("thumbnail").setDescription("Optional thumbnail image URL").setMaxLength(500)),
+  new SlashCommandBuilder().setName("embed").setDescription("Send a custom colored embed to a channel.")
+    .addStringOption(o=>o.setName("color").setDescription("Six-digit HEX color, e.g. #7C5CFF").setMinLength(6).setMaxLength(7).setRequired(true))
+    .addStringOption(o=>o.setName("message").setDescription("Embed description").setMaxLength(4000).setRequired(true))
+    .addStringOption(o=>o.setName("image").setDescription("Optional image URL").setMaxLength(500))
+    .addStringOption(o=>o.setName("thumbnail").setDescription("Optional thumbnail URL").setMaxLength(500))
+    .addChannelOption(o=>o.setName("channel").setDescription("Destination text channel").addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement).setRequired(true)),
   new SlashCommandBuilder().setName("welcome").setDescription("Customize the welcome message; the banner remains fixed.")
     .addSubcommand(sc=>sc.setName("message").setDescription("Change the welcome message text.")
       .addStringOption(o=>o.setName("text").setDescription("Message text; supports {user}, {server}, {memberCount}").setMaxLength(3500).setRequired(true)))
