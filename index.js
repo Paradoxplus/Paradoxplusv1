@@ -19,14 +19,14 @@ function parseEmbedHexColor(value) {
   return Number.parseInt(normalized.replace(/^#/, ""), 16);
 }
 
-function parseHttpImageUrl(value) {
-  if (!value) return null;
-  try {
-    const parsed = new URL(value);
-    return ["http:", "https:"].includes(parsed.protocol) ? parsed.toString() : null;
-  } catch {
-    return null;
-  }
+function getUploadedImageUrl(attachment) {
+  if (!attachment) return null;
+  const contentType = String(attachment.contentType || "").toLowerCase();
+  const fileName = String(attachment.name || "");
+  const hasImageMime = contentType.startsWith("image/");
+  const hasImageExtension = /\.(png|jpe?g|gif|webp|avif)$/i.test(fileName);
+  if (!hasImageMime && !hasImageExtension) return false;
+  return attachment.url;
 }
 
 function buildWelcomeDescription(guild, member) {
@@ -3647,12 +3647,12 @@ client.on(Events.InteractionCreate, async interaction => {
       if (color === null) return replyError(interaction, "Color must be a six-digit HEX value, for example #7C5CFF.");
       const message = interaction.options.getString("message", true).trim();
       if (!message) return replyError(interaction, "Welcome message cannot be empty.");
-      const imageInput = interaction.options.getString("image");
-      const thumbnailInput = interaction.options.getString("thumbnail");
-      const image = imageInput ? parseHttpImageUrl(imageInput) : null;
-      const thumbnail = thumbnailInput ? parseHttpImageUrl(thumbnailInput) : null;
-      if (imageInput && !image) return replyError(interaction, "Image must be a valid HTTP or HTTPS URL.");
-      if (thumbnailInput && !thumbnail) return replyError(interaction, "Thumbnail must be a valid HTTP or HTTPS URL.");
+      const imageAttachment = interaction.options.getAttachment("image");
+      const thumbnailAttachment = interaction.options.getAttachment("thumbnail");
+      const image = getUploadedImageUrl(imageAttachment);
+      const thumbnail = getUploadedImageUrl(thumbnailAttachment);
+      if (image === false) return replyError(interaction, "Banner must be an image file (PNG, JPG, GIF, WEBP, or AVIF).");
+      if (thumbnail === false) return replyError(interaction, "Thumbnail must be an image file (PNG, JPG, GIF, WEBP, or AVIF).");
       const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
       const perms = channel.permissionsFor(botMember);
       if (!channel.isTextBased() || !perms?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
@@ -3682,12 +3682,12 @@ client.on(Events.InteractionCreate, async interaction => {
       if (color === null) return replyError(interaction, "Color must be a six-digit HEX value, for example #7C5CFF.");
       const message = interaction.options.getString("message", true).trim();
       if (!message) return replyError(interaction, "Embed message cannot be empty.");
-      const imageInput = interaction.options.getString("image");
-      const thumbnailInput = interaction.options.getString("thumbnail");
-      const image = imageInput ? parseHttpImageUrl(imageInput) : null;
-      const thumbnail = thumbnailInput ? parseHttpImageUrl(thumbnailInput) : null;
-      if (imageInput && !image) return replyError(interaction, "Image must be a valid HTTP or HTTPS URL.");
-      if (thumbnailInput && !thumbnail) return replyError(interaction, "Thumbnail must be a valid HTTP or HTTPS URL.");
+      const imageAttachment = interaction.options.getAttachment("image");
+      const thumbnailAttachment = interaction.options.getAttachment("thumbnail");
+      const image = getUploadedImageUrl(imageAttachment);
+      const thumbnail = getUploadedImageUrl(thumbnailAttachment);
+      if (image === false) return replyError(interaction, "Image must be an image file (PNG, JPG, GIF, WEBP, or AVIF).");
+      if (thumbnail === false) return replyError(interaction, "Thumbnail must be an image file (PNG, JPG, GIF, WEBP, or AVIF).");
       const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
       const perms = channel.permissionsFor(botMember);
       if (!channel.isTextBased() || !perms?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
