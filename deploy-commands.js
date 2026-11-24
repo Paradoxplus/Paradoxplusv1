@@ -58,9 +58,9 @@ const commands = [
   new SlashCommandBuilder().setName("embed").setDescription("Send a custom colored embed to a channel.")
     .addStringOption(o=>o.setName("color").setDescription("Six-digit HEX color, e.g. #7C5CFF").setMinLength(6).setMaxLength(7).setRequired(true))
     .addStringOption(o=>o.setName("message").setDescription("Embed description").setMaxLength(4000).setRequired(true))
+    .addChannelOption(o=>o.setName("channel").setDescription("Destination text channel").addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement).setRequired(true))
     .addAttachmentOption(o=>o.setName("image").setDescription("Upload an optional embed image"))
-    .addAttachmentOption(o=>o.setName("thumbnail").setDescription("Upload an optional thumbnail image"))
-    .addChannelOption(o=>o.setName("channel").setDescription("Destination text channel").addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement).setRequired(true)),
+    .addAttachmentOption(o=>o.setName("thumbnail").setDescription("Upload an optional thumbnail image")),
   new SlashCommandBuilder().setName("welcome").setDescription("Customize the welcome message; the banner remains fixed.")
     .addSubcommand(sc=>sc.setName("message").setDescription("Change the welcome message text.")
       .addStringOption(o=>o.setName("text").setDescription("Message text; supports {user}, {server}, {memberCount}").setMaxLength(3500).setRequired(true)))
