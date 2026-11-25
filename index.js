@@ -243,6 +243,37 @@ function saveDatabase() {
   return saveQueue;
 }
 
+async function expireTemporaryRoles() {
+  let changed = false;
+  const now = Date.now();
+  for (const [guildId, config] of Object.entries(database.guilds)) {
+    if (!Array.isArray(config.tempRoles) || !config.tempRoles.length) continue;
+    const guild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+    const remaining = [];
+    for (const entry of config.tempRoles) {
+      if (!entry || !Number.isFinite(entry.expiresAt)) { changed = true; continue; }
+      if (entry.expiresAt > now) { remaining.push(entry); continue; }
+      if (!guild) { remaining.push(entry); continue; }
+      const [member, role] = await Promise.all([
+        guild.members.fetch(entry.userId).catch(() => null),
+        guild.roles.fetch(entry.roleId).catch(() => null)
+      ]);
+      if (!member || !role || !member.roles.cache.has(entry.roleId)) { changed = true; continue; }
+      try {
+        await member.roles.remove(role, "Temporary role expired");
+        console.log("[TempRole] Expired " + role.name + " for " + member.user.tag);
+        changed = true;
+      } catch (error) {
+        console.error("[TempRole] Could not expire role for " + entry.userId + ":", error);
+        remaining.push(entry);
+      }
+    }
+    if (remaining.length !== config.tempRoles.length) changed = true;
+    config.tempRoles = remaining;
+  }
+  if (changed) await saveDatabase();
+}
+
 function getGuildConfig(guildId) {
   if (!database.guilds[guildId]) {
     database.guilds[guildId] = { ranks: [], logChannelId: null, announceChannelId: null, history: [] };
@@ -264,6 +295,7 @@ function getGuildConfig(guildId) {
   if (!Array.isArray(config.ignoredRoleIds)) config.ignoredRoleIds = [];
   if (!Array.isArray(config.autoresponders)) config.autoresponders = [];
   if (!Array.isArray(config.autoroleIds)) config.autoroleIds = [];
+  if (!Array.isArray(config.tempRoles)) config.tempRoles = [];
   if (typeof config.ticketStaffRoleId !== "string") config.ticketStaffRoleId = null;
   if (!Array.isArray(config.dmOptIns)) config.dmOptIns = [];
   if (!Array.isArray(config.giveaways)) config.giveaways = [];
@@ -2206,6 +2238,8 @@ function startHourlyChannelBackups(clientInstance) {
 }
 
 client.once(Events.ClientReady, async readyClient => {
+  void expireTemporaryRoles().catch(error => console.error("[TempRole] Startup expiry check failed:", error));
+  setInterval(() => { void expireTemporaryRoles().catch(error => console.error("[TempRole] Expiry worker failed:", error)); }, 30 * 1000);
   const nicknameGuild = await readyClient.guilds.fetch(MEMBER_COUNTER_GUILD_ID).catch(() => null);
   if (nicknameGuild) {
     const botMember = await nicknameGuild.members.fetchMe().catch(() => null);
@@ -2923,6 +2957,48 @@ client.on(Events.InteractionCreate, async interaction => {
         content: "✅ Modrinth auto-dropper enabled in " + targetChannel.toString() + ". I'll post one new pack every **5 minutes**. Use /tpackdisable to stop it or /tpackstatus to check it.",
         ephemeral: true
       });
+    }
+
+    if (interaction.commandName === "temprole") {
+      if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageRoles)) return replyError(interaction, "You need Manage Roles to use this command.");
+      const targetUser = interaction.options.getUser("member", true);
+      const role = interaction.options.getRole("role", true);
+      const durationText = interaction.options.getString("duration", true).trim().toLowerCase();
+      const durationParts = [...durationText.matchAll(/(\\d+)(mo|s|m|h|d|w|y)/g)];
+      const durationUnits = { s: 1000, m: 60 * 1000, h: 60 * 60 * 1000, d: 24 * 60 * 60 * 1000, w: 7 * 24 * 60 * 60 * 1000, mo: 30 * 24 * 60 * 60 * 1000, y: 365 * 24 * 60 * 60 * 1000 };
+      const parsedDuration = durationParts.map(part => ({ raw: part[0], amount: Number(part[1]), unit: part[2] }));
+      const durationMs = parsedDuration.reduce((total, part) => total + part.amount * durationUnits[part.unit], 0);
+      const reconstructedDuration = parsedDuration.map(part => part.raw).join("");
+      if (!parsedDuration.length || reconstructedDuration !== durationText || parsedDuration.some(part => !Number.isSafeInteger(part.amount) || part.amount < 1) || !Number.isSafeInteger(durationMs) || durationMs < 1000 || !Number.isFinite(Date.now() + durationMs) || !Number.isFinite(new Date(Date.now() + durationMs).getTime())) {
+        return replyError(interaction, "Use a valid duration such as 45s, 30m, 12h, 7d, 2w, 3mo, 1y, or 1w2d6h. No fixed maximum.");
+      }
+      if (role.managed || role.id === interaction.guild.id) return replyError(interaction, "That role cannot be assigned temporarily.");
+      const [actor, target, me] = await Promise.all([
+        interaction.guild.members.fetch(interaction.user.id),
+        interaction.guild.members.fetch(targetUser.id).catch(() => null),
+        interaction.guild.members.fetchMe()
+      ]);
+      if (!target) return replyError(interaction, "That member is no longer in this server.");
+      if (target.id === interaction.guild.ownerId || isBotOwner(target.id)) return replyError(interaction, "I can't change the server owner's or bot owner's roles.");
+      if (target.id === interaction.client.user.id) return replyError(interaction, "I can't assign a temporary role to myself.");
+      if (!canActOnTarget(actor, target, interaction.guild)) return replyError(interaction, "You can't manage that member because of the role hierarchy.");
+      if (!me.permissions.has(PermissionFlagsBits.ManageRoles) || role.position >= me.roles.highest.position) return replyError(interaction, "I need Manage Roles, and my highest role must be above " + role.toString() + ".");
+      if (target.roles.highest.position >= me.roles.highest.position) return replyError(interaction, "I can't manage that member because their highest role is above or equal to mine.");
+      if (!actor.permissions.has(PermissionFlagsBits.Administrator) && !isBotOwner(actor.id) && role.position >= actor.roles.highest.position) return replyError(interaction, "You can only temporarily assign roles below your highest role.");
+      const config = getGuildConfig(interaction.guildId);
+      const expiresAt = Date.now() + durationMs;
+      const existing = config.tempRoles.find(entry => entry.userId === target.id && entry.roleId === role.id);
+      try {
+        if (!target.roles.cache.has(role.id)) await target.roles.add(role, "Temporary role assigned by " + interaction.user.tag);
+        if (existing) existing.expiresAt = expiresAt;
+        else config.tempRoles.push({ userId: target.id, roleId: role.id, expiresAt, assignedBy: interaction.user.id });
+        await saveDatabase();
+        const unix = Math.floor(expiresAt / 1000);
+        return interaction.reply({ content: "✅ Added " + role.toString() + " to " + target.toString() + " for **" + durationText + "**. It expires <t:" + unix + ":R>.", ephemeral: true });
+      } catch (error) {
+        console.error("[TempRole] Assignment failed:", error);
+        return replyError(interaction, "I couldn't assign that role. Check my Manage Roles permission and role hierarchy.");
+      }
     }
 
     if (interaction.commandName === "roleall") {
