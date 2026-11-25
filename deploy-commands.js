@@ -43,7 +43,7 @@ const commands = [
     .addSubcommand(sc=>sc.setName("transcript").setDescription("Export the ticket conversation as a text file.")),
   new SlashCommandBuilder().setName("ticket-panel").setDescription("Publish the Exile AS 1.9+ ticket portal in a selected channel.")
     .addChannelOption(o=>o.setName("channel").setDescription("Text channel where the ticket panel should be posted").addChannelTypes(ChannelType.GuildText).setRequired(true)),
-  new SlashCommandBuilder().setName("selfroles").setDescription("Publish the Paradoxplus reaction-based self-role panel.")
+  new SlashCommandBuilder().setName("selfroles").setDescription("Publish the Elixe • As reaction-based self-role panel.")
     .addChannelOption(o => o.setName("channel").setDescription("Text channel where members can choose self-roles").addChannelTypes(ChannelType.GuildText).setRequired(true)),
   new SlashCommandBuilder().setName("tag").setDescription("Apply the PX ϟ nickname prefix to members with a selected role.")
     .addSubcommand(sc => sc.setName("all").setDescription("Tag members who have the selected team role.")
@@ -68,10 +68,10 @@ const commands = [
     .addSubcommand(sc=>sc.setName("test").setDescription("DM yourself a preview of the current welcome message.")),
   new SlashCommandBuilder().setName("prefix").setDescription("Change this server’s text command prefix.")
     .addStringOption(o=>o.setName("new_prefix").setDescription("New prefix (1–5 characters, no spaces)").setMinLength(1).setMaxLength(5).setRequired(true)),
-  new SlashCommandBuilder().setName("recruit").setDescription("Record a new Paradoxplus recruit.")
+  new SlashCommandBuilder().setName("recruit").setDescription("Record a new Elixe • As recruit.")
     .addUserOption(o=>o.setName("member").setDescription("Member being recruited").setRequired(true)),
-  new SlashCommandBuilder().setName("dm-optin").setDescription("Opt in to Paradoxplus server direct messages."),
-  new SlashCommandBuilder().setName("dm-optout").setDescription("Opt out of Paradoxplus server direct messages."),
+  new SlashCommandBuilder().setName("dm-optin").setDescription("Opt in to Elixe • As server direct messages."),
+  new SlashCommandBuilder().setName("dm-optout").setDescription("Opt out of Elixe • As server direct messages."),
   new SlashCommandBuilder().setName("dmall").setDescription("Send a direct message to members who opted in.")
     .addStringOption(o=>o.setName("message").setDescription("Message to send").setMaxLength(1800).setRequired(true))
     .addBooleanOption(o=>o.setName("confirm").setDescription("Confirm sending to opted-in members").setRequired(true)),
@@ -128,7 +128,7 @@ const commands = [
   new SlashCommandBuilder().setName("userinfo").setDescription("Show detailed information about a server member.")
     .addUserOption(o=>o.setName("member").setDescription("Member to inspect")),
   new SlashCommandBuilder().setName("serverinfo").setDescription("Show detailed server information."),
-  new SlashCommandBuilder().setName("modstats").setDescription("Show Paradoxplus moderation case statistics.")
+  new SlashCommandBuilder().setName("modstats").setDescription("Show Elixe • As moderation case statistics.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
   new SlashCommandBuilder().setName("unban").setDescription("Unban a user by Discord ID.")
     .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
@@ -286,7 +286,7 @@ const commands = [
     .setName("rank-panel")
     .setDescription("Display this server's rank hierarchy."),
 
-  new SlashCommandBuilder().setName("serverpulse").setDescription("View Paradox Pulse community activity aggregates."),
+  new SlashCommandBuilder().setName("serverpulse").setDescription("View Elixe • As Pulse community activity aggregates."),
   new SlashCommandBuilder().setName("rankpredict").setDescription("See the rank-level distance to a target rank.")
     .addUserOption(o=>o.setName("member").setDescription("Member to check").setRequired(true))
     .addRoleOption(o=>o.setName("target_rank").setDescription("Configured target rank").setRequired(true)),
@@ -300,7 +300,7 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName("rank-help")
-    .setDescription("Show Paradoxplus command help."),
+    .setDescription("Show Elixe • As command help."),
 
 
   new SlashCommandBuilder().setName("modlog").setDescription("View recent moderation actions.")
@@ -396,7 +396,7 @@ const commands = [
     .addStringOption(o=>o.setName("topic").setDescription("New topic").setMaxLength(1024).setRequired(true)),
 
 
-  new SlashCommandBuilder().setName("recovery").setDescription("Paradox • Core message and channel recovery center.")
+  new SlashCommandBuilder().setName("recovery").setDescription("Elixe • As message and channel recovery center.")
     .addSubcommand(sc=>sc.setName("setup").setDescription("Set the deletion approval review channel.")
       .addChannelOption(o=>o.setName("channel").setDescription("Private review channel").addChannelTypes(ChannelType.GuildText).setRequired(true)))
     .addSubcommand(sc=>sc.setName("messages").setDescription("Browse archived messages.")
@@ -434,7 +434,7 @@ const commands = [
       .addSubcommand(sc => sc.setName("remove").setDescription("Remove a user from anti-nuke protection.")
         .addUserOption(o => o.setName("user").setDescription("User to untrust").setRequired(true)))
       .addSubcommand(sc => sc.setName("list").setDescription("List all anti-nuke trusted users."))),
-  new SlashCommandBuilder().setName("antinuke").setDescription("View and run Paradox • Core anti-nuke protection.")
+  new SlashCommandBuilder().setName("antinuke").setDescription("View and run Elixe • As anti-nuke protection.")
     .addSubcommand(sc=>sc.setName("status").setDescription("View active anti-nuke protections and backup status."))
     .addSubcommand(sc=>sc.setName("backup-now").setDescription("Create an immediate channel-configuration backup.")),
   new SlashCommandBuilder().setName("message-archive").setDescription("Export archived messages from a channel (two-owner access only).")
