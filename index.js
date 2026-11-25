@@ -77,9 +77,9 @@ function buildServerInfoEmbed(guild, requester) {
   const logo = guild.iconURL({ size: 256 });
   return new EmbedBuilder()
     .setColor(0x7c5cff)
-    .setAuthor({ name: "PARADOX • CORE", ...(logo ? { iconURL: logo } : {}) })
+    .setAuthor({ name: "ELIXE • AS", ...(logo ? { iconURL: logo } : {}) })
     .setTitle("Server Information")
-    .setDescription("**PARADOX - Beyond The Ordinary**")
+    .setDescription("**ELIXE • AS - Beyond The Ordinary**")
     .setThumbnail(logo)
     .addFields(
       { name: "General Info", value: "**Name:** " + guild.name + "\n**Server ID:** " + guild.id + "\n**Owner:** <@" + guild.ownerId + ">\n**Created:** <t:" + createdAt + ":R> • <t:" + createdAt + ":F>", inline: false },
@@ -87,7 +87,7 @@ function buildServerInfoEmbed(guild, requester) {
       { name: "Boost Status", value: "**Level:** " + guild.premiumTier + "\n**Boosts:** " + (guild.premiumSubscriptionCount ?? 0) + "\n**AFK Timeout:** " + guild.afkTimeout + " sec", inline: true },
       { name: "Channels", value: "**Text:** " + textCount + "\n**Voice:** " + voiceCount + "\n**Categories:** " + categoryCount, inline: false }
     )
-    .setFooter({ text: "Paradox • Core  |  Requested by " + requester.tag + " • Today at" })
+    .setFooter({ text: "Elixe • As  |  Requested by " + requester.tag + " • Today at" })
     .setTimestamp(new Date());
 }
 
@@ -328,7 +328,7 @@ async function syncRankRoles(guild) {
     position: index + 1
   }));
   await saveDatabase();
-  console.log(`[Paradoxplus] Auto-synced ${eligible.length} assignable roles for ${guild.name}.`);
+  console.log(`[Elixe • As] Auto-synced ${eligible.length} assignable roles for ${guild.name}.`);
 }
 
 function getHighestConfiguredRank(member, ranks, roleCache = null) {
@@ -361,7 +361,7 @@ async function sendOptInDmall(guild, config, content) {
       await member.send({
         embeds: [new EmbedBuilder()
           .setColor(0x7c5cff)
-          .setAuthor({ name: "PARADOXPLUS • SERVER MESSAGE", iconURL: guild.iconURL() || undefined })
+          .setAuthor({ name: "ELIXE • AS • SERVER MESSAGE", iconURL: guild.iconURL() || undefined })
           .setDescription(content.slice(0, 3900))
           .setFooter({ text: guild.name + " • You opted in to server DMs" })
           .setTimestamp()]
@@ -395,7 +395,7 @@ function rankChangeEmbed(action, target, oldRank, newRank, actor, reason, guild)
   const style = rankActionStyle(action);
   const embed = new EmbedBuilder()
     .setColor(style.color)
-    .setAuthor({ name: `PARADOXPLUS • ${style.title}`, iconURL: guild.iconURL() || undefined })
+    .setAuthor({ name: `ELIXE • AS • ${style.title}`, iconURL: guild.iconURL() || undefined })
     .setTitle(`${style.emoji} Rank change`)
     .setDescription(`## ${target} ${style.verb} by ${actor}`)
     .addFields(
@@ -403,7 +403,7 @@ function rankChangeEmbed(action, target, oldRank, newRank, actor, reason, guild)
       { name: "➡️ New rank", value: newRank ? `<@&${newRank.id}>` : "Unranked", inline: true },
       { name: "🛡️ Staff member", value: `${actor}`, inline: false }
     )
-    .setFooter({ text: `${guild.name} • Paradoxplus Rank System` })
+    .setFooter({ text: `${guild.name} • Elixe • As Rank System` })
     .setTimestamp();
   if (reason) embed.addFields({ name: "📝 Reason", value: reason.slice(0, 300) });
   return embed;
@@ -425,7 +425,7 @@ async function logRankChange(guild, config, action, target, oldRank, newRank, ac
 }
 
 async function applyRank(interaction, target, desiredRank, action, reason) {
-  if (isBotOwner(target.id)) return replyError(interaction, "🛡️ The Paradox • Core owner is protected from rank changes.");
+  if (isBotOwner(target.id)) return replyError(interaction, "🛡️ The Elixe • As owner is protected from rank changes.");
   const config = getGuildConfig(interaction.guildId);
   if (config.ranks.length < 2) {
     return replyError(interaction, "The rank hierarchy needs at least two ranks. Ask an administrator to configure it with `/rank-config add`.");
@@ -576,7 +576,7 @@ async function removeStrikes(guild, config, target, moderator, amount, reason, s
   return { total };
 }
 
-// Paradox Pulse: privacy-light aggregate community activity, never message contents.
+// Elixe • As Pulse: privacy-light aggregate community activity, never message contents.
 function pulseDay(config) {
   const key = new Date().toISOString().slice(0,10);
   const days = config.pulse.days;
@@ -710,7 +710,7 @@ client.on(Events.MessageCreate, async message => {
         .setColor(0x35d07f)
         .setTitle("✦ Welcome back")
         .setDescription(message.author.toString() + " is no longer AFK. Away for **" + duration + "**.")
-        .setFooter({ text: "Paradoxplus AFK System" })
+        .setFooter({ text: "Elixe • As AFK System" })
         .setTimestamp()],
       allowedMentions: { users: [message.author.id], repliedUser: false }
     }).catch(error => console.error("[AFK] Return notice failed:", error));
@@ -729,7 +729,7 @@ client.on(Events.MessageCreate, async message => {
       .setColor(0x7c5cff)
       .setTitle("✦ AFK notice")
       .setDescription(details.join("\n"))
-      .setFooter({ text: "Paradoxplus AFK System" })],
+      .setFooter({ text: "Elixe • As AFK System" })],
     allowedMentions: { parse: [], repliedUser: false }
   }).catch(error => console.error("[AFK] Mention notice failed:", error));
 });
@@ -747,7 +747,7 @@ client.on(Events.GuildRoleCreate, async role => {
 
   const triggered = await trackDestructiveAuditAction(role.guild, entry.executorId, "role-create", "roles created");
   if (triggered && role.editable) {
-    await role.delete("Paradox • Core anti-nuke: remove role created during a confirmed rapid role-creation attack")
+    await role.delete("Elixe • As anti-nuke: remove role created during a confirmed rapid role-creation attack")
       .catch(error => console.error("[ANTI-NUKE] Could not remove attack-created role:", error));
   }
 });
@@ -831,7 +831,7 @@ async function notifyAntiNukeOwner(guild, message) {
     const owner = await client.users.fetch(BOT_OWNER_ID);
     const alert = new EmbedBuilder()
       .setColor(0x202225)
-      .setTitle("🛡️ Paradox • Core  |  Security Alert")
+      .setTitle("🛡️ Elixe • As  |  Security Alert")
       .setDescription(String(message).slice(0, 3900))
       .addFields({ name: "Server", value: String(guild.name || "Unknown").slice(0, 100) + "\n" + guild.id, inline: false })
       .setFooter({ text: "ANTI-NUKE SYSTEM  •  Automated security notice" })
@@ -868,7 +868,7 @@ async function enforceRapidBanProtection(guild, bannedUser) {
         await notifyAntiNukeOwner(guild, "Detected " + count + " bans in 12 seconds by <@" + executorId + ">, but Discord says the executor is not bannable. Check bot permissions and role hierarchy.");
         continue;
       }
-      await actor.ban({ reason: "Paradox • Core anti-nuke: rapid mass-ban activity (" + count + " bans in 12 seconds)" });
+      await actor.ban({ reason: "Elixe • As anti-nuke: rapid mass-ban activity (" + count + " bans in 12 seconds)" });
       console.error("[ANTI-NUKE] Banned rapid mass-ban executor:", executorId, "bans:", count);
       await notifyAntiNukeOwner(guild, "Banned <@" + executorId + "> after detecting " + count + " bans in 12 seconds.");
     }
@@ -890,7 +890,7 @@ async function punishAntiNukeExecutor(guild, executorId, reason) {
     return false;
   }
   try {
-    await guild.members.ban(executorId, { reason: "Paradox • Core anti-nuke: " + reason });
+    await guild.members.ban(executorId, { reason: "Elixe • As anti-nuke: " + reason });
     console.error("[ANTI-NUKE] Banned executor:", executorId, reason);
     await notifyAntiNukeOwner(guild, "Banned <@" + executorId + "> for: " + reason);
     return true;
@@ -924,7 +924,7 @@ async function inspectRolePermissionEscalation(oldRole, newRole) {
     console.error("[ANTI-NUKE] Reverted dangerous permissions on role:", newRole.id, "executor:", executorId);
   } catch (error) {
     console.error("[ANTI-NUKE] Failed to revert dangerous role permissions:", error);
-    await notifyAntiNukeOwner(guild, "A role gained dangerous permissions, but Paradox could not revert them. Role: " + newRole.id + "; executor: " + executorId);
+    await notifyAntiNukeOwner(guild, "A role gained dangerous permissions, but Elixe could not revert them. Role: " + newRole.id + "; executor: " + executorId);
   }
   await punishAntiNukeExecutor(guild, executorId, "granting dangerous permissions to role " + newRole.name);
 }
@@ -981,7 +981,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
       } catch (error) { console.warn("[OwnerProtection] Audit lookup failed:", error.message); }
     }
     if (newlyTimedOut && newMember.communicationDisabledUntilTimestamp) {
-      await newMember.timeout(null, "Paradox • Core owner protection: revert unauthorized timeout");
+      await newMember.timeout(null, "Elixe • As owner protection: revert unauthorized timeout");
     }
     // If the configured owner deliberately removes their own roles, respect that.
     // Otherwise restore every removed role the bot is allowed to manage, even if
@@ -990,7 +990,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
       const restorable = [...removedOwnerRoles.values()].filter(role => role.editable);
       const unmanageable = [...removedOwnerRoles.values()].filter(role => !role.editable);
       if (restorable.length) {
-        await newMember.roles.add(restorable, "Paradox • Core owner protection: restore all removed manageable owner roles");
+        await newMember.roles.add(restorable, "Elixe • As owner protection: restore all removed manageable owner roles");
       }
       if (unmanageable.length) {
         console.warn("[OwnerProtection] Could not restore roles above the bot or otherwise unmanageable:", unmanageable.map(role => role.id).join(", "));
@@ -1000,7 +1000,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
     if (executor && executor.bot && executor.id !== client.user.id) {
       const botMember = await newMember.guild.members.fetch(executor.id).catch(() => null);
       if (botMember && botMember.kickable) {
-        await botMember.kick("Paradox • Core owner protection: attempted to timeout or demote bot owner");
+        await botMember.kick("Elixe • As owner protection: attempted to timeout or demote bot owner");
         await notifyAntiNukeOwner(newMember.guild, "🛡️ Kicked bot <@" + executor.id + "> after it attempted to timeout or remove roles from the bot owner.");
       } else {
         await notifyAntiNukeOwner(newMember.guild, "⚠️ Bot <@" + executor.id + "> attempted to target the bot owner, but I could not kick it. Check Kick Members permission and role position.");
@@ -1034,7 +1034,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
     console.error("[ANTI-NUKE] Removed dangerous role assignment from member:", newMember.id);
   } catch (error) {
     console.error("[ANTI-NUKE] Failed to remove dangerous role assignment:", error);
-    await notifyAntiNukeOwner(newMember.guild, "A member received a dangerous-permission role that Paradox could not remove. Member: " + newMember.id);
+    await notifyAntiNukeOwner(newMember.guild, "A member received a dangerous-permission role that Elixe could not remove. Member: " + newMember.id);
   }
   await punishAntiNukeExecutor(newMember.guild, executorId, "assigning dangerous role(s) to <@" + newMember.id + ">");
 });
@@ -1079,7 +1079,7 @@ async function inspectNewBot(member) {
   console.warn("[ANTI-NUKE] New bot joined:", { botId: member.id, executorId, dangerousPermissions: hasDangerousPermission });
   if (!hasDangerousPermission || member.id === client.user.id || isAntiNukeTrustedActor(member.guild, executorId)) return false;
   try {
-    await member.guild.members.ban(member.id, { reason: "Paradox • Core anti-nuke: newly added bot had elevated server permissions" });
+    await member.guild.members.ban(member.id, { reason: "Elixe • As anti-nuke: newly added bot had elevated server permissions" });
     console.error("[ANTI-NUKE] Removed newly added bot with elevated permissions:", member.id);
     await notifyAntiNukeOwner(member.guild, "Removed newly added bot <@" + member.id + "> because it had Administrator/moderation/server-management permissions. Added by: " + (executorId ? "<@" + executorId + ">." : "unknown (audit-log executor unavailable)."));
   } catch (error) {
@@ -1144,7 +1144,7 @@ async function restoreDeletedChannel(channel, selectedSnapshot = null) {
 
   const restored = await guild.channels.create({
     ...options,
-    reason: "Paradox • Core automatic recovery after unauthorized channel deletion"
+    reason: "Elixe • As automatic recovery after unauthorized channel deletion"
   });
   await restored.setPosition(saved.position).catch(error => {
     console.error("[CHANNEL-ANTI-NUKE] Could not restore channel position:", error);
@@ -1191,7 +1191,7 @@ async function buildArchivedMessagePayload(guild, row) {
     .setColor(0x7c5cff)
     .setAuthor({ name: displayName, ...(avatarUrl ? { iconURL: avatarUrl } : {}) })
     .setDescription(description)
-    .setFooter({ text: "Original author • Recovered by Paradox • Core" });
+    .setFooter({ text: "Original author • Recovered by Elixe • As" });
   if (createdAt && !Number.isNaN(createdAt.getTime())) embed.setTimestamp(createdAt);
 
   return {
@@ -1233,7 +1233,7 @@ client.on(Events.ChannelCreate, async channel => {
 
   const triggered = await trackDestructiveAuditAction(channel.guild, entry.executorId, "channel-create", "channels created");
   if (triggered && channel.deletable) {
-    await channel.delete("Paradox • Core anti-nuke: remove channel created during a confirmed rapid channel-creation attack")
+    await channel.delete("Elixe • As anti-nuke: remove channel created during a confirmed rapid channel-creation attack")
       .catch(error => console.error("[ANTI-NUKE] Could not remove attack-created channel:", error));
   }
 });
@@ -1305,10 +1305,10 @@ async function inspectChannelPermissionEscalation(oldChannel, newChannel) {
         await newChannel.permissionOverwrites.edit(change.targetId, {
           allow: change.previous.allow.bitfield,
           deny: change.previous.deny.bitfield
-        }, "Paradox • Core anti-nuke: revert unauthorized dangerous channel permission escalation");
+        }, "Elixe • As anti-nuke: revert unauthorized dangerous channel permission escalation");
       } else {
         await newChannel.permissionOverwrites.delete(change.targetId,
-          "Paradox • Core anti-nuke: remove unauthorized dangerous channel permission overwrite");
+          "Elixe • As anti-nuke: remove unauthorized dangerous channel permission overwrite");
       }
     } catch (error) {
       console.error("[ANTI-NUKE] Failed to revert channel overwrite:", newChannel.id, change.targetId, error);
@@ -1360,7 +1360,7 @@ client.on(Events.WebhooksUpdate, async channel => {
       const triggered = await trackDestructiveAuditAction(channel.guild, entry.executorId, "webhook-change", "webhook changes");
       const webhook = await channel.guild.fetchWebhooks().then(collection => collection.get(entry.targetId)).catch(() => null);
       if (webhook && (type === AuditLogEvent.WebhookCreate || triggered)) {
-        await webhook.delete("Paradox • Core anti-nuke: unauthorized webhook creation/update")
+        await webhook.delete("Elixe • As anti-nuke: unauthorized webhook creation/update")
           .catch(error => console.error("[ANTI-NUKE] Could not remove unauthorized webhook:", error));
       }
       if (!triggered) {
@@ -1498,10 +1498,10 @@ client.on(Events.GuildRoleDelete, async role => {
     await trackDestructiveAuditAction(role.guild, roleDeleteEntry.executorId, "role-delete", "roles deleted");
   }
 
-  if (role.name !== "Paradox • Core") return;
+  if (role.name !== "Elixe • As") return;
 
   const guild = role.guild;
-  console.error("[ROLE-PROTECTION] Paradox • Core role was deleted. Checking executor and recovery.");
+  console.error("[ROLE-PROTECTION] Elixe • As role was deleted. Checking executor and recovery.");
 
   // Identify the executor before taking recovery action so explicitly trusted users are exempt.
   await new Promise(resolve => setTimeout(resolve, 1500));
@@ -1530,7 +1530,7 @@ client.on(Events.GuildRoleDelete, async role => {
       hoist: role.hoist,
       permissions: role.permissions.bitfield,
       mentionable: role.mentionable,
-      reason: "Automatic recovery: protected Paradox • Core role was deleted"
+      reason: "Automatic recovery: protected Elixe • As role was deleted"
     });
     await recreatedRole.setPosition(Math.min(role.position, guild.roles.highest.position - 1)).catch(error => {
       console.error("[ROLE-PROTECTION] Could not restore the original role position:", error);
@@ -1551,7 +1551,7 @@ client.on(Events.GuildRoleDelete, async role => {
     return;
   }
   try {
-    await executor.ban({ reason: "Paradox • Core role protection: deleting the protected role" });
+    await executor.ban({ reason: "Elixe • As role protection: deleting the protected role" });
     console.log("[ROLE-PROTECTION] Banned role deleter:", executorId);
   } catch (error) {
     console.error("[ROLE-PROTECTION] Could not ban role deleter:", error);
@@ -1559,7 +1559,7 @@ client.on(Events.GuildRoleDelete, async role => {
 });
 
 
-// Paradoxplus live member counter: a locked text channel placed above categories.
+// Elixe • As live member counter: a locked text channel placed above categories.
 const MEMBER_COUNTER_GUILD_ID = "1572968551973654528";
 let memberCounterSync = Promise.resolve();
 
@@ -1577,7 +1577,7 @@ async function syncMemberCounter(guild) {
       const existingCounter = guild.channels.cache.find(candidate =>
         candidate.type === ChannelType.GuildText &&
         (
-          candidate.topic?.includes("PARADOXPLUS LIVE COMMUNITY COUNT") ||
+          candidate.topic?.includes("ELIXE • AS LIVE COMMUNITY COUNT") ||
           /^✦・members・[\\d,]+$/.test(candidate.name)
         )
       );
@@ -1598,11 +1598,11 @@ async function syncMemberCounter(guild) {
       channel = await guild.channels.create({
         name: "✦・members・" + guild.memberCount.toLocaleString(),
         type: ChannelType.GuildText,
-        topic: "✦ PARADOXPLUS LIVE COMMUNITY COUNT • Updates automatically",
+        topic: "✦ ELIXE • AS LIVE COMMUNITY COUNT • Updates automatically",
         permissionOverwrites: [
           { id: guild.roles.everyone.id, allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages, PermissionFlagsBits.CreatePublicThreads, PermissionFlagsBits.CreatePrivateThreads] }
         ],
-        reason: "Create the Paradoxplus live member counter"
+        reason: "Create the Elixe • As live member counter"
       });
       config.memberCounterChannelId = channel.id;
       await saveDatabase();
@@ -1610,15 +1610,15 @@ async function syncMemberCounter(guild) {
     }
 
     const desiredName = "✦・members・" + guild.memberCount.toLocaleString();
-    if (channel.name !== desiredName) await channel.setName(desiredName, "Update live Paradoxplus member count");
+    if (channel.name !== desiredName) await channel.setName(desiredName, "Update live Elixe • As member count");
     if (channel.parentId) await channel.setParent(null, { lockPermissions: false, reason: "Keep member counter above all categories" });
-    await channel.setPosition(0, { reason: "Keep Paradoxplus member counter at the top" });
+    await channel.setPosition(0, { reason: "Keep Elixe • As member counter at the top" });
   });
   return memberCounterSync;
 }
 
-// Paradox • Core is a bot-managed security role: only this bot may grant it.
-const CORE_ROLE_NAME = "Paradox • Core";
+// Elixe • As is a bot-managed security role: only this bot may grant it.
+const CORE_ROLE_NAME = "Elixe • As";
 const CORE_ROLE_GUILD_ID = "1572968551973654528";
 const coreRoleChecks = new Set();
 
@@ -1660,10 +1660,10 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
       const freshMember = await newMember.guild.members.fetch(newMember.id).catch(() => null);
       if (freshMember?.roles.cache.has(role.id)) {
         await freshMember.roles.remove(role.id, executor
-          ? "Paradox • Core is restricted to bot-only assignment; unauthorized grant reverted."
-          : "Paradox • Core is restricted to bot-only assignment; grant actor could not be verified.");
+          ? "Elixe • As is restricted to bot-only assignment; unauthorized grant reverted."
+          : "Elixe • As is restricted to bot-only assignment; grant actor could not be verified.");
       }
-      console.warn("[CoreRoleGuard] Reverted unauthorized Paradox • Core grant.", {
+      console.warn("[CoreRoleGuard] Reverted unauthorized Elixe • As grant.", {
         memberId: newMember.id,
         executorId: executor?.id ?? null,
         roleId: role.id
@@ -1698,7 +1698,7 @@ client.on(Events.GuildMemberAdd, async member => {
   const autobanEntry = config.autobanList.find(entry => entry && entry.userId === member.id);
   if (autobanEntry) {
     try {
-      await member.ban({ reason: "Paradox • Core autoban: " + (autobanEntry.reason || "User is on the owner-managed autoban list") });
+      await member.ban({ reason: "Elixe • As autoban: " + (autobanEntry.reason || "User is on the owner-managed autoban list") });
       console.log("[AutoBan] Re-banned listed user on join:", member.id);
     } catch (error) {
       console.error("[AutoBan] Failed to re-ban listed user:", member.id, error);
@@ -1725,7 +1725,7 @@ client.on(Events.GuildMemberAdd, async member => {
   }
   void saveDatabase().catch(error => console.error("[AutoRole] Config save failed:", error));
 
-  // Ghost-ping each newly joined member in the configured Paradoxplus channel.
+  // Ghost-ping each newly joined member in the configured Elixe • As channel.
   // Explicitly allow only this member mention; delete the ping immediately after sending.
   const autoGhostChannel = member.guild.channels.cache.get("1572968553617817760")
     ?? await member.guild.channels.fetch("1572968553617817760").catch(() => null);
@@ -1756,7 +1756,7 @@ client.on(Events.GuildMemberAdd, async member => {
     .setDescription(buildWelcomeDescription(member.guild, member))
     .setThumbnail(config.welcomeThumbnailUrl || member.user.displayAvatarURL({ extension: "png", size: 256 }))
     .setImage(config.welcomeImageUrl || WELCOME_BANNER_URL)
-    .setFooter({ text: "Paradox • Core  •  Member #" + count })
+    .setFooter({ text: "Elixe • As  •  Member #" + count })
     .setTimestamp();
   await channel.send({
     embeds: [embed],
@@ -2021,7 +2021,7 @@ async function restoreDeletedGuildEmoji(emoji) {
     const restored = await guild.emojis.create({
       attachment: file,
       name: String(saved.name || emoji.name || "restored_emoji").slice(0, 32),
-      reason: "Paradox • Core anti-nuke: restore unauthorized deleted custom emoji"
+      reason: "Elixe • As anti-nuke: restore unauthorized deleted custom emoji"
     });
     if (saved.roles?.length) {
       const validRoles = saved.roles.filter(roleId => guild.roles.cache.has(roleId));
@@ -2097,7 +2097,7 @@ async function restoreDeletedGuildSticker(sticker) {
       name: String(saved.name || sticker.name).slice(0, 30),
       description: saved.description || undefined,
       tags: String(saved.tags || "✨").slice(0, 200),
-      reason: "Paradox • Core anti-nuke: restore unauthorized deleted sticker"
+      reason: "Elixe • As anti-nuke: restore unauthorized deleted sticker"
     });
     await notifyAntiNukeOwner(guild, "Restored deleted sticker " + saved.name + " as " + restored.id + ". Deleter: <@" + executorId + ">.");
     await punishAntiNukeExecutor(guild, executorId, "deleting sticker " + saved.name);
@@ -2240,8 +2240,8 @@ client.once(Events.ClientReady, async readyClient => {
     const formerTrustedOwner = await rankGuild.members.fetch("1531335321537482903").catch(() => null);
     const coreRole = rankGuild.roles.cache.find(role => role.name === CORE_ROLE_NAME);
     if (formerTrustedOwner && coreRole && formerTrustedOwner.roles.cache.has(coreRole.id)) {
-      await formerTrustedOwner.roles.remove(coreRole, "Remove Paradox • Core access after trusted-owner review")
-        .then(() => console.log("[CoreRole] Removed Paradox • Core from former trusted owner."))
+      await formerTrustedOwner.roles.remove(coreRole, "Remove Elixe • As access after trusted-owner review")
+        .then(() => console.log("[CoreRole] Removed Elixe • As from former trusted owner."))
         .catch(error => console.error("[CoreRole] Could not remove Core role from former trusted owner:", error));
     }
   }
@@ -2429,7 +2429,7 @@ function giveawayEmbed(giveaway) {
   const winners = Array.isArray(giveaway.winners) ? giveaway.winners : [];
   return new EmbedBuilder()
     .setColor(ended ? 0x747f8d : 0x7c5cff)
-    .setAuthor({ name: "PARADOXPLUS • GIVEAWAY", iconURL: client.user.displayAvatarURL() })
+    .setAuthor({ name: "ELIXE • AS • GIVEAWAY", iconURL: client.user.displayAvatarURL() })
     .setTitle((ended ? "🏁 " : "🎉 ") + giveaway.prize)
     .setDescription(
       (giveaway.description ? giveaway.description + "\n\n" : "") +
@@ -2440,7 +2440,7 @@ function giveawayEmbed(giveaway) {
       (ended ? "\n**Winner(s):** " + (winners.length ? winners.map(id => "<@" + id + ">").join(", ") : "No valid entries") : "\n**Ends:** <t:" + Math.floor(giveaway.endsAt / 1000) + ":R>") +
       "\n\n**Giveaway ID:** " + giveaway.messageId
     )
-    .setFooter({ text: "Paradoxplus Giveaway Manager • Fair random draw" })
+    .setFooter({ text: "Elixe • As Giveaway Manager • Fair random draw" })
     .setTimestamp(new Date(giveaway.createdAt));
 }
 
@@ -2508,7 +2508,7 @@ setInterval(async () => {
 
 
 // Modrinth texture-pack dropper. Uses the public API; only explicitly permissive licences are eligible for file re-upload.
-const MODRINTH_USER_AGENT = "Paradoxplus/1.0.0 (Discord texture-pack dropper)";
+const MODRINTH_USER_AGENT = "Elixe • As/1.0.0 (Discord texture-pack dropper)";
 const MODRINTH_MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 const MODRINTH_REDISTRIBUTABLE_LICENSES = new Set([
   "CC0-1.0", "CC-BY-4.0", "CC-BY-SA-4.0",
@@ -2735,7 +2735,7 @@ client.on(Events.MessageReactionRemove, (reaction, user) => {
 client.on(Events.InteractionCreate, async interaction => {
   if (interaction.isButton() && interaction.customId.startsWith("px_delete_approval:")) {
     if (!interaction.inGuild()) return interaction.reply({ content: "Server-only approval.", ephemeral: true });
-    if (interaction.user.id !== interaction.guild.ownerId && !isBotOwner(interaction.user.id)) return interaction.reply({ content: "Only the server owner or Paradox • Core owner can decide.", ephemeral: true });
+    if (interaction.user.id !== interaction.guild.ownerId && !isBotOwner(interaction.user.id)) return interaction.reply({ content: "Only the server owner or Elixe • As owner can decide.", ephemeral: true });
     const parts = interaction.customId.split(":");
     const decision = parts[1], deletedChannelId = parts[2];
     const cfg = getGuildConfig(interaction.guildId);
@@ -2753,7 +2753,7 @@ client.on(Events.InteractionCreate, async interaction => {
       await saveDatabase();
       let result = "The recovered channel remains available.";
       if (pending.executorId && pending.executorId !== interaction.guild.ownerId && pending.executorId !== client.user.id) {
-        await interaction.guild.members.ban(pending.executorId, { reason: "Paradox • Core: deletion request rejected by server owner" })
+        await interaction.guild.members.ban(pending.executorId, { reason: "Elixe • As: deletion request rejected by server owner" })
           .then(() => { result += " The requester was banned."; })
           .catch(error => { result += " Ban failed: " + String(error.message || error).slice(0, 150); });
       }
@@ -2892,7 +2892,7 @@ client.on(Events.InteractionCreate, async interaction => {
         return replyError(interaction, "You need Manage Server or Administrator to manage the texture-pack dropper.");
       }
       if (interaction.guildId !== "1572968551973654528") {
-        return replyError(interaction, "The Modrinth texture-pack dropper is configured for the Paradoxplus main server only.");
+        return replyError(interaction, "The Modrinth texture-pack dropper is configured for the Elixe • As main server only.");
       }
       const dropper = config.tpackDropper;
       if (interaction.commandName === "tpackstatus") {
@@ -2987,7 +2987,7 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 
     if (interaction.commandName === "recovery") {
-      if (interaction.user.id !== BOT_OWNER_ID && interaction.user.id !== interaction.guild.ownerId) return replyError(interaction, "Only the server owner or Paradox • Core owner can use Recovery Center.");
+      if (interaction.user.id !== BOT_OWNER_ID && interaction.user.id !== interaction.guild.ownerId) return replyError(interaction, "Only the server owner or Elixe • As owner can use Recovery Center.");
       const action = interaction.options.getSubcommand();
       if (action === "setup") {
         const channel = interaction.options.getChannel("channel", true);
@@ -3042,10 +3042,10 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (interaction.commandName === "owner") {
       if (!isBotOwner(interaction.user.id)) {
-        return replyError(interaction, "Only Fearless, the configured Paradox • Core bot owner, can manage this whitelist.");
+        return replyError(interaction, "Only Fearless, the configured Elixe • As bot owner, can manage this whitelist.");
       }
       if (interaction.guildId !== ANTI_NUKE_GUILD_ID) {
-        return replyError(interaction, "The owner whitelist is configured for the Paradoxplus main server only.");
+        return replyError(interaction, "The owner whitelist is configured for the Elixe • As main server only.");
       }
       if (interaction.options.getSubcommandGroup() !== "whitelist") {
         return replyError(interaction, "Unknown owner whitelist action.");
@@ -3114,10 +3114,10 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (interaction.commandName === "antinuke") {
       if (!isBotOwner(interaction.user.id)) {
-        return replyError(interaction, "Only Fearless, the configured Paradox • Core bot owner, can manage anti-nuke tools.");
+        return replyError(interaction, "Only Fearless, the configured Elixe • As bot owner, can manage anti-nuke tools.");
       }
       if (interaction.guildId !== "1572968551973654528") {
-        return replyError(interaction, "Anti-nuke controls are configured for the Paradoxplus main server only.");
+        return replyError(interaction, "Anti-nuke controls are configured for the Elixe • As main server only.");
       }
       const action = interaction.options.getSubcommand();
       if (action === "status") {
@@ -3142,7 +3142,7 @@ client.on(Events.InteractionCreate, async interaction => {
           .map(([, name]) => name);
         const status = new EmbedBuilder()
           .setColor(0x15171c)
-          .setAuthor({ name: "PARADOX • CORE  /  SECURITY CENTER" })
+          .setAuthor({ name: "ELIXE • AS  /  SECURITY CENTER" })
           .setTitle("ANTI-NUKE OVERVIEW")
           .setDescription(missingSecurityPermissions.length
             ? "**DEGRADED PROTECTION**  ·  Missing bot permissions can prevent some detections or recovery actions. Fix the permissions listed below."
@@ -3156,10 +3156,10 @@ client.on(Events.InteractionCreate, async interaction => {
             { name: "06  /  Message deletion", value: "Bulk deletion of 10 or more messages triggers an owner alert with the identified actor when Discord audit logs provide one. Archived message records are retained for later review/export; Discord messages are not automatically reposted.", inline: false },
             { name: "BOT PERMISSIONS", value: missingSecurityPermissions.length ? "**MISSING:** " + missingSecurityPermissions.join(", ") : "All required anti-nuke permissions are present.", inline: false },
             { name: "LATEST SNAPSHOT", value: latestBackup || "No snapshot file found.", inline: true },
-            { name: "TRUST MODEL", value: "Only the actual server owner, Paradox • Core bot, configured bot owner, and users explicitly added to the owner-managed whitelist are exempt. Server administrators and moderators are not automatically trusted.", inline: true },
+            { name: "TRUST MODEL", value: "Only the actual server owner, Elixe • As bot, configured bot owner, and users explicitly added to the owner-managed whitelist are exempt. Server administrators and moderators are not automatically trusted.", inline: true },
             { name: "CURRENT LIMITATIONS", value: "No panic-lockdown or quarantine workflow yet. This is not full Wick parity; deleted webhook tokens and all deleted server assets cannot be restored automatically.", inline: false }
           )
-          .setFooter({ text: "PARADOX • CORE  /  SECURITY OPERATIONS" })
+          .setFooter({ text: "ELIXE • AS  /  SECURITY OPERATIONS" })
           .setTimestamp();
         return interaction.reply({ embeds: [status], ephemeral: true });
       }
@@ -3178,7 +3178,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (interaction.commandName === "message-archive") {
       if (!["1191997911144349738", BOT_OWNER_ID].includes(interaction.user.id)) {
-        return replyError(interaction, "Only the two designated Paradox • Core owners can export archived messages.");
+        return replyError(interaction, "Only the two designated Elixe • As owners can export archived messages.");
       }
       const subcommand = interaction.options.getSubcommand();
       if (subcommand !== "export") return replyError(interaction, "Unknown message archive action.");
@@ -3190,7 +3190,7 @@ client.on(Events.InteractionCreate, async interaction => {
         const rows = await getArchivedChannelMessages(interaction.guildId, channelId, deletedOnly, 1000);
         if (!rows.length) return interaction.editReply("No archived messages were found for that channel.");
         const lines = [
-          "PARADOX • CORE MESSAGE ARCHIVE",
+          "ELIXE • AS MESSAGE ARCHIVE",
           "Server: " + interaction.guild.name + " (" + interaction.guildId + ")",
           "Channel ID: " + channelId,
           "Exported: " + new Date().toISOString(),
@@ -3518,7 +3518,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (interaction.commandName === "selfroles") {
       if (interaction.guildId !== "1572968551973654528") {
-        return replyError(interaction, "This self-role panel is configured for the Paradoxplus main server only.");
+        return replyError(interaction, "This self-role panel is configured for the Elixe • As main server only.");
       }
       const canPublish = isBotOwner(interaction.user.id) ||
         interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) ||
@@ -3563,10 +3563,10 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (interaction.commandName === "tag") {
       if (!isBotOwner(interaction.user.id)) {
-        return replyError(interaction, "Only the Paradox • Core bot owner can run a team-wide nickname tag.");
+        return replyError(interaction, "Only the Elixe • As bot owner can run a team-wide nickname tag.");
       }
       if (interaction.guildId !== "1572968551973654528") {
-        return replyError(interaction, "This command is configured for the Paradoxplus main server only.");
+        return replyError(interaction, "This command is configured for the Elixe • As main server only.");
       }
       if (interaction.options.getSubcommand() !== "all") return;
       const selectedRole = interaction.options.getRole("role", true);
@@ -3727,7 +3727,7 @@ client.on(Events.InteractionCreate, async interaction => {
           .setDescription(buildWelcomeDescription(interaction.guild, interaction.member))
           .setThumbnail(config.welcomeThumbnailUrl || interaction.user.displayAvatarURL({ extension: "png", size: 256 }))
           .setImage(config.welcomeImageUrl || WELCOME_BANNER_URL)
-          .setFooter({ text: "Paradox • Core  •  Member #" + count })
+          .setFooter({ text: "Elixe • As  •  Member #" + count })
           .setTimestamp();
         try {
           await interaction.user.send({ embeds: [embed], allowedMentions: { parse: [] } });
@@ -3775,7 +3775,7 @@ client.on(Events.InteractionCreate, async interaction => {
       config.dmOptIns = config.dmOptIns.filter(id => id !== interaction.user.id);
       if (enabled) config.dmOptIns.push(interaction.user.id);
       await saveDatabase();
-      return interaction.reply({ content: enabled ? "✅ You opted in to Paradoxplus server DMs. Use /dm-optout any time to stop." : "✅ You opted out. Paradoxplus will no longer send you server DMs.", ephemeral: true });
+      return interaction.reply({ content: enabled ? "✅ You opted in to Elixe • As server DMs. Use /dm-optout any time to stop." : "✅ You opted out. Elixe • As will no longer send you server DMs.", ephemeral: true });
     }
 
     if (interaction.commandName === "dmall") {
@@ -3939,7 +3939,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (sub === "backup") {
         const backup = JSON.stringify({ version: 1, guildId: interaction.guildId, config }, null, 2);
         return interaction.reply({
-          content: "Your server's Paradoxplus configuration backup is attached.",
+          content: "Your server's Elixe • As configuration backup is attached.",
           files: [{ attachment: Buffer.from(backup, "utf8"), name: `paradoxplus-backup-${interaction.guildId}.json` }],
           ephemeral: true
         });
@@ -4016,7 +4016,7 @@ client.on(Events.InteractionCreate, async interaction => {
     if (interaction.commandName === "rank-help") {
       return interaction.reply({
         content: [
-          "**Paradoxplus commands**",
+          "**Elixe • As commands**",
           "`/rank` — check a member's rank",
           "`/rank-panel` — view the rank hierarchy",
           "`/rank-history member:` — view rank changes",
@@ -4056,7 +4056,7 @@ client.on(Events.InteractionCreate, async interaction => {
       const user = interaction.options.getUser("member",true);
       const target = await interaction.guild.members.fetch(user.id).catch(()=>null);
       if (!target) return replyError(interaction,"That member isn't in this server.");
-      if (isBotOwner(target.id)) return replyError(interaction, "🛡️ The Paradox • Core owner is protected from moderation actions.");
+      if (isBotOwner(target.id)) return replyError(interaction, "🛡️ The Elixe • As owner is protected from moderation actions.");
       if (target.id === interaction.user.id || target.id === client.user.id) return replyError(interaction,"You can't use this command on yourself or the bot.");
       const actor = await interaction.guild.members.fetch(interaction.user.id);
       if (!canActOnTarget(actor,target,interaction.guild)) return replyError(interaction,"That member has an equal or higher role than you.");
@@ -4102,7 +4102,7 @@ client.on(Events.InteractionCreate, async interaction => {
       const active = config.strikes.filter(item => item.memberId === user.id);
       const history = config.strikeHistory.filter(item => item.memberId === user.id).slice(0, 8);
       const lines = history.map(item => "• **#" + item.id + "** " + item.reason.slice(0, 140) + " — <t:" + Math.floor(new Date(item.timestamp).getTime()/1000) + ":R>" + (item.removedAt ? " • Revoked" : ""));
-      const embed = new EmbedBuilder().setColor(0x7c5cff).setAuthor({name:"PARADOXPLUS • MODERATION",iconURL:client.user.displayAvatarURL()})
+      const embed = new EmbedBuilder().setColor(0x7c5cff).setAuthor({name:"ELIXE • AS • MODERATION",iconURL:client.user.displayAvatarURL()})
         .setTitle("📋 Strike record")
         .setDescription("**Member:** <@" + user.id + ">\n**Active strikes:** **" + active.length + "**\n\n**Recent strike history**\n" + (lines.join("\n") || "No strike history found."))
         .setFooter({text:"Revoked strikes remain visible in the audit history."}).setTimestamp();
@@ -4282,7 +4282,7 @@ client.on(Events.InteractionCreate, async interaction => {
         if(!has(PermissionFlagsBits.ModerateMembers))return replyError(interaction,"You need Moderate Members or Administrator.");
         const counts={}; for(const c of config.moderationCases)counts[c.action]=(counts[c.action]||0)+1;
         const summary=Object.entries(counts).map(([k,v])=>`• **${k}**: ${v}`).join("\n")||"No moderation cases yet.";
-        return interaction.reply({content:`**Paradoxplus moderation statistics**\nTotal cases: **${config.moderationCases.length}**\nWarnings recorded: **${config.warnings.length}**\n\n${summary}`,ephemeral:true});
+        return interaction.reply({content:`**Elixe • As moderation statistics**\nTotal cases: **${config.moderationCases.length}**\nWarnings recorded: **${config.warnings.length}**\n\n${summary}`,ephemeral:true});
       }
     }
 
@@ -4561,7 +4561,7 @@ client.on(Events.InteractionCreate, async interaction => {
             const updated = EmbedBuilder.from(reviewMessage.embeds[0] || new EmbedBuilder())
               .setColor(statusColor)
               .setDescription(`**Member:** <@${user.id}> (\`${user.id}\`)\n**Status:** ${statusLabel}\n**Reviewed by:** <@${interaction.user.id}>`)
-              .setFooter({ text: note ? `Staff note: ${note.slice(0, 180)}` : "Appeal reviewed by Paradoxplus" })
+              .setFooter({ text: note ? `Staff note: ${note.slice(0, 180)}` : "Appeal reviewed by Elixe • As" })
               .setTimestamp(new Date(appeal.reviewedAt));
             await reviewMessage.edit({ content: "📋 **Inactivity appeal reviewed.**", embeds: [updated], allowedMentions: { parse: [] } }).catch(() => null);
           }
@@ -4592,7 +4592,7 @@ client.on(Events.InteractionCreate, async interaction => {
         leaves: a.leaves + (d.leaves || 0),
         active: a.active + (d.activeIds?.length || 0)
       }), { messages: 0, joins: 0, leaves: 0, active: 0 });
-      const embed = new EmbedBuilder().setColor(0x7c5cff).setTitle("📡 PARADOX PULSE")
+      const embed = new EmbedBuilder().setColor(0x7c5cff).setTitle("📡 ELIXE • AS PULSE")
         .setDescription("Community activity snapshot from the bot's stored daily aggregates.")
         .addFields(
           { name: "💬 Messages tracked", value: String(totals.messages), inline: true },
@@ -4619,7 +4619,7 @@ client.on(Events.InteractionCreate, async interaction => {
       return interaction.reply({
         embeds: [new EmbedBuilder().setColor(0x7c5cff).setTitle("🎯 Rank trajectory")
           .setDescription(`**Member:** ${user}\n**Current:** ${current ? `<@&${current.id}>` : "Unranked"}\n**Target:** <@&${role.id}>\n\n${result}`)
-          .setFooter({ text: "Paradoxplus • Rank intelligence" })],
+          .setFooter({ text: "Elixe • As • Rank intelligence" })],
         ephemeral: true, allowedMentions: { parse: [] }
       });
     }
@@ -4657,7 +4657,7 @@ client.on(Events.InteractionCreate, async interaction => {
           { name: "Joined server", value: member.joinedTimestamp ? `<t:${Math.floor(member.joinedTimestamp/1000)}:D>` : "Unknown", inline: true },
           { name: "Recorded rank changes", value: String(rows.length), inline: true },
           { name: "Recent journey", value: latest.join("\n") || "No rank changes recorded yet." }
-        ).setFooter({ text: "Paradoxplus • Member timeline" });
+        ).setFooter({ text: "Elixe • As • Member timeline" });
       return interaction.reply({ embeds: [embed], ephemeral: true, allowedMentions: { parse: [] } });
     }
 
@@ -4672,7 +4672,7 @@ client.on(Events.InteractionCreate, async interaction => {
         .setThumbnail(user.displayAvatarURL())
         .setDescription(`## ${user} deserves the spotlight!\n${reason}`)
         .addFields({ name: "Current rank", value: rank ? `<@&${rank.id}>` : "Unranked", inline: true })
-        .setFooter({ text: `${interaction.guild.name} • Paradoxplus` }).setTimestamp();
+        .setFooter({ text: `${interaction.guild.name} • Elixe • As` }).setTimestamp();
       return interaction.reply({ embeds: [embed], allowedMentions: { users: [user.id], parse: [] } });
     }
 
@@ -4753,7 +4753,7 @@ const prefixEmbed = (title, description) => new EmbedBuilder()
   .setAuthor({ name: "ＰＡＲＡＤＯＸＰＬＵＳ  •  SYSTEM", iconURL: client.user.displayAvatarURL() })
   .setTitle("✦ " + title)
   .setDescription(description)
-  .setFooter({ text: "PARADOXPLUS  •  Premium rank & moderation system" })
+  .setFooter({ text: "ELIXE • AS  •  Premium rank & moderation system" })
   .setTimestamp();
 const mentionedId = (value, role = false) => value?.match(role ? /^<@&(\d+)>$/ : /^<@!?(\d+)>$/)?.[1] || null;
 
@@ -4769,7 +4769,7 @@ async function applyRecruitPerks(guild, target) {
       results.errors.push('Cannot assign <@&' + roleId + '>; check Manage Roles and role hierarchy.');
       continue;
     }
-    try { await target.roles.add(role, 'Paradoxplus recruitment reward'); rolesAdded++; }
+    try { await target.roles.add(role, 'Elixe • As recruitment reward'); rolesAdded++; }
     catch (error) { results.errors.push('Role <@&' + roleId + '> assignment failed: ' + (error.message || 'check permissions.')); }
   }
   results.role = rolesAdded === roleIds.length;
@@ -4844,7 +4844,7 @@ client.on(Events.MessageCreate, async message => {
             return fail("I saved no entry because Discord won't let me ban that member. Check my Ban Members permission and role position.");
           }
           try {
-            await currentMember.ban({ reason: "Paradox • Core autoban: " + reason });
+            await currentMember.ban({ reason: "Elixe • As autoban: " + reason });
             immediate = "They were also banned immediately because they are currently in the server.";
           } catch (error) {
             config.autobanList = config.autobanList.filter(item => item.userId !== userId);
@@ -4893,7 +4893,7 @@ client.on(Events.MessageCreate, async message => {
         entries.push({
           name: "BACKUP-README.txt",
           data: Buffer.from(
-            "PARADOX • CORE FULL BACKUP\nCreated: " + createdAt +
+            "ELIXE • AS FULL BACKUP\nCreated: " + createdAt +
             "\nPersistent volume files: " + volumeFileCount +
             "\nPostgreSQL: exported successfully" +
             "\nEnvironment variables, Discord tokens, and hosting credentials are intentionally excluded." +
@@ -4904,7 +4904,7 @@ client.on(Events.MessageCreate, async message => {
         const archive = createZip(entries);
         const backupDir = path.join(DATA_DIR, "backups");
         await fs.mkdir(backupDir, { recursive: true });
-        const archivePath = path.join(backupDir, "Paradoxplus-Full-Backup.zip");
+        const archivePath = path.join(backupDir, "Elixe • As-Full-Backup.zip");
         const metadataPath = path.join(backupDir, "download.json");
         const token = crypto.randomBytes(32).toString("hex");
         const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
@@ -4914,7 +4914,7 @@ client.on(Events.MessageCreate, async message => {
         await fs.writeFile(metadataPath, JSON.stringify({
           tokenHash: crypto.createHash("sha256").update(token).digest("hex"),
           expiresAt,
-          filename: "Paradoxplus-Full-Backup.zip",
+          filename: "Elixe • As-Full-Backup.zip",
           size: archive.length,
           createdAt
         }, null, 2));
@@ -4926,8 +4926,8 @@ client.on(Events.MessageCreate, async message => {
         try {
           await message.author.send({
             content:
-              "✦ **PARADOX • CORE — FULL BACKUP READY**\n" +
-              "**Archive:** `Paradoxplus-Full-Backup.zip`\n" +
+              "✦ **ELIXE • AS — FULL BACKUP READY**\n" +
+              "**Archive:** `Elixe • As-Full-Backup.zip`\n" +
               "**Files:** " + volumeFileCount + " persistent-volume files + PostgreSQL export\n" +
               "**Size:** " + (archive.length / 1024 / 1024).toFixed(2) + " MB\n" +
               "**Created:** " + createdAt + "\n" +
@@ -4939,7 +4939,7 @@ client.on(Events.MessageCreate, async message => {
           console.error("[Backup] Could not DM the download link:", dmError);
           return fail("The ZIP was created, but I couldn't DM the download link. Enable DMs from server members and run ?backup again.");
         }
-        return send("✦ FULL BACKUP READY", "A single compressed ZIP was created and the private 24-hour download link was sent to your DMs. Check your DMs for **Paradoxplus-Full-Backup.zip**.");
+        return send("✦ FULL BACKUP READY", "A single compressed ZIP was created and the private 24-hour download link was sent to your DMs. Check your DMs for **Elixe • As-Full-Backup.zip**.");
       } catch (error) {
         console.error("[Backup] Archive creation failed:", error);
         return fail("Backup failed before a download link could be issued: " + String(error?.message || error).slice(0, 500));
@@ -4970,7 +4970,7 @@ client.on(Events.MessageCreate, async message => {
       } catch {
         return fail("One of the backup files is not valid JSON. Nothing was restored.");
       }
-      if (!restoredConfig || typeof restoredConfig !== "object" || !restoredConfig.guilds || typeof restoredConfig.guilds !== "object" || Array.isArray(restoredConfig.guilds)) return fail("The volume backup does not contain a valid Paradoxplus guild configuration.");
+      if (!restoredConfig || typeof restoredConfig !== "object" || !restoredConfig.guilds || typeof restoredConfig.guilds !== "object" || Array.isArray(restoredConfig.guilds)) return fail("The volume backup does not contain a valid Elixe • As guild configuration.");
       if (!isRecruitmentDatabaseReady()) return fail("PostgreSQL is not connected. Set DATABASE_URL on the new Railway bot service first.");
       const configPath = path.join(DATA_DIR, "guild-config.json");
       const tempPath = configPath + ".restore.tmp";
@@ -5015,7 +5015,7 @@ client.on(Events.MessageCreate, async message => {
                 .setDescription(buildWelcomeDescription(message.guild, message.member))
           .setThumbnail(message.author.displayAvatarURL({ extension: "png", size: 256 }))
           .setImage(bannerUrl)
-          .setFooter({ text: "Paradox • Core  •  Member #" + count })
+          .setFooter({ text: "Elixe • As  •  Member #" + count })
           .setTimestamp();
         try {
           await message.author.send({ embeds: [embed], allowedMentions: { parse: [] } });
@@ -5048,7 +5048,7 @@ client.on(Events.MessageCreate, async message => {
         }
         config.welcomeChannelId = channel.id;
         await saveDatabase();
-        return send("✦ Welcome channel configured", "Paradoxplus will now send premium welcome messages in " + channel.toString() + ".");
+        return send("✦ Welcome channel configured", "Elixe • As will now send premium welcome messages in " + channel.toString() + ".");
       }
       if (sub === "remove" || sub === "disable" || sub === "off") {
         if (!config.welcomeChannelId) return fail("Welcome messages are not configured yet.");
@@ -5112,7 +5112,7 @@ client.on(Events.MessageCreate, async message => {
       const botMember = message.guild.members.me ?? await message.guild.members.fetchMe();
       if (!targetChannel.permissionsFor(botMember)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) return fail("I need View Channel, Send Messages, and Embed Links in that channel.");
       await targetChannel.send(buildTicketPanel(message.guild, client.user));
-      return send("✦ TICKET PORTAL PUBLISHED", "The Paradoxplus ticket panel is now live in " + targetChannel.toString() + ".");
+      return send("✦ TICKET PORTAL PUBLISHED", "The Elixe • As ticket panel is now live in " + targetChannel.toString() + ".");
     }
     if (command === "recruit") {
       const id = mentionedId(args[0]);
@@ -5154,13 +5154,13 @@ client.on(Events.MessageCreate, async message => {
         if (!target) continue;
         if (!role || !target.roles.cache.has(roleId)) { results.push("ℹ️ Recruit role <@&" + roleId + "> was not present"); continue; }
         if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles) || role.position >= botMember.roles.highest.position) { results.push("⚠️ Cannot remove <@&" + roleId + ">; check Manage Roles and role hierarchy."); continue; }
-        try { await target.roles.remove(role, "Paradoxplus unrecruit"); results.push("✅ Removed <@&" + roleId + ">"); }
+        try { await target.roles.remove(role, "Elixe • As unrecruit"); results.push("✅ Removed <@&" + roleId + ">"); }
         catch (error) { results.push("⚠️ Role removal failed for <@&" + roleId + ">: " + error.message); }
       }
       if (!target) results.push("ℹ️ Member has left the server; database record removed.");
       if (target && record.nickname_saved) {
         if (botMember.permissions.has(PermissionFlagsBits.ManageNicknames) || botMember.permissions.has(PermissionFlagsBits.Administrator)) {
-          try { await target.setNickname(record.original_nickname, "Restore nickname after Paradoxplus unrecruit"); results.push("✅ Original server nickname restored"); }
+          try { await target.setNickname(record.original_nickname, "Restore nickname after Elixe • As unrecruit"); results.push("✅ Original server nickname restored"); }
           catch (error) { results.push("⚠️ Nickname restore failed: " + error.message); }
         } else results.push("⚠️ I need Manage Nicknames to restore the original nickname.");
       } else if (target) results.push("ℹ️ Original nickname was not saved for this older recruit; nickname left unchanged.");
@@ -5194,7 +5194,7 @@ client.on(Events.MessageCreate, async message => {
       config.dmOptIns = config.dmOptIns.filter(id => id !== message.author.id);
       if (enabled) config.dmOptIns.push(message.author.id);
       await saveDatabase();
-      return send(enabled ? "✅ DM opt-in enabled" : "✅ DM opt-out complete", enabled ? "You can receive Paradoxplus server DMs. Use .dmoptout any time to stop." : "You will no longer receive Paradoxplus server DMs.");
+      return send(enabled ? "✅ DM opt-in enabled" : "✅ DM opt-out complete", enabled ? "You can receive Elixe • As server DMs. Use .dmoptout any time to stop." : "You will no longer receive Elixe • As server DMs.");
     }
     if (command === "dmall") {
       if (!isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) return fail("Only the bot owner or a server administrator can use .dmall.");
@@ -5216,11 +5216,11 @@ client.on(Events.MessageCreate, async message => {
         message.member.permissions.has(PermissionFlagsBits.ManageGuild);
 
       if (sub === "list") {
-        if (!config.autoresponders.length) return send("✦ PARADOXPLUS TRIGGERS", "No custom triggers are configured yet.");
+        if (!config.autoresponders.length) return send("✦ ELIXE • AS TRIGGERS", "No custom triggers are configured yet.");
         const lines = config.autoresponders.map((item, index) =>
           "**" + (index + 1) + ".** \`" + item.trigger + "\` → " + item.response
         );
-        return send("✦ PARADOXPLUS TRIGGERS", lines.join("\n"));
+        return send("✦ ELIXE • AS TRIGGERS", lines.join("\n"));
       }
       if (!allowed) return fail("You need Manage Messages, Manage Server, or Administrator to manage triggers.");
 
@@ -5707,7 +5707,7 @@ client.on(Events.MessageCreate, async message => {
       if(sub==="list")return send("RANK HIERARCHY",config.ranks.map((r,i)=>(i+1)+". <@&"+r.id+">").join("\n")||"No ranks configured.");
       if(sub==="logs"||sub==="announce"){const id=args[0]?.match(/^<#(\d+)>$/)?.[1],ch=id?await message.guild.channels.fetch(id).catch(()=>null):null;if(!ch?.isTextBased())return fail("Usage: "+prefix+"rank-config "+sub+" #channel");if(sub==="logs")config.logChannelId=ch.id;else config.announceChannelId=ch.id;await saveDatabase();return send("RANK CONFIGURATION","Updated destination to "+ch.toString()+".");}
       if(sub==="clear-logs"||sub==="clear-announcements"){if(sub==="clear-logs")config.logChannelId=null;else config.announceChannelId=null;await saveDatabase();return send("RANK CONFIGURATION","Setting disabled.");}
-      if(sub==="backup"){const data=JSON.stringify({version:1,guildId:message.guild.id,config},null,2);return message.reply({content:"Paradoxplus configuration backup",files:[{attachment:Buffer.from(data,"utf8"),name:"paradoxplus-backup-"+message.guild.id+".json"}]});}
+      if(sub==="backup"){const data=JSON.stringify({version:1,guildId:message.guild.id,config},null,2);return message.reply({content:"Elixe • As configuration backup",files:[{attachment:Buffer.from(data,"utf8"),name:"paradoxplus-backup-"+message.guild.id+".json"}]});}
       return fail("Subcommands: add, remove, ignore, unignore, ignored, list, logs, clear-logs, announce, clear-announcements, backup.");
     }
     if(["rank-history","rank-search","rank-stats","rank-leaderboard","rank-panel","rank-help","rankpredict","serverpulse","staffactivity","memberjourney","spotlight"].includes(command)){
@@ -5729,10 +5729,10 @@ client.on(Events.MessageCreate, async message => {
         const prediction = gap === 0 ? "Already at the target rank." : Math.abs(gap) + " rank levels " + (gap > 0 ? "above" : "below") + " the current rank.";
         return send("RANK TRAJECTORY", "Current: " + (currentRank ? "<@&" + currentRank.id + ">" : "Unranked") + "\nTarget: <@&" + targetRank.id + ">\n" + prediction);
       }
-      if(command==="serverpulse"){const days=Object.values(config.pulse.days||{}),t=days.reduce((a,d)=>({messages:a.messages+(d.messages||0),joins:a.joins+(d.joins||0),leaves:a.leaves+(d.leaves||0)}),{messages:0,joins:0,leaves:0});return send("PARADOX PULSE","Messages: "+t.messages+"\nJoins: "+t.joins+"\nLeaves: "+t.leaves+"\nDays: "+days.length);}
+      if(command==="serverpulse"){const days=Object.values(config.pulse.days||{}),t=days.reduce((a,d)=>({messages:a.messages+(d.messages||0),joins:a.joins+(d.joins||0),leaves:a.leaves+(d.leaves||0)}),{messages:0,joins:0,leaves:0});return send("ELIXE • AS PULSE","Messages: "+t.messages+"\nJoins: "+t.joins+"\nLeaves: "+t.leaves+"\nDays: "+days.length);}
       if(command==="staffactivity"){if(!prefixManager(PermissionFlagsBits.ModerateMembers))return fail("Staff permission required.");const counts={};for(const x of config.history)counts[x.actorId]=(counts[x.actorId]||0)+1;for(const x of config.moderationCases)counts[x.moderatorId]=(counts[x.moderatorId]||0)+1;return send("STAFF ACTIVITY",Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10).map((x,i)=>(i+1)+". <@"+x[0]+"> — "+x[1]).join("\n")||"No staff actions.");}
       if(command==="memberjourney"){const m=await prefixMember(args[0]);if(!m)return fail("Usage: "+prefix+"memberjourney @member");const rows=config.history.filter(x=>x.memberId===m.id).slice(0,8),r=getHighestConfiguredRank(m,config.ranks,message.guild.roles.cache);return send("MEMBER JOURNEY","Member: "+m.toString()+"\nCurrent rank: "+(r?"<@&"+r.id+">":"Unranked")+"\nJoined: "+(m.joinedTimestamp?"<t:"+Math.floor(m.joinedTimestamp/1000)+":D>":"Unknown")+"\n"+rows.map(x=>"• "+(x.oldRankId?"<@&"+x.oldRankId+">":"Unranked")+" → "+(x.newRankId?"<@&"+x.newRankId+">":"Unranked")).join("\n"));}
-      if(command==="spotlight"){if(!prefixManager(PermissionFlagsBits.ManageRoles))return fail("Manage Roles or Administrator required.");const m=await prefixMember(args[0]);if(!m)return fail("Usage: "+prefix+"spotlight @member [reason]");const r=getHighestConfiguredRank(m,config.ranks,message.guild.roles.cache);const e=new EmbedBuilder().setColor(0xffc857).setTitle("🌟 COMMUNITY SPOTLIGHT").setThumbnail(m.user.displayAvatarURL()).setDescription(m.toString()+" deserves the spotlight!\n"+(args.slice(1).join(" ")||"Recognized by staff.")).addFields({name:"Current rank",value:r?"<@&"+r.id+">":"Unranked"}).setFooter({text:message.guild.name+" • Paradoxplus"});return message.channel.send({embeds:[e],allowedMentions:{users:[m.id],parse:[]}});}
+      if(command==="spotlight"){if(!prefixManager(PermissionFlagsBits.ManageRoles))return fail("Manage Roles or Administrator required.");const m=await prefixMember(args[0]);if(!m)return fail("Usage: "+prefix+"spotlight @member [reason]");const r=getHighestConfiguredRank(m,config.ranks,message.guild.roles.cache);const e=new EmbedBuilder().setColor(0xffc857).setTitle("🌟 COMMUNITY SPOTLIGHT").setThumbnail(m.user.displayAvatarURL()).setDescription(m.toString()+" deserves the spotlight!\n"+(args.slice(1).join(" ")||"Recognized by staff.")).addFields({name:"Current rank",value:r?"<@&"+r.id+">":"Unranked"}).setFooter({text:message.guild.name+" • Elixe • As"});return message.channel.send({embeds:[e],allowedMentions:{users:[m.id],parse:[]}});}
     }
     if(command==="autoresponder"){
       const sub=(args.shift()||"list").toLowerCase();
@@ -5821,7 +5821,7 @@ client.on(Events.MessageCreate, async message => {
         .setAuthor({ name: "ＰＡＲＡＤＯＸＰＬＵＳ  •  COMMAND DIRECTORY", iconURL: client.user.displayAvatarURL() })
         .setTitle("✦  COMMAND CENTER")
         .setDescription(
-          "A clean guide to Paradoxplus commands.\n" +
+          "A clean guide to Elixe • As commands.\n" +
           " **Prefix:** \`" + prefix + "\`  •  **Slash commands:** use Discord's `/` command picker.\n" +
           "━━━━━━━━━━━━━━━━━━━━━━━━"
         )
@@ -5894,7 +5894,7 @@ client.on(Events.MessageCreate, async message => {
             inline: false
           }
         )
-        .setFooter({ text: "PARADOXPLUS  •  ParadoxManagerV1  •  Commands vary by permissions" })
+        .setFooter({ text: "ELIXE • AS  •  ElixeManagerV1  •  Commands vary by permissions" })
         .setTimestamp();
       return message.reply({ embeds: [help], allowedMentions: { repliedUser: false, parse: [] } });
     }
