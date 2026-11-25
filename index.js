@@ -2964,13 +2964,24 @@ client.on(Events.InteractionCreate, async interaction => {
       const targetUser = interaction.options.getUser("member", true);
       const role = interaction.options.getRole("role", true);
       const durationText = interaction.options.getString("duration", true).trim().toLowerCase();
-      const durationParts = [...durationText.matchAll(/(\\d+)(mo|s|m|h|d|w|y)/g)];
+      const compactDuration = durationText.replace(/\s+/g, "");
+      const durationParts = [...compactDuration.matchAll(/(\d+(?:\.\d+)?)(months?|mos?|mo|years?|yrs?|y|weeks?|w|days?|d|hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)/g)];
       const durationUnits = { s: 1000, m: 60 * 1000, h: 60 * 60 * 1000, d: 24 * 60 * 60 * 1000, w: 7 * 24 * 60 * 60 * 1000, mo: 30 * 24 * 60 * 60 * 1000, y: 365 * 24 * 60 * 60 * 1000 };
-      const parsedDuration = durationParts.map(part => ({ raw: part[0], amount: Number(part[1]), unit: part[2] }));
-      const durationMs = parsedDuration.reduce((total, part) => total + part.amount * durationUnits[part.unit], 0);
+      const parsedDuration = durationParts.map(part => {
+        const rawUnit = part[2].toLowerCase();
+        const unit = rawUnit.startsWith("mo") || rawUnit.startsWith("month") ? "mo"
+          : rawUnit.startsWith("y") || rawUnit.startsWith("yr") || rawUnit.startsWith("year") ? "y"
+          : rawUnit.startsWith("w") ? "w"
+          : rawUnit.startsWith("d") ? "d"
+          : rawUnit.startsWith("h") ? "h"
+          : rawUnit.startsWith("m") ? "m"
+          : "s";
+        return { raw: part[0], amount: Number(part[1]), unit };
+      });
+      const durationMs = Math.round(parsedDuration.reduce((total, part) => total + part.amount * durationUnits[part.unit], 0));
       const reconstructedDuration = parsedDuration.map(part => part.raw).join("");
-      if (!parsedDuration.length || reconstructedDuration !== durationText || parsedDuration.some(part => !Number.isSafeInteger(part.amount) || part.amount < 1) || !Number.isSafeInteger(durationMs) || durationMs < 1000 || !Number.isFinite(Date.now() + durationMs) || !Number.isFinite(new Date(Date.now() + durationMs).getTime())) {
-        return replyError(interaction, "Use a valid duration such as 45s, 30m, 12h, 7d, 2w, 3mo, 1y, or 1w2d6h. No fixed maximum.");
+      if (!parsedDuration.length || reconstructedDuration !== compactDuration || parsedDuration.some(part => !Number.isFinite(part.amount) || part.amount <= 0) || !Number.isSafeInteger(durationMs) || durationMs < 1000 || !Number.isFinite(Date.now() + durationMs) || !Number.isFinite(new Date(Date.now() + durationMs).getTime())) {
+        return replyError(interaction, "Use a duration like 45s, 30 minutes, 12h, 7 days, 2w, 3 months, 1 year, or 1w 2d 6h. Supports seconds, minutes, hours, days, weeks, months, and years.");
       }
       if (role.managed || role.id === interaction.guild.id) return replyError(interaction, "That role cannot be assigned temporarily.");
       const [actor, target, me] = await Promise.all([
