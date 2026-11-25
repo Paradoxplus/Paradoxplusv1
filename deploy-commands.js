@@ -413,7 +413,7 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
     .addUserOption(o=>o.setName("member").setDescription("Member to receive the temporary role").setRequired(true))
     .addRoleOption(o=>o.setName("role").setDescription("Role to assign temporarily").setRequired(true))
-    .addStringOption(o=>o.setName("duration").setDescription("Duration such as 30m, 2h, or 7d (max 30d)").setMaxLength(8).setRequired(true)),
+    .addStringOption(o=>o.setName("duration").setDescription("Duration: 45s, 30m, 12h, 7d, 2w, 3mo, 1y, or 1w2d").setMaxLength(100).setRequired(true)),
   new SlashCommandBuilder().setName("roleall").setDescription("Assign a role to every manageable human member.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
     .addRoleOption(o=>o.setName("role").setDescription("Role to assign to all members").setRequired(true))
