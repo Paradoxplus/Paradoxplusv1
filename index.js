@@ -2964,12 +2964,14 @@ client.on(Events.InteractionCreate, async interaction => {
       const targetUser = interaction.options.getUser("member", true);
       const role = interaction.options.getRole("role", true);
       const durationText = interaction.options.getString("duration", true).trim().toLowerCase();
-      const durationMatch = durationText.match(/^(\\d+)(m|h|d)$/);
-      if (!durationMatch) return replyError(interaction, "Use a duration like 30m, 2h, or 7d (maximum 30d).");
-      const amount = Number(durationMatch[1]);
-      const unitMs = { m: 60 * 1000, h: 60 * 60 * 1000, d: 24 * 60 * 60 * 1000 }[durationMatch[2]];
-      const durationMs = amount * unitMs;
-      if (!Number.isSafeInteger(amount) || amount < 1 || durationMs > 30 * 24 * 60 * 60 * 1000) return replyError(interaction, "Duration must be at least 1 minute and no longer than 30 days.");
+      const durationParts = [...durationText.matchAll(/(\\d+)(mo|s|m|h|d|w|y)/g)];
+      const durationUnits = { s: 1000, m: 60 * 1000, h: 60 * 60 * 1000, d: 24 * 60 * 60 * 1000, w: 7 * 24 * 60 * 60 * 1000, mo: 30 * 24 * 60 * 60 * 1000, y: 365 * 24 * 60 * 60 * 1000 };
+      const parsedDuration = durationParts.map(part => ({ raw: part[0], amount: Number(part[1]), unit: part[2] }));
+      const durationMs = parsedDuration.reduce((total, part) => total + part.amount * durationUnits[part.unit], 0);
+      const reconstructedDuration = parsedDuration.map(part => part.raw).join("");
+      if (!parsedDuration.length || reconstructedDuration !== durationText || parsedDuration.some(part => !Number.isSafeInteger(part.amount) || part.amount < 1) || !Number.isSafeInteger(durationMs) || durationMs < 1000 || !Number.isFinite(Date.now() + durationMs) || !Number.isFinite(new Date(Date.now() + durationMs).getTime())) {
+        return replyError(interaction, "Use a valid duration such as 45s, 30m, 12h, 7d, 2w, 3mo, 1y, or 1w2d6h. No fixed maximum.");
+      }
       if (role.managed || role.id === interaction.guild.id) return replyError(interaction, "That role cannot be assigned temporarily.");
       const [actor, target, me] = await Promise.all([
         interaction.guild.members.fetch(interaction.user.id),
