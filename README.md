@@ -1,10 +1,10 @@
-# Paradoxplus
+# Elixe • As
 
 A Discord rank-management bot built with discord.js v14 and Node.js 20+.
 
 ## Progression model
 
-Paradoxplus uses **manual progression only**. It does not award XP, grind points, or automatically promote/demote members. Staff members with Manage Roles or Administrator control every rank change.
+Elixe • As uses **manual progression only**. It does not award XP, grind points, or automatically promote/demote members. Staff members with Manage Roles or Administrator control every rank change.
 
 ## Commands
 
@@ -34,11 +34,11 @@ Paradoxplus uses **manual progression only**. It does not award XP, grind points
 
 ## Browser dashboard
 
-The dashboard runs in the same Railway service as the bot at the service's public HTTPS domain. It supports Discord sign-in, server selection, rank-role management, detection exclusions, and log/announcement channel settings. The dashboard only displays servers where the signed-in user has Manage Roles or Administrator and Paradoxplus is online.
+The dashboard runs in the same Railway service as the bot at the service's public HTTPS domain. It supports Discord sign-in, server selection, rank-role management, detection exclusions, and log/announcement channel settings. The dashboard only displays servers where the signed-in user has Manage Roles or Administrator and Elixe • As is online.
 
 ## Prefix commands
 
-Paradoxplus also supports the `.` message prefix alongside slash commands:
+Elixe • As also supports the `.` message prefix alongside slash commands:
 - `.rank [@member]` — check a member's rank.
 - `.promote @member [reason]` / `.demote @member [reason]` — staff rank changes.
 - `.setrank @member @rank [reason]` — assign an exact configured rank.
@@ -55,7 +55,7 @@ To enable prefix commands, turn on **Message Content Intent** in the Discord Dev
 4. Enable **Server Members Intent** and **Message Content Intent** in the Discord Developer Portal.
 5. For the browser dashboard, add these environment variables to Railway: `DASHBOARD_URL` (your public HTTPS Railway domain), `DISCORD_CLIENT_SECRET` (from Developer Portal → OAuth2 → Client Secret), and `DASHBOARD_SESSION_SECRET` (a long random secret). Keep the existing `CLIENT_ID`.
 6. In Developer Portal → OAuth2 → Redirects, add the exact URL `https://YOUR-DASHBOARD-DOMAIN/auth/callback` (replace the domain with your Railway domain). The dashboard uses Discord OAuth2 scopes `identify` and `guilds`.
-7. Open your Railway public domain in a browser and sign in with Discord. You must have Manage Roles or Administrator in a server, and Paradoxplus must already be in that server.
+7. Open your Railway public domain in a browser and sign in with Discord. You must have Manage Roles or Administrator in a server, and Elixe • As must already be in that server.
 8. Invite the bot with the `bot` and `applications.commands` scopes. Grant only the permissions it needs: Manage Roles, View Channels, Send Messages, Embed Links, and Read Message History.
 9. Move the bot's highest role above every rank role it needs to manage.
 10. Run `npm start` (the prestart script registers slash commands).

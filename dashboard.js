@@ -37,10 +37,10 @@ export function startDashboard({client,getGuildConfig,saveDatabase}) {
     try{metadata=JSON.parse(await fs.readFile(path.join(backupDir,"download.json"),"utf8"));}catch{return json(res,404,{error:"No backup is available."});}
     const suppliedHash=crypto.createHash("sha256").update(token).digest("hex");
     if(typeof metadata.tokenHash!=="string"||!equal(suppliedHash,metadata.tokenHash)||metadata.expiresAt<=Date.now())return json(res,403,{error:"This download link is invalid or has expired. Generate a new backup from Discord."});
-    const archivePath=path.join(backupDir,"Paradoxplus-Full-Backup.zip");
+    const archivePath=path.join(backupDir,"Elixe • As-Full-Backup.zip");
     let stat;
     try{stat=await fs.stat(archivePath);}catch{return json(res,404,{error:"The backup archive is no longer available."});}
-    res.writeHead(200,{"content-type":"application/zip","content-length":stat.size,"content-disposition":'attachment; filename="Paradoxplus-Full-Backup.zip"',"cache-control":"private, no-store"});
+    res.writeHead(200,{"content-type":"application/zip","content-length":stat.size,"content-disposition":'attachment; filename="Elixe • As-Full-Backup.zip"',"cache-control":"private, no-store"});
     return createReadStream(archivePath).pipe(res);
    }
    if(url.pathname.startsWith("/api/")){
@@ -111,5 +111,5 @@ export function startDashboard({client,getGuildConfig,saveDatabase}) {
    res.writeHead(404,{"content-type":"text/plain"});res.end("Not found");
   } catch(error){console.error("Dashboard error:",error);if(!res.headersSent)json(res,500,{error:"Dashboard request failed. Check hosting logs."});else res.end();}
  });
- const port=Number(process.env.PORT)||3000;server.listen(port,"0.0.0.0",()=>console.log("Paradoxplus single-server dashboard listening on port "+port));
+ const port=Number(process.env.PORT)||3000;server.listen(port,"0.0.0.0",()=>console.log("Elixe • As single-server dashboard listening on port "+port));
 }
