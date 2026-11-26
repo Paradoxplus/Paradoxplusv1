@@ -3005,7 +3005,19 @@ client.on(Events.InteractionCreate, async interaction => {
         else config.tempRoles.push({ userId: target.id, roleId: role.id, expiresAt, assignedBy: interaction.user.id });
         await saveDatabase();
         const unix = Math.floor(expiresAt / 1000);
-        return interaction.reply({ content: "✅ Added " + role.toString() + " to " + target.toString() + " for **" + durationText + "**. It expires <t:" + unix + ":R>.", ephemeral: false });
+        const confirmation = new EmbedBuilder()
+          .setColor(0x7c5cff)
+          .setTitle("⏳ TEMPORARY ROLE ASSIGNED")
+          .setDescription("A temporary role has been assigned successfully.")
+          .addFields(
+            { name: "Member", value: target.toString(), inline: true },
+            { name: "Role", value: role.toString(), inline: true },
+            { name: "Duration", value: durationText, inline: true },
+            { name: "Expires", value: "<t:" + unix + ":F>\\n<t:" + unix + ":R>", inline: false }
+          )
+          .setFooter({ text: "Elixe • As • Temporary roles" })
+          .setTimestamp();
+        return interaction.reply({ embeds: [confirmation], ephemeral: false });
       } catch (error) {
         console.error("[TempRole] Assignment failed:", error);
         return replyError(interaction, "I couldn't assign that role. Check my Manage Roles permission and role hierarchy.");
