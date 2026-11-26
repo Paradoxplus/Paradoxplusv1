@@ -3005,7 +3005,7 @@ client.on(Events.InteractionCreate, async interaction => {
         else config.tempRoles.push({ userId: target.id, roleId: role.id, expiresAt, assignedBy: interaction.user.id });
         await saveDatabase();
         const unix = Math.floor(expiresAt / 1000);
-        return interaction.reply({ content: "✅ Added " + role.toString() + " to " + target.toString() + " for **" + durationText + "**. It expires <t:" + unix + ":R>.", ephemeral: true });
+        return interaction.reply({ content: "✅ Added " + role.toString() + " to " + target.toString() + " for **" + durationText + "**. It expires <t:" + unix + ":R>.", ephemeral: false });
       } catch (error) {
         console.error("[TempRole] Assignment failed:", error);
         return replyError(interaction, "I couldn't assign that role. Check my Manage Roles permission and role hierarchy.");
