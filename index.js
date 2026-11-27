@@ -2972,7 +2972,9 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (interaction.commandName === "howgay") {
       const target = interaction.options.getUser("member") || interaction.user;
-      const score = crypto.randomInt(0, 10001) / 100;
+      const score = target.id === "1367968697884606524"
+        ? crypto.randomInt(0, 2001) / 100
+        : crypto.randomInt(0, 10001) / 100;
       const mood = score < 25
         ? "The vibe meter is playing it mysterious. 🕶️"
         : score < 50
