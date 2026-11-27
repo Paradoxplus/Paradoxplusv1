@@ -3250,16 +3250,30 @@ client.on(Events.InteractionCreate, async interaction => {
               ? "Discord's built-in sexual-content text filter is enabled. Matching messages are blocked before posting."
               : "The sexual-content text filter is not enabled.")
             .addFields(
+              { name: "Image explicit-content filter", value: interaction.guild.explicitContentFilter === 2 ? "All members" : interaction.guild.explicitContentFilter === 1 ? "Members without roles" : "Disabled", inline: true },
               { name: "Text filtering", value: rule?.enabled ? "Enabled" : "Disabled", inline: true },
               { name: "Child-safety reports", value: "Moderator reporting is available through /contentguard report. Reports contain a message link and brief reason only; the bot does not copy or store attachments or message text.", inline: false },
               { name: "Limitations", value: "Discord's preset is not an image/video classifier and does not identify child exploitation material. Suspected exploitation must be reported through Discord's safety reporting process and escalated to trusted moderators.", inline: false }
             ).setFooter({ text: "ELIXE • AS | SAFETY" }).setTimestamp();
           return interaction.reply({ embeds: [e], ephemeral: true });
         }
-        if (rule) return interaction.reply({ content: "The Elixe • As sexual-content text filter is already configured.", ephemeral: true });
+        try {
+          if (interaction.guild.explicitContentFilter !== 2) {
+            await interaction.guild.edit({
+              explicitContentFilter: 2,
+              reason: "Elixe • As content safety: enable explicit image filtering for all members"
+            });
+          }
+        } catch (error) {
+          console.error("[ContentGuard] Could not enable explicit image filtering:", error);
+          return replyError(interaction, "I couldn't enable Discord's image explicit-content filter. Check Manage Server permission.");
+        }
+        if (rule?.enabled) {
+          return interaction.reply({ content: "🛡️ Image explicit-content filtering is set to all members, and the sexual-content text filter is already enabled.", ephemeral: true });
+        }
         const existingPreset = rules.find(item => item.triggerType === 4);
-        if (existingPreset) {
-          return replyError(interaction, "This server already has Discord's single keyword-preset AutoMod rule. I won't overwrite another bot's rule; merge the Sexual Content preset into that rule in Server Settings → Safety Setup.");
+        if (existingPreset && !rule) {
+          return replyError(interaction, "Image explicit-content filtering is enabled for all members. This server already has Discord's single keyword-preset AutoMod rule, so I won't overwrite it; merge the Sexual Content preset into that rule in Server Settings → Safety Setup.");
         }
         try {
           await interaction.guild.autoModerationRules.create({
