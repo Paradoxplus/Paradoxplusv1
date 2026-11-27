@@ -300,6 +300,7 @@ function getGuildConfig(guildId) {
   if (!Array.isArray(config.warnings)) config.warnings = [];
   if (!Array.isArray(config.autobanList)) config.autobanList = [];
   if (!Array.isArray(config.antiNukeWhitelist)) config.antiNukeWhitelist = [];
+  if (!Array.isArray(config.antiNukeBotWhitelist)) config.antiNukeBotWhitelist = [];
   if (!Array.isArray(config.strikes)) config.strikes = [];
   if (!Array.isArray(config.strikeHistory)) config.strikeHistory = [];
   if (!Array.isArray(config.moderationCases)) config.moderationCases = [];
@@ -832,7 +833,8 @@ function isAntiNukeTrustedActor(guild, userId) {
     userId === guild.ownerId ||
     userId === client.user?.id ||
     userId === BOT_OWNER_ID ||
-    isAntiNukeWhitelisted(guild.id, userId)
+    isAntiNukeWhitelisted(guild.id, userId) ||
+    getGuildConfig(guild.id).antiNukeBotWhitelist.includes(userId)
   );
 }
 
@@ -3187,6 +3189,52 @@ client.on(Events.InteractionCreate, async interaction => {
       }
     }
 
+    if (interaction.commandName === "bot") {
+      if (!isBotOwner(interaction.user.id)) {
+        return replyError(interaction, "Only the configured Elixe • As bot owner can manage the bot whitelist.");
+      }
+      if (interaction.guildId !== ANTI_NUKE_GUILD_ID) {
+        return replyError(interaction, "The bot whitelist is configured for the Elixe • As main server only.");
+      }
+      if (interaction.options.getSubcommandGroup() !== "whitelist") {
+        return replyError(interaction, "Unknown bot whitelist action.");
+      }
+      const action = interaction.options.getSubcommand();
+      const config = getGuildConfig(interaction.guildId);
+      if (action === "list") {
+        const ids = [...new Set(config.antiNukeBotWhitelist)];
+        if (!ids.length) return interaction.reply({ content: "🛡️ The anti-nuke bot whitelist is empty.", ephemeral: true });
+        const lines = ids.map((id, index) => (index + 1) + ". <@" + id + "> — `" + id + "`");
+        const chunks = [];
+        let chunk = "**Trusted bots (" + ids.length + ")**\n";
+        for (const line of lines) {
+          if ((chunk + line + "\n").length > 1800) { chunks.push(chunk); chunk = ""; }
+          chunk += line + "\n";
+        }
+        if (chunk) chunks.push(chunk);
+        await interaction.reply({ content: chunks[0], ephemeral: true, allowedMentions: { parse: [] } });
+        for (const extra of chunks.slice(1)) await interaction.followUp({ content: extra, ephemeral: true, allowedMentions: { parse: [] } });
+        return;
+      }
+      const user = interaction.options.getUser("bot", true);
+      if (!user.bot) return replyError(interaction, "That account is not a bot. Select a Discord bot account.");
+      if (user.id === client.user?.id) return replyError(interaction, "Elixe • As is already trusted by its own anti-nuke system.");
+      if (action === "add") {
+        if (config.antiNukeBotWhitelist.includes(user.id)) return interaction.reply({ content: "ℹ️ <@" + user.id + "> is already on the bot whitelist.", ephemeral: true, allowedMentions: { parse: [] } });
+        config.antiNukeBotWhitelist.push(user.id);
+        await saveDatabase();
+        console.log("[ANTI-NUKE] Bot owner added trusted bot:", user.id, "by", interaction.user.id);
+        return interaction.reply({ content: "🛡️ Added <@" + user.id + "> to the anti-nuke bot whitelist. This only exempts the bot from anti-nuke enforcement; it does not grant permissions or owner access.", ephemeral: true, allowedMentions: { parse: [] } });
+      }
+      if (action === "remove") {
+        if (!config.antiNukeBotWhitelist.includes(user.id)) return interaction.reply({ content: "ℹ️ <@" + user.id + "> is not on the bot whitelist.", ephemeral: true, allowedMentions: { parse: [] } });
+        config.antiNukeBotWhitelist = config.antiNukeBotWhitelist.filter(id => id !== user.id);
+        await saveDatabase();
+        console.log("[ANTI-NUKE] Bot owner removed trusted bot:", user.id, "by", interaction.user.id);
+        return interaction.reply({ content: "✅ Removed <@" + user.id + "> from the anti-nuke bot whitelist. Anti-nuke enforcement will apply to it again.", ephemeral: true, allowedMentions: { parse: [] } });
+      }
+      return replyError(interaction, "Unknown bot whitelist action.");
+    }
     if (interaction.commandName === "owner") {
       if (!isBotOwner(interaction.user.id)) {
         return replyError(interaction, "Only Fearless, the configured Elixe • As bot owner, can manage this whitelist.");
