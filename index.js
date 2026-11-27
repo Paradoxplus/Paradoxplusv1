@@ -3063,7 +3063,7 @@ client.on(Events.InteractionCreate, async interaction => {
             { name: "Member", value: target.toString(), inline: true },
             { name: "Role", value: role.toString(), inline: true },
             { name: "Duration", value: durationText, inline: true },
-            { name: "Expires", value: "<t:" + unix + ":F>\\n<t:" + unix + ":R>", inline: false }
+            { name: "Expires", value: "<t:" + unix + ":F>\n<t:" + unix + ":R>", inline: false }
           )
           .setFooter({ text: "Elixe • As • Temporary roles" })
           .setTimestamp();
@@ -3208,10 +3208,10 @@ client.on(Events.InteractionCreate, async interaction => {
         }
         const lines = ids.map((id, index) => (index + 1) + ". <@" + id + "> — \`" + id + "\`");
         const chunks = [];
-        let chunk = "**Trusted bots (" + ids.length + ")**\\n";
+        let chunk = "**Trusted bots (" + ids.length + ")**\n";
         for (const line of lines) {
-          if ((chunk + line + "\\n").length > 1800) { chunks.push(chunk); chunk = ""; }
-          chunk += line + "\\n";
+          if ((chunk + line + "\n").length > 1800) { chunks.push(chunk); chunk = ""; }
+          chunk += line + "\n";
         }
         if (chunk) chunks.push(chunk);
         await interaction.reply({ content: chunks[0], ephemeral: true, allowedMentions: { parse: [] } });
@@ -5329,7 +5329,7 @@ client.on(Events.MessageCreate, async message => {
       }
       if (sub === "message") {
         const nextMessage = args.join(" ").trim();
-        if (!nextMessage) return fail("Usage: " + prefix + "welcome message <text>\\nPlaceholders: {user}, {server}, {memberCount}. Use " + prefix + "welcome reset to restore the default.");
+        if (!nextMessage) return fail("Usage: " + prefix + "welcome message <text>\nPlaceholders: {user}, {server}, {memberCount}. Use " + prefix + "welcome reset to restore the default.");
         if (nextMessage.length > 3500) return fail("Welcome message must be 3,500 characters or fewer.");
         config.welcomeMessage = nextMessage;
         await saveDatabase();
@@ -5360,7 +5360,7 @@ client.on(Events.MessageCreate, async message => {
         await saveDatabase();
         return send("✦ Welcome messages disabled", "Removed the welcome channel <#" + previous + ">.");
       }
-      return fail("Usage: " + prefix + "welcome set #channel\\n" + prefix + "welcome message <text>\\n" + prefix + "welcome reset\\n" + prefix + "welcome test\\n" + prefix + "welcome remove");
+      return fail("Usage: " + prefix + "welcome set #channel\n" + prefix + "welcome message <text>\n" + prefix + "welcome reset\n" + prefix + "welcome test\n" + prefix + "welcome remove");
     }
     if (command === "prefix") {
       if (!isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.Administrator) && !message.member.permissions.has(PermissionFlagsBits.ManageGuild)) return fail("You need Manage Server or Administrator to change the prefix.");
@@ -5681,11 +5681,11 @@ client.on(Events.MessageCreate, async message => {
           try { await member.roles.add(role, "Bulk role assignment by " + message.author.tag); added++; }
           catch (error) { failed.push({ tag: member.user.tag, id: member.id, code: error.code || "unknown" }); }
         }
-        const details = failed.slice(0, 12).map(item => item.tag + " (" + item.id + ", " + item.code + ")").join("\\n");
-        const more = failed.length > 12 ? "\\n…and " + (failed.length - 12) + " more." : "";
+        const details = failed.slice(0, 12).map(item => item.tag + " (" + item.id + ", " + item.code + ")").join("\n");
+        const more = failed.length > 12 ? "\n…and " + (failed.length - 12) + " more." : "";
         addPrefixCase("ROLE_ALL", null, role.name + ": added " + added + ", failed " + failed.length);
         await saveDatabase();
-        return send("✦ BULK ROLE ASSIGNMENT COMPLETE", "Role: " + role.toString() + "\\nAdded: **" + added + "**\\nFailed: **" + failed.length + "**" + (details ? "\\n\\n**Failed members:**\\n" + details + more : ""));
+        return send("✦ BULK ROLE ASSIGNMENT COMPLETE", "Role: " + role.toString() + "\nAdded: **" + added + "**\nFailed: **" + failed.length + "**" + (details ? "\n\n**Failed members:**\n" + details + more : ""));
       } catch (error) {
         console.error("[RoleAll] Prefix bulk assignment failed:", error);
         return fail("I couldn't complete the bulk assignment. Check the Server Members Intent, Manage Roles permission, and role hierarchy.");
@@ -5840,13 +5840,13 @@ client.on(Events.MessageCreate, async message => {
         }
         await saveDatabase();
         const roleReport = "Role removals succeeded: " + removedNow.length + "/" + removableRoles.length +
-          (roleFailures.length ? "\\nRole removal errors: " + roleFailures.join("; ") : "") +
-          (restoreFailures.length ? "\\nRole restore errors: " + restoreFailures.join("; ") : "");
-        return fail("I could not apply the mute. " + error.message + "\\n" + roleReport);
+          (roleFailures.length ? "\nRole removal errors: " + roleFailures.join("; ") : "") +
+          (restoreFailures.length ? "\nRole restore errors: " + restoreFailures.join("; ") : "");
+        return fail("I could not apply the mute. " + error.message + "\n" + roleReport);
       }
       addPrefixCase("PERMANENT_MUTE", target.id, reason);
       await saveDatabase();
-      return send("✦ PERMANENT MUTE APPLIED", target.toString() + " is now permanently muted. Removable roles were temporarily removed and will be restored by ?unmute. The timeout will renew automatically.\\nReason: " + reason);
+      return send("✦ PERMANENT MUTE APPLIED", target.toString() + " is now permanently muted. Removable roles were temporarily removed and will be restored by ?unmute. The timeout will renew automatically.\nReason: " + reason);
     }
     if (command === "unmute") {
       if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
@@ -5891,7 +5891,7 @@ client.on(Events.MessageCreate, async message => {
       addPrefixCase("UNMUTE", target.id, "Permanent mute removed; restored " + restoredCount + " roles");
       await saveDatabase();
       const skippedCount = Math.max(0, roleIdsToRestore.length - restoredCount);
-      return send("✦ MEMBER UNMUTED", "Removed the permanent mute from " + target.toString() + ". Restored " + restoredCount + " role(s)." + (skippedCount ? "\\n⚠️ " + skippedCount + " role(s) could not be restored because they were deleted or are no longer manageable." : ""));
+      return send("✦ MEMBER UNMUTED", "Removed the permanent mute from " + target.toString() + ". Restored " + restoredCount + " role(s)." + (skippedCount ? "\n⚠️ " + skippedCount + " role(s) could not be restored because they were deleted or are no longer manageable." : ""));
     }
     if (command === "untimeout") {
       if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
