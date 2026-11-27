@@ -2851,31 +2851,6 @@ client.on(Events.InteractionCreate, async interaction => {
     const messageId = interaction.customId.slice("px_giveaway_enter:".length);
     const config = getGuildConfig(interaction.guildId);
 
-    if (interaction.commandName === "howgay") {
-      const target = interaction.options.getUser("member") || interaction.user;
-      const score = crypto.randomInt(0, 10001) / 100;
-      const mood = score < 25
-        ? "The vibe meter is playing it mysterious. 🕶️"
-        : score < 50
-          ? "A little sparkle has entered the chat. ✨"
-          : score < 75
-            ? "The confetti cannon is warming up. 🎉"
-            : "Maximum rainbow chaos detected. 🌈";
-      const avatar = target.displayAvatarURL({ extension: "png", size: 256 });
-      const embed = new EmbedBuilder()
-        .setColor(0xD879C8)
-        .setAuthor({ name: "ELIXE • AS  |  HOWGAY METER", iconURL: client.user.displayAvatarURL() })
-        .setTitle("🌈 The totally-not-scientific meter")
-        .setDescription("**" + target.username.replace(/([\\\\*_~|])/g, "\\\\$1") + "**'s random meme score is...")
-        .addFields(
-          { name: "Meme score", value: "**" + score.toFixed(2) + "%**", inline: true },
-          { name: "Verdict", value: mood, inline: true }
-        )
-        .setThumbnail(avatar)
-        .setFooter({ text: "Random result for laughs • Avatar is decoration only" })
-        .setTimestamp();
-      return interaction.reply({ embeds: [embed], allowedMentions: { parse: [] } });
-    }
     const giveaway = config.giveaways.find(item => item.messageId === messageId);
     if (!giveaway || giveaway.endedAt || Date.now() >= giveaway.endsAt) {
       return interaction.reply({ content: "This giveaway has ended or is no longer available.", ephemeral: true });
@@ -2994,6 +2969,32 @@ client.on(Events.InteractionCreate, async interaction => {
 
   try {
     const config = getGuildConfig(interaction.guildId);
+
+    if (interaction.commandName === "howgay") {
+      const target = interaction.options.getUser("member") || interaction.user;
+      const score = crypto.randomInt(0, 10001) / 100;
+      const mood = score < 25
+        ? "The vibe meter is playing it mysterious. 🕶️"
+        : score < 50
+          ? "A little sparkle has entered the chat. ✨"
+          : score < 75
+            ? "The confetti cannon is warming up. 🎉"
+            : "Maximum rainbow chaos detected. 🌈";
+      const avatar = target.displayAvatarURL({ extension: "png", size: 256 });
+      const embed = new EmbedBuilder()
+        .setColor(0xD879C8)
+        .setAuthor({ name: "ELIXE • AS  |  HOWGAY METER", iconURL: client.user.displayAvatarURL() })
+        .setTitle("🌈 The totally-not-scientific meter")
+        .setDescription("**" + target.username.replace(/([\\\\*_~|])/g, "\\\\$1") + "**'s random meme score is...")
+        .addFields(
+          { name: "Meme score", value: "**" + score.toFixed(2) + "%**", inline: true },
+          { name: "Verdict", value: mood, inline: true }
+        )
+        .setThumbnail(avatar)
+        .setFooter({ text: "Random result for laughs • Avatar is decoration only" })
+        .setTimestamp();
+      return interaction.reply({ embeds: [embed], allowedMentions: { parse: [] } });
+    }
 
     if (["tpackenable", "tpackdisable", "tpackstatus"].includes(interaction.commandName)) {
       if (!isBotOwner(interaction.user.id) &&
