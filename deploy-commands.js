@@ -443,7 +443,7 @@ const commands = [
     .addSubcommand(sc=>sc.setName("status").setDescription("View active anti-nuke protections and backup status."))
     .addSubcommand(sc=>sc.setName("backup-now").setDescription("Create an immediate channel-configuration backup.")),
   new SlashCommandBuilder().setName("contentguard").setDescription("Configure content safety and report safety concerns.")
-    .addSubcommand(sc=>sc.setName("setup").setDescription("Enable Discord's sexual-content text filter.").setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild))
+    .addSubcommand(sc=>sc.setName("setup").setDescription("Enable Discord's sexual-content text filter."))
     .addSubcommand(sc=>sc.setName("status").setDescription("Check content safety filter status."))
     .addSubcommand(sc=>sc.setName("report").setDescription("Privately report a safety concern to moderators.")
       .addStringOption(o=>o.setName("message_link").setDescription("Link to the message; do not upload or quote sensitive material.").setRequired(true))
