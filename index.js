@@ -3063,7 +3063,7 @@ client.on(Events.InteractionCreate, async interaction => {
             { name: "Member", value: target.toString(), inline: true },
             { name: "Role", value: role.toString(), inline: true },
             { name: "Duration", value: durationText, inline: true },
-            { name: "Expires", value: "<t:" + unix + ":F>\n<t:" + unix + ":R>", inline: false }
+            { name: "Expires", value: "<t:" + unix + ":F>\\n<t:" + unix + ":R>", inline: false }
           )
           .setFooter({ text: "Elixe • As • Temporary roles" })
           .setTimestamp();
@@ -3203,10 +3203,8 @@ client.on(Events.InteractionCreate, async interaction => {
       const config = getGuildConfig(interaction.guildId);
       if (action === "list") {
         const ids = [...new Set(config.antiNukeBotWhitelist)];
-        if (!ids.length) {
-          return interaction.reply({ content: "🛡️ The anti-nuke bot whitelist is empty.", ephemeral: true });
-        }
-        const lines = ids.map((id, index) => (index + 1) + ". <@" + id + "> — \`" + id + "\`");
+        if (!ids.length) return interaction.reply({ content: "🛡️ The anti-nuke bot whitelist is empty.", ephemeral: true });
+        const lines = ids.map((id, index) => (index + 1) + ". <@" + id + "> — `" + id + "`");
         const chunks = [];
         let chunk = "**Trusted bots (" + ids.length + ")**\n";
         for (const line of lines) {
@@ -3215,47 +3213,28 @@ client.on(Events.InteractionCreate, async interaction => {
         }
         if (chunk) chunks.push(chunk);
         await interaction.reply({ content: chunks[0], ephemeral: true, allowedMentions: { parse: [] } });
-        for (const extra of chunks.slice(1)) {
-          await interaction.followUp({ content: extra, ephemeral: true, allowedMentions: { parse: [] } });
-        }
+        for (const extra of chunks.slice(1)) await interaction.followUp({ content: extra, ephemeral: true, allowedMentions: { parse: [] } });
         return;
       }
       const user = interaction.options.getUser("bot", true);
-      if (!user.bot) {
-        return replyError(interaction, "That account is not a bot. Select a Discord bot account.");
-      }
-      if (user.id === client.user?.id) {
-        return replyError(interaction, "Elixe • As is already trusted by its own anti-nuke system.");
-      }
+      if (!user.bot) return replyError(interaction, "That account is not a bot. Select a Discord bot account.");
+      if (user.id === client.user?.id) return replyError(interaction, "Elixe • As is already trusted by its own anti-nuke system.");
       if (action === "add") {
-        if (config.antiNukeBotWhitelist.includes(user.id)) {
-          return interaction.reply({ content: "ℹ️ <@" + user.id + "> is already on the bot whitelist.", ephemeral: true, allowedMentions: { parse: [] } });
-        }
+        if (config.antiNukeBotWhitelist.includes(user.id)) return interaction.reply({ content: "ℹ️ <@" + user.id + "> is already on the bot whitelist.", ephemeral: true, allowedMentions: { parse: [] } });
         config.antiNukeBotWhitelist.push(user.id);
         await saveDatabase();
         console.log("[ANTI-NUKE] Bot owner added trusted bot:", user.id, "by", interaction.user.id);
-        return interaction.reply({
-          content: "🛡️ Added <@" + user.id + "> to the anti-nuke bot whitelist. This only exempts the bot from anti-nuke enforcement; it does not grant permissions or owner access.",
-          ephemeral: true,
-          allowedMentions: { parse: [] }
-        });
+        return interaction.reply({ content: "🛡️ Added <@" + user.id + "> to the anti-nuke bot whitelist. This only exempts the bot from anti-nuke enforcement; it does not grant permissions or owner access.", ephemeral: true, allowedMentions: { parse: [] } });
       }
       if (action === "remove") {
-        if (!config.antiNukeBotWhitelist.includes(user.id)) {
-          return interaction.reply({ content: "ℹ️ <@" + user.id + "> is not on the bot whitelist.", ephemeral: true, allowedMentions: { parse: [] } });
-        }
+        if (!config.antiNukeBotWhitelist.includes(user.id)) return interaction.reply({ content: "ℹ️ <@" + user.id + "> is not on the bot whitelist.", ephemeral: true, allowedMentions: { parse: [] } });
         config.antiNukeBotWhitelist = config.antiNukeBotWhitelist.filter(id => id !== user.id);
         await saveDatabase();
         console.log("[ANTI-NUKE] Bot owner removed trusted bot:", user.id, "by", interaction.user.id);
-        return interaction.reply({
-          content: "✅ Removed <@" + user.id + "> from the anti-nuke bot whitelist. Anti-nuke enforcement will apply to it again.",
-          ephemeral: true,
-          allowedMentions: { parse: [] }
-        });
+        return interaction.reply({ content: "✅ Removed <@" + user.id + "> from the anti-nuke bot whitelist. Anti-nuke enforcement will apply to it again.", ephemeral: true, allowedMentions: { parse: [] } });
       }
       return replyError(interaction, "Unknown bot whitelist action.");
     }
-
     if (interaction.commandName === "owner") {
       if (!isBotOwner(interaction.user.id)) {
         return replyError(interaction, "Only Fearless, the configured Elixe • As bot owner, can manage this whitelist.");
@@ -5329,7 +5308,7 @@ client.on(Events.MessageCreate, async message => {
       }
       if (sub === "message") {
         const nextMessage = args.join(" ").trim();
-        if (!nextMessage) return fail("Usage: " + prefix + "welcome message <text>\nPlaceholders: {user}, {server}, {memberCount}. Use " + prefix + "welcome reset to restore the default.");
+        if (!nextMessage) return fail("Usage: " + prefix + "welcome message <text>\\nPlaceholders: {user}, {server}, {memberCount}. Use " + prefix + "welcome reset to restore the default.");
         if (nextMessage.length > 3500) return fail("Welcome message must be 3,500 characters or fewer.");
         config.welcomeMessage = nextMessage;
         await saveDatabase();
@@ -5360,7 +5339,7 @@ client.on(Events.MessageCreate, async message => {
         await saveDatabase();
         return send("✦ Welcome messages disabled", "Removed the welcome channel <#" + previous + ">.");
       }
-      return fail("Usage: " + prefix + "welcome set #channel\n" + prefix + "welcome message <text>\n" + prefix + "welcome reset\n" + prefix + "welcome test\n" + prefix + "welcome remove");
+      return fail("Usage: " + prefix + "welcome set #channel\\n" + prefix + "welcome message <text>\\n" + prefix + "welcome reset\\n" + prefix + "welcome test\\n" + prefix + "welcome remove");
     }
     if (command === "prefix") {
       if (!isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.Administrator) && !message.member.permissions.has(PermissionFlagsBits.ManageGuild)) return fail("You need Manage Server or Administrator to change the prefix.");
@@ -5681,11 +5660,11 @@ client.on(Events.MessageCreate, async message => {
           try { await member.roles.add(role, "Bulk role assignment by " + message.author.tag); added++; }
           catch (error) { failed.push({ tag: member.user.tag, id: member.id, code: error.code || "unknown" }); }
         }
-        const details = failed.slice(0, 12).map(item => item.tag + " (" + item.id + ", " + item.code + ")").join("\n");
-        const more = failed.length > 12 ? "\n…and " + (failed.length - 12) + " more." : "";
+        const details = failed.slice(0, 12).map(item => item.tag + " (" + item.id + ", " + item.code + ")").join("\\n");
+        const more = failed.length > 12 ? "\\n…and " + (failed.length - 12) + " more." : "";
         addPrefixCase("ROLE_ALL", null, role.name + ": added " + added + ", failed " + failed.length);
         await saveDatabase();
-        return send("✦ BULK ROLE ASSIGNMENT COMPLETE", "Role: " + role.toString() + "\nAdded: **" + added + "**\nFailed: **" + failed.length + "**" + (details ? "\n\n**Failed members:**\n" + details + more : ""));
+        return send("✦ BULK ROLE ASSIGNMENT COMPLETE", "Role: " + role.toString() + "\\nAdded: **" + added + "**\\nFailed: **" + failed.length + "**" + (details ? "\\n\\n**Failed members:**\\n" + details + more : ""));
       } catch (error) {
         console.error("[RoleAll] Prefix bulk assignment failed:", error);
         return fail("I couldn't complete the bulk assignment. Check the Server Members Intent, Manage Roles permission, and role hierarchy.");
@@ -5840,13 +5819,13 @@ client.on(Events.MessageCreate, async message => {
         }
         await saveDatabase();
         const roleReport = "Role removals succeeded: " + removedNow.length + "/" + removableRoles.length +
-          (roleFailures.length ? "\nRole removal errors: " + roleFailures.join("; ") : "") +
-          (restoreFailures.length ? "\nRole restore errors: " + restoreFailures.join("; ") : "");
-        return fail("I could not apply the mute. " + error.message + "\n" + roleReport);
+          (roleFailures.length ? "\\nRole removal errors: " + roleFailures.join("; ") : "") +
+          (restoreFailures.length ? "\\nRole restore errors: " + restoreFailures.join("; ") : "");
+        return fail("I could not apply the mute. " + error.message + "\\n" + roleReport);
       }
       addPrefixCase("PERMANENT_MUTE", target.id, reason);
       await saveDatabase();
-      return send("✦ PERMANENT MUTE APPLIED", target.toString() + " is now permanently muted. Removable roles were temporarily removed and will be restored by ?unmute. The timeout will renew automatically.\nReason: " + reason);
+      return send("✦ PERMANENT MUTE APPLIED", target.toString() + " is now permanently muted. Removable roles were temporarily removed and will be restored by ?unmute. The timeout will renew automatically.\\nReason: " + reason);
     }
     if (command === "unmute") {
       if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
@@ -5891,7 +5870,7 @@ client.on(Events.MessageCreate, async message => {
       addPrefixCase("UNMUTE", target.id, "Permanent mute removed; restored " + restoredCount + " roles");
       await saveDatabase();
       const skippedCount = Math.max(0, roleIdsToRestore.length - restoredCount);
-      return send("✦ MEMBER UNMUTED", "Removed the permanent mute from " + target.toString() + ". Restored " + restoredCount + " role(s)." + (skippedCount ? "\n⚠️ " + skippedCount + " role(s) could not be restored because they were deleted or are no longer manageable." : ""));
+      return send("✦ MEMBER UNMUTED", "Removed the permanent mute from " + target.toString() + ". Restored " + restoredCount + " role(s)." + (skippedCount ? "\\n⚠️ " + skippedCount + " role(s) could not be restored because they were deleted or are no longer manageable." : ""));
     }
     if (command === "untimeout") {
       if (!modPermission(PermissionFlagsBits.ModerateMembers)) return fail("You need Moderate Members or Administrator.");
