@@ -2291,8 +2291,8 @@ client.once(Events.ClientReady, async readyClient => {
   const nicknameGuild = await readyClient.guilds.fetch(MEMBER_COUNTER_GUILD_ID).catch(() => null);
   if (nicknameGuild) {
     const botMember = await nicknameGuild.members.fetchMe().catch(() => null);
-    if (botMember && botMember.nickname !== "Exile • Core") {
-      await botMember.setNickname("Exile • Core", "Set official Exile • Core bot nickname")
+    if (botMember && botMember.nickname !== "Elixe • Core") {
+      await botMember.setNickname("Elixe • Core", "Set official Elixe • Core bot nickname")
         .catch(error => console.error("[Nickname] Could not set bot nickname:", error));
     }
   }
