@@ -194,6 +194,21 @@ const client = new Client({
   partials: [Partials.GuildMember, Partials.Message, Partials.Reaction, Partials.User, Partials.Channel]
 });
 
+// Last-resort visibility for rejected async listeners throughout the bot.
+// Individual handlers should still catch errors and report actionable failures.
+process.on("unhandledRejection", reason => {
+  console.error("[HANDLER-GUARD] Unhandled promise rejection:", reason);
+});
+process.on("uncaughtExceptionMonitor", error => {
+  console.error("[HANDLER-GUARD] Uncaught exception observed; Node.js will still terminate:", error);
+});
+client.on("error", error => {
+  console.error("[HANDLER-GUARD] Discord client error:", error);
+});
+client.on("shardError", error => {
+  console.error("[HANDLER-GUARD] Discord gateway shard error:", error);
+});
+
 let database = { guilds: {} };
 let saveQueue = Promise.resolve();
 
@@ -661,7 +676,14 @@ client.on(Events.MessageDelete, async deletedMessage => {
     .catch(error => console.error("[MessageArchive] Could not mark deleted message:", error));
 });
 
+const antiNukeRegisteredHandlers = new Set();
 function registerAntiNukeEvent(event, label, handler) {
+  const registrationKey = String(event) + ":" + label;
+  if (antiNukeRegisteredHandlers.has(registrationKey)) {
+    console.warn("[ANTI-NUKE] Duplicate handler registration skipped:", registrationKey);
+    return;
+  }
+  antiNukeRegisteredHandlers.add(registrationKey);
   client.on(event, (...args) => {
     const guild = args.find(value => value?.guild)?.guild ||
       args.find(value => value?.first)?.first()?.guild ||
@@ -817,6 +839,7 @@ function isAntiNukeTrustedActor(guild, userId) {
 // Anti-nuke coverage for bot invitations and rapid member bans.
 const ANTI_NUKE_GUILD_ID = "1572968551973654528";
 const antiNukeActorLocks = new Set();
+const antiNukePunishmentLocks = new Set();
 const ANTI_NUKE_BOT_DANGEROUS_PERMISSIONS = [
   PermissionFlagsBits.Administrator,
   PermissionFlagsBits.BanMembers,
@@ -843,8 +866,9 @@ async function findRecentAuditExecutor(guild, type, targetId, maxAgeMs = 45000) 
         Date.now() - item.createdTimestamp >= 0 && Date.now() - item.createdTimestamp <= maxAgeMs);
       if (entry?.executorId) return entry;
     } catch (error) {
-      console.error("[ANTI-NUKE] Audit-log lookup failed:", error);
-      return null;
+      console.error("[ANTI-NUKE] Audit-log lookup failed (attempt " + (attempt + 1) + "/7):", error);
+      // Missing View Audit Log permission is not transient; retrying only adds noise.
+      if (error?.code === 50013 || error?.code === 50001) return null;
     }
   }
   return null;
@@ -938,8 +962,14 @@ async function punishAntiNukeExecutor(guild, executorId, reason) {
     if (executorId === guild.ownerId) console.error("[ANTI-NUKE] Server owner performed a protected action; Discord does not allow bots to ban the owner.");
     return false;
   }
+  const lockKey = guild.id + ":" + executorId;
+  if (antiNukePunishmentLocks.has(lockKey)) {
+    console.warn("[ANTI-NUKE] Duplicate punishment suppressed for executor:", executorId);
+    return false;
+  }
+  antiNukePunishmentLocks.add(lockKey);
   try {
-    await guild.members.ban(executorId, { reason: "Elixe • As anti-nuke: " + reason });
+    await guild.members.ban(executorId, { reason: "Elixe • As anti-nuke: " + String(reason).slice(0, 400) });
     console.error("[ANTI-NUKE] Banned executor:", executorId, reason);
     await notifyAntiNukeOwner(guild, "Banned <@" + executorId + "> for: " + reason);
     return true;
@@ -947,6 +977,8 @@ async function punishAntiNukeExecutor(guild, executorId, reason) {
     console.error("[ANTI-NUKE] Failed to ban executor:", executorId, error);
     await notifyAntiNukeOwner(guild, "Detected " + reason + " by <@" + executorId + ">, but Discord rejected the ban: " + String(error?.message || error).slice(0, 250));
     return false;
+  } finally {
+    antiNukePunishmentLocks.delete(lockKey);
   }
 }
 
@@ -997,13 +1029,13 @@ registerAntiNukeEvent(Events.GuildRoleCreate, "Dangerous role creation", async r
   await punishAntiNukeExecutor(role.guild, executorId, "creating dangerous-permission role " + role.name);
 });
 
-client.on(Events.GuildRoleUpdate, (oldRole, newRole) => {
-  void inspectRolePermissionEscalation(oldRole, newRole).catch(error => console.error("[ANTI-NUKE] Role escalation handler failed:", error));
+registerAntiNukeEvent(Events.GuildRoleUpdate, "Role permission escalation", async (oldRole, newRole) => {
+  await inspectRolePermissionEscalation(oldRole, newRole);
 });
 
 const ownerProtectionLocks = new Set();
 
-client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+registerAntiNukeEvent(Events.GuildMemberUpdate, "Owner protection", async (oldMember, newMember) => {
   if (!isBotOwner(newMember.id)) return;
   const config = getGuildConfig(newMember.guild.id);
   // Protect every ordinary role on the configured bot owner, not only rank roles.
@@ -1309,11 +1341,16 @@ async function inspectChannelPermissionEscalation(oldChannel, newChannel) {
   if (!newChannel?.guild || newChannel.guild.id !== ANTI_NUKE_GUILD_ID ||
       !oldChannel?.permissionOverwrites?.cache || !newChannel.permissionOverwrites?.cache) return;
   const changedTargets = [];
-  for (const [targetId, next] of newChannel.permissionOverwrites.cache) {
-    const previous = oldChannel.permissionOverwrites.cache.get(targetId);
+  const targetIds = new Set([
+    ...oldChannel.permissionOverwrites.cache.keys(),
+    ...newChannel.permissionOverwrites.cache.keys()
+  ]);
+  for (const targetId of targetIds) {
+    const previous = oldChannel.permissionOverwrites.cache.get(targetId) || null;
+    const next = newChannel.permissionOverwrites.cache.get(targetId) || null;
     const granted = ANTI_NUKE_CHANNEL_DANGEROUS_PERMISSIONS.filter(permission =>
-      (next.allow.has(permission) && !previous?.allow.has(permission)) ||
-      (previous?.deny.has(permission) && !next.deny.has(permission))
+      (next?.allow.has(permission) && !previous?.allow.has(permission)) ||
+      (previous?.deny.has(permission) && !next?.deny.has(permission))
     );
     if (granted.length) changedTargets.push({ targetId, previous, next, granted });
   }
@@ -1370,9 +1407,8 @@ async function inspectChannelPermissionEscalation(oldChannel, newChannel) {
     "granting dangerous channel permissions in " + newChannel.name);
 }
 
-client.on(Events.ChannelUpdate, (oldChannel, newChannel) => {
-  void inspectChannelPermissionEscalation(oldChannel, newChannel)
-    .catch(error => console.error("[ANTI-NUKE] Channel permission inspection failed:", error));
+registerAntiNukeEvent(Events.ChannelUpdate, "Channel permission escalation", async (oldChannel, newChannel) => {
+  await inspectChannelPermissionEscalation(oldChannel, newChannel);
 });
 
 const antiNukeJoinWindows = new Map();
@@ -2087,18 +2123,14 @@ async function restoreDeletedGuildEmoji(emoji) {
   }
 }
 
-client.on(Events.GuildEmojiCreate, emoji => {
-  if (emoji.guild?.id === ANTI_NUKE_GUILD_ID) {
-    void backupGuildEmojis(emoji.guild, "emoji-created").catch(error => console.error("[EmojiBackup] Create-event backup failed:", error));
-  }
+registerAntiNukeEvent(Events.GuildEmojiCreate, "Emoji backup on create", async emoji => {
+  if (emoji.guild?.id === ANTI_NUKE_GUILD_ID) await backupGuildEmojis(emoji.guild, "emoji-created");
 });
-client.on(Events.GuildEmojiUpdate, (_oldEmoji, newEmoji) => {
-  if (newEmoji.guild?.id === ANTI_NUKE_GUILD_ID) {
-    void backupGuildEmojis(newEmoji.guild, "emoji-updated").catch(error => console.error("[EmojiBackup] Update-event backup failed:", error));
-  }
+registerAntiNukeEvent(Events.GuildEmojiUpdate, "Emoji backup on update", async (_oldEmoji, newEmoji) => {
+  if (newEmoji.guild?.id === ANTI_NUKE_GUILD_ID) await backupGuildEmojis(newEmoji.guild, "emoji-updated");
 });
-client.on(Events.GuildEmojiDelete, emoji => {
-  void restoreDeletedGuildEmoji(emoji).catch(error => console.error("[EmojiBackup] Delete-event recovery failed:", error));
+registerAntiNukeEvent(Events.GuildEmojiDelete, "Emoji deletion recovery", async emoji => {
+  await restoreDeletedGuildEmoji(emoji);
 });
 
 async function restoreDeletedGuildSticker(sticker) {
@@ -2158,18 +2190,14 @@ async function restoreDeletedGuildSticker(sticker) {
   }
 }
 
-client.on(Events.GuildStickerCreate, sticker => {
-  if (sticker.guild?.id === ANTI_NUKE_GUILD_ID) {
-    void backupGuildStickers(sticker.guild, "sticker-created").catch(error => console.error("[StickerBackup] Create-event backup failed:", error));
-  }
+registerAntiNukeEvent(Events.GuildStickerCreate, "Sticker backup on create", async sticker => {
+  if (sticker.guild?.id === ANTI_NUKE_GUILD_ID) await backupGuildStickers(sticker.guild, "sticker-created");
 });
-client.on(Events.GuildStickerUpdate, (_oldSticker, newSticker) => {
-  if (newSticker.guild?.id === ANTI_NUKE_GUILD_ID) {
-    void backupGuildStickers(newSticker.guild, "sticker-updated").catch(error => console.error("[StickerBackup] Update-event backup failed:", error));
-  }
+registerAntiNukeEvent(Events.GuildStickerUpdate, "Sticker backup on update", async (_oldSticker, newSticker) => {
+  if (newSticker.guild?.id === ANTI_NUKE_GUILD_ID) await backupGuildStickers(newSticker.guild, "sticker-updated");
 });
-client.on(Events.GuildStickerDelete, sticker => {
-  void restoreDeletedGuildSticker(sticker).catch(error => console.error("[StickerBackup] Delete-event recovery failed:", error));
+registerAntiNukeEvent(Events.GuildStickerDelete, "Sticker deletion recovery", async sticker => {
+  await restoreDeletedGuildSticker(sticker);
 });
 
 async function createGuildChannelBackup(guild, reason = "hourly") {
