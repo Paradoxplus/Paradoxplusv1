@@ -661,6 +661,23 @@ client.on(Events.MessageDelete, async deletedMessage => {
     .catch(error => console.error("[MessageArchive] Could not mark deleted message:", error));
 });
 
+function registerAntiNukeEvent(event, label, handler) {
+  client.on(event, (...args) => {
+    const guild = args.find(value => value?.guild)?.guild ||
+      args.find(value => value?.first)?.first()?.guild ||
+      null;
+    Promise.resolve()
+      .then(() => handler(...args))
+      .catch(async error => {
+        console.error("[ANTI-NUKE] " + label + " handler failed:", error);
+        if (guild) {
+          await notifyAntiNukeOwner(guild,
+            label + " handler failed: " + String(error?.message || error).slice(0, 300));
+        }
+      });
+  });
+}
+
 const antiNukeMassDeleteWindows = new Map();
 async function inspectMassMessageDelete(messages) {
   const first = messages.first();
@@ -695,7 +712,7 @@ async function inspectMassMessageDelete(messages) {
     " messages. Channel: <#" + channel.id + ">. Bulk-delete events by this actor in the last minute: " + recent.length +
     ". Archived message records are being marked for recovery/export.");
 }
-client.on(Events.MessageBulkDelete, messages => {
+registerAntiNukeEvent(Events.MessageBulkDelete, "Bulk message delete", messages => {
   for (const message of messages.values()) {
     if (message.guildId !== MESSAGE_ARCHIVE_GUILD_ID) continue;
     void archiveDiscordMessage(message, "delete")
@@ -766,7 +783,7 @@ client.on(Events.MessageCreate, async message => {
   }).catch(error => console.error("[AFK] Mention notice failed:", error));
 });
 
-client.on(Events.GuildRoleCreate, async role => {
+registerAntiNukeEvent(Events.GuildRoleCreate, "Role creation", async role => {
   if (role.guild.id !== ANTI_NUKE_GUILD_ID) return;
   void syncRankRoles(role.guild).catch(error => console.error("Role-create auto-sync failed:", error));
 
@@ -912,7 +929,7 @@ async function enforceRapidBanProtection(guild, bannedUser) {
   }
 }
 
-client.on(Events.GuildBanAdd, ban => {
+registerAntiNukeEvent(Events.GuildBanAdd, "Member ban", ban => {
   if (ban.guild?.id === ANTI_NUKE_GUILD_ID) void enforceRapidBanProtection(ban.guild, ban.user);
 });
 
@@ -961,7 +978,7 @@ async function inspectRolePermissionEscalation(oldRole, newRole) {
   await punishAntiNukeExecutor(guild, executorId, "granting dangerous permissions to role " + newRole.name);
 }
 
-client.on(Events.GuildRoleCreate, async role => {
+registerAntiNukeEvent(Events.GuildRoleCreate, "Dangerous role creation", async role => {
   if (role.guild.id !== ANTI_NUKE_GUILD_ID || !hasDangerousPermissions(role.permissions)) return;
   const entry = await findRecentAuditExecutor(role.guild, AuditLogEvent.RoleCreate, role.id);
   const executorId = entry?.executorId ?? null;
@@ -1048,7 +1065,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   }
 });
 
-client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+registerAntiNukeEvent(Events.GuildMemberUpdate, "Dangerous role assignment", async (oldMember, newMember) => {
   if (newMember.guild.id !== ANTI_NUKE_GUILD_ID) return;
   const addedDangerousRoles = newMember.roles.cache.filter(role =>
     !oldMember.roles.cache.has(role.id) && hasDangerousPermissions(role.permissions)
@@ -1098,8 +1115,8 @@ async function inspectMassKicks(guild) {
   }
 }
 
-client.on(Events.GuildMemberRemove, member => {
-  if (member.guild.id === ANTI_NUKE_GUILD_ID) void inspectMassKicks(member.guild);
+registerAntiNukeEvent(Events.GuildMemberRemove, "Member removal / mass-kick inspection", member => {
+  if (member.guild.id === ANTI_NUKE_GUILD_ID) return inspectMassKicks(member.guild);
 });
 
 async function inspectNewBot(member) {
@@ -1254,7 +1271,7 @@ async function restoreArchivedMessages(deletedChannel, restoredChannel) {
   return restoredCount;
 }
 
-client.on(Events.ChannelCreate, async channel => {
+registerAntiNukeEvent(Events.ChannelCreate, "Channel creation", async channel => {
   if (!channel?.guild || channel.guild.id !== ANTI_NUKE_GUILD_ID || channel.isThread?.()) return;
   const entry = await findRecentAuditExecutor(channel.guild, AuditLogEvent.ChannelCreate, channel.id, 30000);
   if (!entry?.executorId) {
@@ -1375,7 +1392,7 @@ function trackAntiNukeJoin(member) {
   if (recent.length > 100) antiNukeJoinWindows.set(member.guild.id, recent.slice(-100));
 }
 
-client.on(Events.WebhooksUpdate, async channel => {
+registerAntiNukeEvent(Events.WebhooksUpdate, "Webhook update", async channel => {
   if (!channel?.guild || channel.guild.id !== ANTI_NUKE_GUILD_ID) return;
   for (const type of [AuditLogEvent.WebhookCreate, AuditLogEvent.WebhookUpdate, AuditLogEvent.WebhookDelete]) {
     try {
@@ -1429,7 +1446,7 @@ async function findChannelDeleteExecutorFast(guild, channelId, eventStartedAt) {
   return null;
 }
 
-client.on(Events.ChannelDelete, channel => {
+registerAntiNukeEvent(Events.ChannelDelete, "Channel deletion / recovery", channel => {
   if (!channel?.guild || channel.guild.id !== ANTI_NUKE_GUILD_ID || channel.isThread?.()) return;
   const guild = channel.guild;
   const eventStartedAt = Date.now();
@@ -1438,6 +1455,7 @@ client.on(Events.ChannelDelete, channel => {
   console.error("[CHANNEL-ANTI-NUKE] FIRST channel deletion detected; immediate protection started:", channel.name, channel.id);
 
   // Start recovery immediately; do not wait for audit-log attribution.
+  let enforcementExecutorId = null;
   const recoveryTask = (async () => {
     let restoredChannel = null;
     try {
@@ -1453,6 +1471,7 @@ client.on(Events.ChannelDelete, channel => {
   const enforcementTask = (async () => {
     const entry = await findChannelDeleteExecutorFast(guild, channel.id, eventStartedAt);
     const executorId = entry?.executorId ?? null;
+    enforcementExecutorId = executorId;
 
     if (!executorId) {
       console.warn("[CHANNEL-ANTI-NUKE] Executor not found after fast audit retries; no unverified punishment issued.");
@@ -1477,8 +1496,7 @@ client.on(Events.ChannelDelete, channel => {
       await notifyAntiNukeOwner(guild, "Channel deletion enforcement failed: " + String(results[1].reason?.message || results[1].reason).slice(0, 250));
     }
 
-    const executorEntry = await findChannelDeleteExecutorFast(guild, channel.id, eventStartedAt);
-    const executorId = executorEntry?.executorId ?? null;
+    const executorId = enforcementExecutorId;
     if (!restoredChannel || !executorId || isAntiNukeTrustedActor(guild, executorId)) return;
 
     const cfg = getGuildConfig(guild.id);
@@ -1520,7 +1538,7 @@ client.on(Events.ChannelDelete, channel => {
     .finally(() => antiNukeChannelDeleteLocks.delete(channel.id));
 });
 
-client.on(Events.GuildRoleDelete, async role => {
+registerAntiNukeEvent(Events.GuildRoleDelete, "Role deletion", async role => {
   if (role.guild.id !== ANTI_NUKE_GUILD_ID) return;
   void syncRankRoles(role.guild).catch(error => console.error("Role-delete auto-sync failed:", error));
 
@@ -1723,7 +1741,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   try { await newMember.timeout(28 * 24 * 60 * 60 * 1000, "Permanent mute auto-renewal: " + (record.reason || "No reason provided")); console.log("[PermanentMute] Renewed permanent mute for", newMember.id); }
   catch (error) { console.error("[PermanentMute] Failed to renew mute for", newMember.id, error); }
 });
-client.on(Events.GuildMemberAdd, async member => {
+registerAntiNukeEvent(Events.GuildMemberAdd, "Member join / bot screening", async member => {
   trackAntiNukeJoin(member);
   if (await inspectNewBot(member)) return;
   const config = getGuildConfig(member.guild.id);
@@ -2257,9 +2275,11 @@ client.once(Events.ClientReady, async readyClient => {
     const required = [
       PermissionFlagsBits.ViewAuditLog,
       PermissionFlagsBits.BanMembers,
+      PermissionFlagsBits.KickMembers,
       PermissionFlagsBits.ManageRoles,
       PermissionFlagsBits.ManageChannels,
-      PermissionFlagsBits.ManageWebhooks
+      PermissionFlagsBits.ManageWebhooks,
+      PermissionFlagsBits.ManageGuildExpressions
     ];
     const missing = required.filter(permission => !securityMember?.permissions.has(permission));
     if (missing.length) {
@@ -3232,9 +3252,11 @@ client.on(Events.InteractionCreate, async interaction => {
         const requiredSecurityPermissions = [
           [PermissionFlagsBits.ViewAuditLog, "View Audit Log"],
           [PermissionFlagsBits.BanMembers, "Ban Members"],
+          [PermissionFlagsBits.KickMembers, "Kick Members"],
           [PermissionFlagsBits.ManageRoles, "Manage Roles"],
           [PermissionFlagsBits.ManageChannels, "Manage Channels"],
-          [PermissionFlagsBits.ManageWebhooks, "Manage Webhooks"]
+          [PermissionFlagsBits.ManageWebhooks, "Manage Webhooks"],
+          [PermissionFlagsBits.ManageGuildExpressions, "Manage Expressions"]
         ];
         const missingSecurityPermissions = requiredSecurityPermissions
           .filter(([permission]) => !securityBotMember?.permissions.has(permission))
