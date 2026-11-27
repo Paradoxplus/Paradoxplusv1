@@ -6313,6 +6313,36 @@ client.on(Events.MessageCreate, async message => {
       await message.channel.setRateLimitPerUser(seconds, `Slowmode changed by ${message.author.tag}`);
       return send("⏱️ Slowmode updated", seconds ? `Slowmode is now **${seconds} seconds**.` : "Slowmode has been disabled.");
     }
+    if (command === "howgay") {
+      const targetId = mentionedId(args[0]) || message.author.id;
+      const target = targetId === message.author.id
+        ? message.author
+        : await client.users.fetch(targetId).catch(() => null);
+      if (!target) return fail("I couldn't find that Discord user.");
+      const score = target.id === BOT_OWNER_ID
+        ? crypto.randomInt(0, 2001) / 100
+        : crypto.randomInt(0, 10001) / 100;
+      const mood = score < 25
+        ? "The vibe meter is playing it mysterious. 🕶️"
+        : score < 50
+          ? "A little sparkle has entered the chat. ✨"
+          : score < 75
+            ? "The confetti cannon is warming up. 🎉"
+            : "Maximum rainbow chaos detected. 🌈";
+      const embed = new EmbedBuilder()
+        .setColor(0xD879C8)
+        .setAuthor({ name: "ELIXE • AS  |  HOWGAY METER", iconURL: client.user.displayAvatarURL() })
+        .setTitle("🌈 The totally-not-scientific meter")
+        .setDescription("**<@" + target.id + ">**'s random meme score is...")
+        .addFields(
+          { name: "Meme score", value: "**" + score.toFixed(2) + "%**", inline: true },
+          { name: "Verdict", value: mood, inline: true }
+        )
+        .setThumbnail(target.displayAvatarURL({ extension: "png", size: 256 }))
+        .setFooter({ text: "Random result for laughs • Avatar is decoration only" })
+        .setTimestamp();
+      return message.reply({ embeds: [embed], allowedMentions: { repliedUser: false, parse: [] } });
+    }
     if (command === "rank") {
       const id = mentionedId(args[0]) || message.author.id;
       const target = message.guild.members.cache.get(id) ?? await message.guild.members.fetch(id).catch(() => null);
