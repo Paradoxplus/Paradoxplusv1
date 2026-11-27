@@ -3231,6 +3231,77 @@ client.on(Events.InteractionCreate, async interaction => {
       return replyError(interaction, "Unknown owner whitelist action.");
     }
 
+    if (interaction.commandName === "contentguard") {
+      const action = interaction.options.getSubcommand();
+      const config = getGuildConfig(interaction.guildId);
+      if (action === "setup" || action === "status") {
+        if (!isBotOwner(interaction.user.id) && !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+          return replyError(interaction, "Manage Server is required to configure or view this protection.");
+        }
+        const rules = await interaction.guild.autoModerationRules.fetch().catch(error => {
+          console.error("[ContentGuard] Could not fetch Discord AutoMod rules:", error);
+          return null;
+        });
+        if (!rules) return replyError(interaction, "I couldn't read Discord AutoMod rules. Check my Manage Server permission.");
+        const rule = rules.find(item => item.name === "Elixe • As | Sexual Content Guard");
+        if (action === "status") {
+          const e = new EmbedBuilder().setColor(0x202225).setTitle("ELIXE • AS | CONTENT SAFETY")
+            .setDescription(rule?.enabled
+              ? "Discord's built-in sexual-content text filter is enabled. Matching messages are blocked before posting."
+              : "The sexual-content text filter is not enabled.")
+            .addFields(
+              { name: "Text filtering", value: rule?.enabled ? "Enabled" : "Disabled", inline: true },
+              { name: "Child-safety reports", value: "Moderator reporting is available through /contentguard report. Reports contain a message link and brief reason only; the bot does not copy or store attachments or message text.", inline: false },
+              { name: "Limitations", value: "Discord's preset is not an image/video classifier and does not identify child exploitation material. Suspected exploitation must be reported through Discord's safety reporting process and escalated to trusted moderators.", inline: false }
+            ).setFooter({ text: "ELIXE • AS | SAFETY" }).setTimestamp();
+          return interaction.reply({ embeds: [e], ephemeral: true });
+        }
+        if (rule) return interaction.reply({ content: "The Elixe • As sexual-content text filter is already configured.", ephemeral: true });
+        const existingPreset = rules.find(item => item.triggerType === 4);
+        if (existingPreset) {
+          return replyError(interaction, "This server already has Discord's single keyword-preset AutoMod rule. I won't overwrite another bot's rule; merge the Sexual Content preset into that rule in Server Settings → Safety Setup.");
+        }
+        try {
+          await interaction.guild.autoModerationRules.create({
+            name: "Elixe • As | Sexual Content Guard",
+            eventType: 1,
+            triggerType: 4,
+            triggerMetadata: { presets: [2] },
+            actions: [{ type: 1, metadata: { customMessage: "This message was blocked by the server's content-safety filter." } }],
+            enabled: true,
+            reason: "Enable Discord native sexual-content text filtering"
+          });
+          return interaction.reply({ content: "🛡️ Discord's sexual-content text filter is now enabled. It blocks matching text before it is posted.", ephemeral: true });
+        } catch (error) {
+          console.error("[ContentGuard] Could not create AutoMod rule:", error);
+          return replyError(interaction, "I couldn't create the AutoMod rule. Check Manage Server permission and the bot's role permissions.");
+        }
+      }
+      if (action === "report") {
+        const messageLink = interaction.options.getString("message_link", true).trim();
+        const reason = interaction.options.getString("reason", true).trim().slice(0, 500);
+        const match = messageLink.match(/^https:\/\/discord(?:app)?\.com\/channels\/(\d{17,20})\/(\d{17,20})\/(\d{17,20})$/);
+        if (!match || match[1] !== interaction.guildId || !reason) {
+          return replyError(interaction, "Provide a valid message link from this server and a brief reason. Do not upload, quote, or forward sensitive material.");
+        }
+        const reportChannelId = config.logChannelId;
+        const reportChannel = reportChannelId ? await interaction.guild.channels.fetch(reportChannelId).catch(() => null) : null;
+        if (!reportChannel?.isTextBased() || !reportChannel.send) {
+          return replyError(interaction, "The moderation log channel is unavailable. Ask an administrator to configure the server log channel first.");
+        }
+        const report = new EmbedBuilder().setColor(0xd94848).setTitle("SAFETY CONCERN | MODERATOR REVIEW")
+          .setDescription("A member submitted a private safety report. Review the linked message using moderator judgement. Do not download, copy, or redistribute potentially illegal material.")
+          .addFields(
+            { name: "Reported by", value: "<@" + interaction.user.id + "> (\x60" + interaction.user.id + "\x60)", inline: true },
+            { name: "Channel", value: "<#" + match[2] + ">", inline: true },
+            { name: "Message", value: "[Open reported message](" + messageLink + ")", inline: false },
+            { name: "Reason", value: reason, inline: false }
+          ).setFooter({ text: "ELIXE • AS | PRIVATE MODERATION REPORT" }).setTimestamp();
+        await reportChannel.send({ embeds: [report], allowedMentions: { parse: [] } });
+        return interaction.reply({ content: "Your report was sent privately to the moderation team. Do not share or forward the material.", ephemeral: true });
+      }
+    }
+
     if (interaction.commandName === "antinuke") {
       if (!isBotOwner(interaction.user.id)) {
         return replyError(interaction, "Only Fearless, the configured Elixe • As bot owner, can manage anti-nuke tools.");
