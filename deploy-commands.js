@@ -125,6 +125,8 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
     .addUserOption(o=>o.setName("member").setDescription("Member").setRequired(true))
     .addRoleOption(o=>o.setName("role").setDescription("Role to remove").setRequired(true)),
+  new SlashCommandBuilder().setName("howgay").setDescription("Get a random howgay meme score (just for laughs).")
+    .addUserOption(o=>o.setName("member").setDescription("Member to rate; defaults to you")),
   new SlashCommandBuilder().setName("userinfo").setDescription("Show detailed information about a server member.")
     .addUserOption(o=>o.setName("member").setDescription("Member to inspect")),
   new SlashCommandBuilder().setName("serverinfo").setDescription("Show detailed server information."),
