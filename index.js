@@ -2590,7 +2590,7 @@ setInterval(async () => {
 
 
 // Modrinth texture-pack dropper. Uses the public API; only explicitly permissive licences are eligible for file re-upload.
-const MODRINTH_USER_AGENT = "Elixe • As/1.0.0 (Discord texture-pack dropper)";
+const MODRINTH_USER_AGENT = "Elixe-AS/1.0.0 (Discord texture-pack dropper)";
 const MODRINTH_MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 const MODRINTH_REDISTRIBUTABLE_LICENSES = new Set([
   "CC0-1.0", "CC-BY-4.0", "CC-BY-SA-4.0",
