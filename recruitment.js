@@ -101,6 +101,12 @@ export async function initRecruitmentDatabase() {
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
   });
+  // pg.Pool emits "error" for idle clients that fail asynchronously. Without
+  // a listener, EventEmitter treats that as an uncaught error and can crash
+  // the bot even though the pool can discard and replace that client.
+  pool.on("error", error => {
+    console.error("[Recruitment] Unexpected idle PostgreSQL client error:", error);
+  });
   try {
     await pool.query("SELECT 1");
     await pool.query(`CREATE TABLE IF NOT EXISTS recruitment_records (
@@ -333,9 +339,14 @@ export async function importDatabaseSnapshot(snapshot) {
     recruitment_records: ["id", "guild_id", "recruit_id", "recruiter_id", "recruited_at", "source", "original_nickname", "nickname_saved"],
     message_archive: ["message_id", "guild_id", "channel_id", "channel_name", "author_id", "author_tag", "content", "attachments", "embeds", "stickers", "created_at", "edited_at", "archived_at", "deleted_at", "message_url", "event_type"]
   };
+  const internalTables = new Set(["paradoxplus_bot_state", "paradoxplus_bot_lease", "paradoxplus_migration_state"]);
   const selected = snapshot.tables.filter(item => item?.schema === "public" && Object.hasOwn(tableRules, item?.name));
-  if (snapshot.tables.some(item => item?.schema !== "public" || !Object.hasOwn(tableRules, item?.name))) {
-    throw new Error("The backup contains an unknown table. Restore stopped to protect the new database.");
+  const unknownTables = snapshot.tables.filter(item =>
+    item?.schema !== "public" ||
+    (!Object.hasOwn(tableRules, item?.name) && !internalTables.has(item?.name))
+  );
+  if (unknownTables.length) {
+    throw new Error("The backup contains unknown tables (" + unknownTables.map(item => item?.schema + "." + item?.name).join(", ") + "). Restore stopped to protect the new database.");
   }
   if (!selected.length) return { restored: 0, tables: 0 };
 
@@ -391,9 +402,10 @@ export async function exportDatabaseSnapshot() {
     SELECT table_schema, table_name
     FROM information_schema.tables
     WHERE table_type = 'BASE TABLE'
-      AND table_schema NOT IN ('pg_catalog', 'information_schema')
+      AND table_schema = 'public'
+      AND table_name = ANY($1::text[])
     ORDER BY table_schema, table_name
-  `);
+  `, [["recruitment_records", "message_archive"]]);
   const tables = [];
   for (const item of listed.rows) {
     const schema = String(item.table_schema).replace(/"/g, '""');
