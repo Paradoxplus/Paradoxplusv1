@@ -432,6 +432,13 @@ const commands = [
   new SlashCommandBuilder().setName("tpackdisable").setDescription("Disable the automatic Modrinth texture-pack ZIP feed.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   new SlashCommandBuilder().setName("tpackstatus").setDescription("Check the automatic Modrinth texture-pack ZIP feed."),
+  new SlashCommandBuilder().setName("bot").setDescription("Manage trusted bots for anti-nuke protection.")
+    .addSubcommandGroup(group => group.setName("whitelist").setDescription("Manage the anti-nuke trusted-bot whitelist.")
+      .addSubcommand(sc => sc.setName("add").setDescription("Exempt a bot from anti-nuke enforcement.")
+        .addUserOption(o => o.setName("bot").setDescription("Bot account to trust").setRequired(true)))
+      .addSubcommand(sc => sc.setName("remove").setDescription("Remove a bot from anti-nuke protection.")
+        .addUserOption(o => o.setName("bot").setDescription("Bot account to untrust").setRequired(true)))
+      .addSubcommand(sc => sc.setName("list").setDescription("List all anti-nuke trusted bots."))),
   new SlashCommandBuilder().setName("owner").setDescription("Manage trusted anti-nuke users.")
     .addSubcommandGroup(group => group.setName("whitelist").setDescription("Manage the anti-nuke trusted-user whitelist.")
       .addSubcommand(sc => sc.setName("add").setDescription("Protect a user from anti-nuke enforcement.")
