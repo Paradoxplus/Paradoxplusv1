@@ -5268,9 +5268,16 @@ client.on(Events.MessageCreate, async message => {
       return send("✦ MEMBER UNRECRUITED", "Removed <@" + id + "> from the recruitment system.\n\n" + results.join("\n"));
     }
     if (command === "recruits") {
-      const id = mentionedId(args[0]) || message.author.id;
-      if (id !== message.author.id && !isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.ManageGuild) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) return fail("You can only view your own profile unless you have Manage Server.");
       if (!isRecruitmentDatabaseReady()) return fail("Recruitment storage is unavailable. Check the PostgreSQL connection.");
+      const period = (args[0] || "all").toLowerCase();
+      if (["daily", "weekly", "monthly", "all"].includes(period)) {
+        const rows = await getRecruitLeaderboard(message.guild.id, period);
+        const lines = rows.map((row, index) => "**" + (index + 1) + ".** <@" + row.recruiter_id + "> — **" + row.total + "** recruits");
+        return send("Recruiters • " + period, lines.join("\n") || "No recruiter records found for this period.");
+      }
+      const id = mentionedId(args[0]);
+      if (!id) return fail("Usage: " + prefix + "recruits [daily|weekly|monthly|all|@member]");
+      if (id !== message.author.id && !isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.ManageGuild) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) return fail("You can only view your own profile unless you have Manage Server.");
       const stats = await getRecruitStats(message.guild.id, id);
       const latest = stats.latest ? "\n**Latest recruit:** <t:" + Math.floor(new Date(stats.latest).getTime() / 1000) + ":R>" : "";
       return send("Recruiter profile", "**Recruiter:** <@" + id + ">\n**All-time recruits:** **" + stats.total + "**\n**Last 7 days:** " + stats.last_7_days + "\n**Last 30 days:** " + stats.last_30_days + latest);
