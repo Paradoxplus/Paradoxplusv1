@@ -2985,7 +2985,7 @@ client.on(Events.InteractionCreate, async interaction => {
         .setColor(0xD879C8)
         .setAuthor({ name: "ELIXE • AS  |  HOWGAY METER", iconURL: client.user.displayAvatarURL() })
         .setTitle("🌈 The totally-not-scientific meter")
-        .setDescription("**" + target.username.replace(/([\\\\*_~|])/g, "\\\\$1") + "**'s random meme score is...")
+        .setDescription("**<@" + target.id + ">**'s random meme score is...")
         .addFields(
           { name: "Meme score", value: "**" + score.toFixed(2) + "%**", inline: true },
           { name: "Verdict", value: mood, inline: true }
