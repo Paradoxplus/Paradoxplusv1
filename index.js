@@ -3202,6 +3202,7 @@ client.on(Events.InteractionCreate, async interaction => {
         interaction.guild.members.fetchMe()
       ]);
       if (!target) return replyError(interaction, "That member is no longer in this server.");
+      if (target.id === interaction.user.id && !isRoleProtectedUser(interaction.user.id)) return replyError(interaction, "Only whitelisted owners can assign roles to themselves.");
       if (target.id === interaction.guild.ownerId || isBotOwner(target.id)) return replyError(interaction, "I can't change the server owner's or bot owner's roles.");
       if (target.id === interaction.client.user.id) return replyError(interaction, "I can't assign a temporary role to myself.");
       if (!canActOnTarget(actor, target, interaction.guild)) return replyError(interaction, "You can't manage that member because of the role hierarchy.");
@@ -3247,7 +3248,7 @@ client.on(Events.InteractionCreate, async interaction => {
       await interaction.deferReply({ ephemeral: true });
       try {
         const members = await getGuildMembers(interaction.guild);
-        const targets = [...members.values()].filter(member => !member.roles.cache.has(role.id));
+        const targets = [...members.values()].filter(member => !member.roles.cache.has(role.id) && (member.id !== interaction.user.id || isRoleProtectedUser(interaction.user.id)));
         let added = 0;
         const failed = [];
         for (const member of targets) {
@@ -4605,6 +4606,7 @@ client.on(Events.InteractionCreate, async interaction => {
         const target=await interaction.guild.members.fetch(user.id).catch(()=>null);
         if(!target)return replyError(interaction,"Member not found.");
         const actor=await interaction.guild.members.fetch(interaction.user.id);
+        if(target.id === interaction.user.id && !isRoleProtectedUser(interaction.user.id))return replyError(interaction,"Only whitelisted owners can assign roles to themselves.");
         if(!canActOnTarget(actor,target,interaction.guild))return replyError(interaction,"That member has an equal or higher role than you.");
         const warning={id:config.warnings.length+1,memberId:user.id,moderatorId:interaction.user.id,reason,timestamp:new Date().toISOString()};
         config.warnings.unshift(warning); config.warnings=config.warnings.slice(0,1000);
@@ -5826,7 +5828,7 @@ client.on(Events.MessageCreate, async message => {
       if (!bot.permissions.has(PermissionFlagsBits.ManageRoles) || !role.editable || role.position >= bot.roles.highest.position) return fail("I need Manage Roles, and my highest role must be above " + role.toString() + ".");
       try {
         const members = await getGuildMembers(message.guild);
-        const targets = [...members.values()].filter(member => !member.roles.cache.has(role.id));
+        const targets = [...members.values()].filter(member => !member.roles.cache.has(role.id) && (member.id !== message.author.id || isRoleProtectedUser(message.author.id)));
         let added = 0;
         const failed = [];
         for (const member of targets) {
@@ -6496,6 +6498,7 @@ client.on(Events.MessageCreate, async message => {
       const target = message.guild.members.cache.get(id) ?? await message.guild.members.fetch(id).catch(()=>null);
       if (!target) return fail("That member isn't in this server.");
       const actor = message.member;
+      if (target.id === actor.id && !isRoleProtectedUser(actor.id)) return fail("Only whitelisted owners can assign ranks to themselves.");
       if (!isBotOwner(actor.id) && message.guild.ownerId !== actor.id && !actor.permissions.has(PermissionFlagsBits.Administrator) && target.roles.highest.comparePositionTo(actor.roles.highest) >= 0)
         return fail("You can't manage someone whose highest role is equal to or above yours.");
       const bot = message.guild.members.me ?? await message.guild.members.fetchMe();
