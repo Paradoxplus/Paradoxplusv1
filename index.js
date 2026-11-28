@@ -6279,7 +6279,8 @@ client.on(Events.MessageCreate, async message => {
     }
     if (command === "rankhelp" || command === "help") {
       const slashCommands = await client.application.commands.fetch().catch(() => null);
-      const commandCount = slashCommands?.size ?? 0;
+      // 110 recognized prefix command names/aliases, plus registered slash commands.
+      const commandCount = 110 + (slashCommands?.size ?? 0);
       const help = new EmbedBuilder()
         .setColor(0x000000)
         .setDescription(
@@ -6287,38 +6288,38 @@ client.on(Events.MessageCreate, async message => {
           "- **My prefix for this server is** \`" + prefix + "\`\n" +
           "- **Type** \`" + prefix + "help [context]\` **for more**\n" +
           "- **Total commands:** \`" + commandCount + "\`\n" +
-          "> **<:anti_308:1505158814167470223> \`»\` Security**\n" +
-          "> **<:GirlOwners_361:1505158857243234416> \`»\` Permit Commands**\n" +
-          "> **<:automodemoji:1535539885841322054> \`»\` Automod**\n" +
-          "> **<:Mods_1641:1505159011417194617> \`»\` Moderation**\n" +
-          "> **<:Snap_9742:1505158977405845569> \`»\` General**\n" +
-          "> **<:arrkiii_11053:1505158890659254374> \`»\` Verification**\n" +
-          "> **<:config_14386:1505158846727983155> \`»\` Utility**\n" +
-          "> **<:links_15056:1505158868794347683> \`»\` Automations**\n" +
-          "> **<:OxP_16908:1505158802436264009> \`»\` Autoresponders**\n" +
-          "> **<:vanity:1509329019827388456> \`»\` Vanity & Tags**\n" +
-          "> **<:welc_7862:1505158955687481374> \`»\` Greetings**\n" +
-          "> **<:music_8962:1505159038546219109> \`»\` Music**\n" +
-          "> **<:Partners_12142:1505158944895799407> \`»\` Fun Commands**\n" +
-          "> **<:Staffs_2197:1505158912561647697> \`»\` CustomRole**\n" +
-          "> **<:volumehigh_5313:1505158835717804153> \`»\` Voice Commands**\n" +
-          "> **<:profile_6431:1505158824535789570> \`»\` Tickets**\n" +
-          "> **<:Voters_14336:1505159049375907891> \`»\` Logging**\n" +
-          "> **<:ping_4647:1505159060482298027> \`»\` Bot Settings**\n\n" +
+          "> **🛡️ \`»\` Security**\n" +
+          "> **👑 \`»\` Permit Commands**\n" +
+          "> **🤖 \`»\` Automod**\n" +
+          "> **🔨 \`»\` Moderation**\n" +
+          "> **🌐 \`»\` General**\n" +
+          "> **✅ \`»\` Verification**\n" +
+          "> **⚙️ \`»\` Utility**\n" +
+          "> **🔗 \`»\` Automations**\n" +
+          "> **💬 \`»\` Autoresponders**\n" +
+          "> **✨ \`»\` Vanity & Tags**\n" +
+          "> **👋 \`»\` Greetings**\n" +
+          "> **🎵 \`»\` Music**\n" +
+          "> **🎉 \`»\` Fun Commands**\n" +
+          "> **🏷️ \`»\` CustomRole**\n" +
+          "> **🔊 \`»\` Voice Commands**\n" +
+          "> **🎫 \`»\` Tickets**\n" +
+          "> **📊 \`»\` Logging**\n" +
+          "> **📡 \`»\` Bot Settings**\n\n" +
           "**__Pro Tip__**\n" +
-          "Set up greetings and tickets with \`" + prefix + "welcome set\` and \`" + prefix + "ticket set\`. <:cute:1564423406730870955>\n\n" +
-          "**<:link:1505158966962032640> __Links__**\n" +
+          "Set up greetings and tickets with \`" + prefix + "welcome set\` and \`" + prefix + "ticket set\`. ✨\n\n" +
+          "**🔗 __Links__**\n" +
           "-# Powered By Elixe • Core"
         );
       const links = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setLabel("Invite me")
-          .setEmoji("<:link:1505158966962032640>")
+          .setEmoji("🔗")
           .setStyle(ButtonStyle.Link)
           .setURL("https://discord.com/oauth2/authorize?client_id=" + client.user.id + "&scope=bot+applications.commands&permissions=8"),
         new ButtonBuilder()
           .setLabel("Support")
-          .setEmoji("<:profile_6431:1505158824535789570>")
+          .setEmoji("🎫")
           .setStyle(ButtonStyle.Link)
           .setURL("https://discord.com/channels/1568943817762017400/1572968553924141166")
       );
