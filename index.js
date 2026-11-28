@@ -75,7 +75,7 @@ function buildServerInfoEmbed(guild, requester) {
   const requestedAt = Math.floor(Date.now() / 1000);
   const logo = guild.iconURL({ size: 256 });
   return new EmbedBuilder()
-    .setColor(0x7c5cff)
+    .setColor(0x000000)
     .setAuthor({ name: "Elixe • As", ...(logo ? { iconURL: logo } : {}) })
     .setTitle("Server info")
     .setDescription("A quick look at this server.")
@@ -400,7 +400,7 @@ async function sendOptInDmall(guild, config, content) {
     try {
       await member.send({
         embeds: [new EmbedBuilder()
-          .setColor(0x7c5cff)
+          .setColor(0x000000)
           .setAuthor({ name: "ELIXE • AS • SERVER MESSAGE", iconURL: guild.iconURL() || undefined })
           .setDescription(content.slice(0, 3900))
           .setFooter({ text: guild.name + " • You opted in to server DMs" })
@@ -434,7 +434,7 @@ function rankActionStyle(action) {
 function rankChangeEmbed(action, target, oldRank, newRank, actor, reason, guild) {
   const style = rankActionStyle(action);
   const embed = new EmbedBuilder()
-    .setColor(style.color)
+    .setColor(0x000000)
     .setAuthor({ name: `ELIXE • AS • ${style.title}`, iconURL: guild.iconURL() || undefined })
     .setTitle(`${style.emoji} Rank change`)
     .setDescription(`## ${target} ${style.verb} by ${actor}`)
@@ -562,7 +562,7 @@ async function issueStrike(guild, config, target, moderator, reason, sendEmbed) 
     }
   }
   await saveDatabase();
-  const embed = new EmbedBuilder().setColor(0xf0a33a).setTitle('⚠️ Strike issued').addFields(
+  const embed = new EmbedBuilder().setColor(0x000000).setTitle('⚠️ Strike issued').addFields(
     { name: 'Member', value: '<@' + target.id + '> ' + target.user.tag, inline: false },
     { name: 'Moderator', value: '<@' + moderator.id + '> ' + (moderator.tag || moderator.user?.tag || 'Moderator'), inline: false },
     { name: 'Total strikes', value: String(total), inline: true },
@@ -594,7 +594,7 @@ async function removeStrikes(guild, config, target, moderator, amount, reason, s
   }
   const total = config.strikes.filter(item => item.memberId === target.id).length;
   await saveDatabase();
-  const embed = new EmbedBuilder().setColor(0x35d07f).setTitle("➖ Strike removed").addFields(
+  const embed = new EmbedBuilder().setColor(0x000000).setTitle("➖ Strike removed").addFields(
     { name: "Member", value: "<@" + target.id + "> " + target.user.tag, inline: false },
     { name: "Moderator", value: "<@" + moderator.id + "> " + (moderator.tag || moderator.user?.tag || "Moderator"), inline: false },
     { name: "Strikes removed", value: String(amount), inline: true },
@@ -761,7 +761,7 @@ client.on(Events.MessageCreate, async message => {
     const duration = minutes < 1 ? "less than a minute" : minutes < 60 ? minutes + " minute(s)" : Math.floor(minutes / 60) + " hour(s)";
     await message.reply({
       embeds: [new EmbedBuilder()
-        .setColor(0x35d07f)
+        .setColor(0x000000)
         .setTitle("✦ Welcome back")
         .setDescription(message.author.toString() + " is no longer AFK. Away for **" + duration + "**.")
         .setFooter({ text: "Elixe • As AFK System" })
@@ -780,7 +780,7 @@ client.on(Events.MessageCreate, async message => {
   });
   await message.reply({
     embeds: [new EmbedBuilder()
-      .setColor(0x7c5cff)
+      .setColor(0x000000)
       .setTitle("✦ AFK notice")
       .setDescription(details.join("\n"))
       .setFooter({ text: "Elixe • As AFK System" })],
@@ -887,7 +887,7 @@ async function notifyAntiNukeOwner(guild, message) {
   try {
     const owner = await client.users.fetch(BOT_OWNER_ID);
     const alert = new EmbedBuilder()
-      .setColor(0x202225)
+      .setColor(0x000000)
       .setTitle("🛡️ Elixe • As  |  Security Alert")
       .setDescription(String(message).slice(0, 3900))
       .addFields({ name: "Server", value: String(guild.name || "Unknown").slice(0, 100) + "\n" + guild.id, inline: false })
@@ -1253,7 +1253,7 @@ async function buildArchivedMessagePayload(guild, row) {
   if (description.length > 4000) description = description.slice(0, 3997) + "...";
 
   const embed = new EmbedBuilder()
-    .setColor(0x7c5cff)
+    .setColor(0x000000)
     .setAuthor({ name: displayName, ...(avatarUrl ? { iconURL: avatarUrl } : {}) })
     .setDescription(description)
     .setFooter({ text: "Original author • Recovered by Elixe • As" });
@@ -1543,7 +1543,7 @@ registerAntiNukeEvent(Events.ChannelDelete, "Channel deletion / recovery", chann
         new ButtonBuilder().setCustomId("px_delete_approval:reject:" + channel.id).setLabel("Reject & keep recovery").setStyle(ButtonStyle.Success)
       );
       await reviewChannel.send({
-        embeds: [new EmbedBuilder().setColor(0xe0a12b).setTitle("Channel deletion approval required")
+        embeds: [new EmbedBuilder().setColor(0x000000).setTitle("Channel deletion approval required")
           .setDescription("The first unauthorized deletion triggered anti-nuke enforcement. The channel has been recovered temporarily. Choose whether the deletion should stand.")
           .addFields(
             { name: "Channel", value: channel.name + " (" + channel.id + ")", inline: true },
@@ -1821,7 +1821,7 @@ registerAntiNukeEvent(Events.GuildMemberAdd, "Member join / bot screening", asyn
   if (!channel?.isTextBased()) return;
   const count = member.guild.memberCount;
   const embed = new EmbedBuilder()
-    .setColor(config.welcomeColor)
+    .setColor(0x000000)
     .setAuthor({ name: "Exile AS", iconURL: client.user.displayAvatarURL() })
     .setDescription(buildWelcomeDescription(member.guild, member))
     .setThumbnail(config.welcomeThumbnailUrl || member.user.displayAvatarURL({ extension: "png", size: 256 }))
@@ -2356,7 +2356,7 @@ function buildWelcomeSetupPayload(guild, config, userId) {
   const channel = config.welcomeChannelId ? "<#" + config.welcomeChannelId + ">" : "Not set";
   const message = config.welcomeMessage ? config.welcomeMessage.slice(0, 180) : "Default welcome message";
   const embed = new EmbedBuilder()
-    .setColor(config.welcomeColor || 0x7c5cff)
+    .setColor(0x000000)
     .setTitle("Welcome setup")
     .setDescription("Choose the welcome channel and message.\n\n**Channel:** " + channel + "\n**Message:** " + message + "\n\nPlaceholders: `{user}`, `{server}`, `{memberCount}`.")
     .setFooter({ text: "Elixe • As" });
@@ -2379,7 +2379,7 @@ function buildTicketSetupPayload(guild, config, userId) {
   const category = config.ticketCategoryId ? "<#" + config.ticketCategoryId + ">" : "Not set";
   const panelChannel = config.ticketPanelChannelId ? "<#" + config.ticketPanelChannelId + ">" : "Not set";
   const embed = new EmbedBuilder()
-    .setColor(0x6d5dfc)
+    .setColor(0x000000)
     .setTitle("Ticket setup")
     .setDescription("Choose where tickets are created and where the panel is posted.\n\n**Ticket category:** " + category + "\n**Panel channel:** " + panelChannel + "\n\nSelect both, then publish the panel.")
     .setFooter({ text: "Elixe • As | Only the staff member who opened this panel can use it" });
@@ -2416,7 +2416,7 @@ function buildTicketPanel(guild, botUser) {
       { label: "Paid Promotion", description: "Enquire about paid promotions", value: "Paid Promotion", emoji: "📢" }
     );
   const panel = new EmbedBuilder()
-    .setColor(0x6d5dfc)
+    .setColor(0x000000)
     .setTitle("Ticket support")
     .setDescription(
       "Choose a category below to open a ticket.\n\n" +
@@ -2517,7 +2517,7 @@ async function archiveTicketTranscript(channel, closedBy, reason) {
     name: "exile-as-" + channel.id + "-transcript.txt"
   });
   const embed = new EmbedBuilder()
-    .setColor(0x6d5dfc)
+    .setColor(0x000000)
     .setTitle("📄 Ticket Transcript Archived")
     .addFields(
       { name: "Ticket", value: "`" + channel.name + "`", inline: true },
@@ -2545,7 +2545,7 @@ function giveawayEmbed(giveaway) {
   const ended = Boolean(giveaway.endedAt);
   const winners = Array.isArray(giveaway.winners) ? giveaway.winners : [];
   return new EmbedBuilder()
-    .setColor(ended ? 0x747f8d : 0x7c5cff)
+    .setColor(0x000000)
     .setAuthor({ name: "ELIXE • AS • GIVEAWAY", iconURL: client.user.displayAvatarURL() })
     .setTitle((ended ? "🏁 " : "🎉 ") + giveaway.prize)
     .setDescription(
@@ -2762,7 +2762,7 @@ async function runModrinthTextureDropper() {
               .replace(/<@!?\d+>|@everyone|@here/g, "")
               .replace(/\s+/g, " ").trim().slice(0, 700);
             const embed = new EmbedBuilder()
-              .setColor(0x1bd96a)
+              .setColor(0x000000)
               .setTitle(String(pack.title).slice(0, 250))
               .setURL(projectUrl)
               .setDescription(safeDescription)
@@ -2907,7 +2907,7 @@ client.on(Events.InteractionCreate, async interaction => {
         const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
         if (!member) return interaction.reply({ content: "Couldn't load your member profile for the preview.", ephemeral: true });
         const preview = new EmbedBuilder()
-          .setColor(config.welcomeColor || 0x7c5cff)
+          .setColor(0x000000)
           .setAuthor({ name: interaction.guild.name, iconURL: interaction.client.user.displayAvatarURL() })
           .setDescription(buildWelcomeDescription(interaction.guild, member))
           .setThumbnail(config.welcomeThumbnailUrl || member.user.displayAvatarURL({ extension: "png", size: 256 }))
@@ -3039,7 +3039,7 @@ client.on(Events.InteractionCreate, async interaction => {
         new ButtonBuilder().setCustomId("px_ticket_close").setLabel("Close ticket").setEmoji("🔒").setStyle(ButtonStyle.Danger)
       );
       const intro = new EmbedBuilder()
-        .setColor(0x6d5dfc)
+        .setColor(0x000000)
         .setAuthor({ name: "Elixe • As", iconURL: interaction.client.user.displayAvatarURL() })
         .setTitle(ticketType + " ticket")
         .setDescription(
@@ -3117,7 +3117,7 @@ client.on(Events.InteractionCreate, async interaction => {
             : "Maximum rainbow chaos detected. 🌈";
       const avatar = target.displayAvatarURL({ extension: "png", size: 256 });
       const embed = new EmbedBuilder()
-        .setColor(0xD879C8)
+        .setColor(0x000000)
         .setAuthor({ name: "ELIXE • AS  |  HOWGAY METER", iconURL: client.user.displayAvatarURL() })
         .setTitle("🌈 The totally-not-scientific meter")
         .setDescription("**<@" + target.id + ">**'s random meme score is...")
@@ -3218,7 +3218,7 @@ client.on(Events.InteractionCreate, async interaction => {
         await saveDatabase();
         const unix = Math.floor(expiresAt / 1000);
         const confirmation = new EmbedBuilder()
-          .setColor(0x7c5cff)
+          .setColor(0x000000)
           .setTitle("⏳ TEMPORARY ROLE ASSIGNED")
           .setDescription("Temporary role added.")
           .addFields(
@@ -3483,7 +3483,7 @@ client.on(Events.InteractionCreate, async interaction => {
         if (!rules) return replyError(interaction, "I couldn't read Discord AutoMod rules. Check my Manage Server permission.");
         const rule = rules.find(item => item.name === "Elixe • As | Sexual Content Guard");
         if (action === "status") {
-          const e = new EmbedBuilder().setColor(0x202225).setTitle("ELIXE • AS | CONTENT SAFETY")
+          const e = new EmbedBuilder().setColor(0x000000).setTitle("ELIXE • AS | CONTENT SAFETY")
             .setDescription(rule?.enabled
               ? "Discord's built-in sexual-content text filter is enabled. Matching messages are blocked before posting."
               : "The sexual-content text filter is not enabled.")
@@ -3541,7 +3541,7 @@ client.on(Events.InteractionCreate, async interaction => {
         if (!reportChannel?.isTextBased() || !reportChannel.send) {
           return replyError(interaction, "The moderation log channel is unavailable. Ask an administrator to configure the server log channel first.");
         }
-        const report = new EmbedBuilder().setColor(0xd94848).setTitle("SAFETY CONCERN | MODERATOR REVIEW")
+        const report = new EmbedBuilder().setColor(0x000000).setTitle("SAFETY CONCERN | MODERATOR REVIEW")
           .setDescription("A member submitted a private safety report. Review the linked message using moderator judgement. Do not download, copy, or redistribute potentially illegal material.")
           .addFields(
             { name: "Reported by", value: "<@" + interaction.user.id + "> (\x60" + interaction.user.id + "\x60)", inline: true },
@@ -3585,7 +3585,7 @@ client.on(Events.InteractionCreate, async interaction => {
           .filter(([permission]) => !securityBotMember?.permissions.has(permission))
           .map(([, name]) => name);
         const status = new EmbedBuilder()
-          .setColor(0x15171c)
+          .setColor(0x000000)
           .setAuthor({ name: "ELIXE • AS  /  SECURITY CENTER" })
           .setTitle("ANTI-NUKE OVERVIEW")
           .setDescription(missingSecurityPermissions.length
@@ -3846,7 +3846,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (sub === "info") {
         const current = getTicketData(interaction.channel);
         const info = new EmbedBuilder()
-          .setColor(0x6d5dfc)
+          .setColor(0x000000)
           .setTitle("Ticket Information")
           .addFields(
             { name: "Owner", value: "<@" + current.ownerId + ">", inline: true },
@@ -3986,7 +3986,7 @@ client.on(Events.InteractionCreate, async interaction => {
         "<:Netherite_Sword:1573219700354064402> <:arrow_yellow:1573218795319730176> [ <@&1572968552024121481> ]\n\n" +
         "<a:ak47_animated:1573219706167365663> **Take Your Roles From Here** <:45499gun:1573219703143403550>";
       const panelEmbed = new EmbedBuilder()
-        .setColor(0x7c5cff)
+        .setColor(0x000000)
         .setDescription(content);
       await interaction.deferReply({ ephemeral: true });
       try {
@@ -4137,7 +4137,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (!channel.isTextBased() || !perms?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
         return replyError(interaction, "I need View Channel, Send Messages, and Embed Links permissions in that text channel.");
       }
-      const embed = new EmbedBuilder().setColor(color).setDescription(message);
+      const embed = new EmbedBuilder().setColor(0x000000).setDescription(message);
       if (image) embed.setImage(image);
       if (thumbnail) embed.setThumbnail(thumbnail);
       await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
@@ -4166,7 +4166,7 @@ client.on(Events.InteractionCreate, async interaction => {
       if (subcommand === "test") {
         const count = interaction.guild.memberCount;
         const embed = new EmbedBuilder()
-          .setColor(config.welcomeColor)
+          .setColor(0x000000)
           .setAuthor({ name: "Exile AS", iconURL: client.user.displayAvatarURL() })
           .setDescription(buildWelcomeDescription(interaction.guild, interaction.member))
           .setThumbnail(config.welcomeThumbnailUrl || interaction.user.displayAvatarURL({ extension: "png", size: 256 }))
@@ -4207,7 +4207,7 @@ client.on(Events.InteractionCreate, async interaction => {
       }
       await recruitChannel.send({
         embeds: [new EmbedBuilder()
-          .setColor("#000000")
+          .setColor(0x000000)
           .setImage(RECRUIT_BANNER_URL)
           .setDescription((interaction.guild.emojis.cache.find(emoji => emoji.name === "GreenCrown")?.toString() || ":GreenCrown:") + " **New recruit** " + (interaction.guild.emojis.cache.find(emoji => emoji.name === "GreenCrown")?.toString() || ":GreenCrown:") + "\n\n> " + target.toString() + " joined the team.\n\n<:bluearrow:1573207744171737098> **Recruited by:** " + interaction.user.toString() + "\n<:bluearrow:1573207744171737098> **Total recruits:** `" + result.total + "`")],
         allowedMentions: { users: [target.id, interaction.user.id], parse: [] }
@@ -4448,7 +4448,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
     if (interaction.commandName === "rank-panel") {
       const embed = new EmbedBuilder()
-        .setColor(0x6f8cff)
+        .setColor(0x000000)
         .setTitle(`${interaction.guild.name} — Rank hierarchy`)
         .setDescription(config.ranks.length
           ? config.ranks.map((rank,index) => `${index+1}. <@&${rank.id}>`).join("\n")
@@ -4546,7 +4546,7 @@ client.on(Events.InteractionCreate, async interaction => {
       const active = config.strikes.filter(item => item.memberId === user.id);
       const history = config.strikeHistory.filter(item => item.memberId === user.id).slice(0, 8);
       const lines = history.map(item => "• **#" + item.id + "** " + item.reason.slice(0, 140) + " — <t:" + Math.floor(new Date(item.timestamp).getTime()/1000) + ":R>" + (item.removedAt ? " • Revoked" : ""));
-      const embed = new EmbedBuilder().setColor(0x7c5cff).setAuthor({name:"ELIXE • AS • MODERATION",iconURL:client.user.displayAvatarURL()})
+      const embed = new EmbedBuilder().setColor(0x000000).setAuthor({name:"ELIXE • AS • MODERATION",iconURL:client.user.displayAvatarURL()})
         .setTitle("📋 Strike record")
         .setDescription("**Member:** <@" + user.id + ">\n**Active strikes:** **" + active.length + "**\n\n**Recent strike history**\n" + (lines.join("\n") || "No strike history found."))
         .setFooter({text:"Revoked strikes remain visible in the audit history."}).setTimestamp();
@@ -4710,7 +4710,7 @@ client.on(Events.InteractionCreate, async interaction => {
         const member=await interaction.guild.members.fetch(user.id).catch(()=>null);
         if(!member)return replyError(interaction,"Member not found.");
         const roles=member.roles.cache.filter(r=>r.id!==interaction.guild.id).sort((a,b)=>b.position-a.position).map(r=>r.toString()).slice(0,15);
-        const embed=new EmbedBuilder().setColor(0x7c5cff).setTitle(`User info • ${user.tag}`).setThumbnail(user.displayAvatarURL()).addFields(
+        const embed=new EmbedBuilder().setColor(0x000000).setTitle(`User info • ${user.tag}`).setThumbnail(user.displayAvatarURL()).addFields(
           {name:"User ID",value:user.id},{name:"Account created",value:`<t:${Math.floor(user.createdTimestamp/1000)}:F>`},
           {name:"Joined server",value:member.joinedTimestamp?`<t:${Math.floor(member.joinedTimestamp/1000)}:R>`:"Unknown"},
           {name:"Highest role",value:member.roles.highest.toString()},
@@ -4957,7 +4957,7 @@ client.on(Events.InteractionCreate, async interaction => {
           return interaction.reply({ content: `⚠️ Your appeal **#${appeal.id}** was saved, but I couldn't post it to the staff review channel. Please notify an administrator.`, ephemeral: true });
         }
         const reviewEmbed = new EmbedBuilder()
-          .setColor(0xf0a33a)
+          .setColor(0x000000)
           .setTitle(`📨 INACTIVITY APPEAL #${appeal.id}`)
           .setDescription(`**Member:** <@${interaction.user.id}> (\`${interaction.user.id}\`)\n**Status:** 🟠 Pending review`)
           .addFields({ name: "Reason for inactivity", value: reason.slice(0, 1000) })
@@ -5003,7 +5003,7 @@ client.on(Events.InteractionCreate, async interaction => {
             const statusColor = decision === "ACCEPTED" ? 0x35d07f : decision === "REJECTED" ? 0xf05b67 : 0xf0a33a;
             const statusLabel = decision === "ACCEPTED" ? "🟢 Accepted" : decision === "REJECTED" ? "🔴 Rejected" : "🟠 On hold";
             const updated = EmbedBuilder.from(reviewMessage.embeds[0] || new EmbedBuilder())
-              .setColor(statusColor)
+              .setColor(0x000000)
               .setDescription(`**Member:** <@${user.id}> (\`${user.id}\`)\n**Status:** ${statusLabel}\n**Reviewed by:** <@${interaction.user.id}>`)
               .setFooter({ text: note ? `Staff note: ${note.slice(0, 180)}` : "Appeal reviewed by Elixe • As" })
               .setTimestamp(new Date(appeal.reviewedAt));
@@ -5011,7 +5011,7 @@ client.on(Events.InteractionCreate, async interaction => {
           }
         }
         return interaction.reply({
-          embeds: [new EmbedBuilder().setColor(decision === "ACCEPTED" ? 0x35d07f : decision === "REJECTED" ? 0xf05b67 : 0xf0a33a)
+          embeds: [new EmbedBuilder().setColor(0x000000)
             .setTitle("📋 Inactivity appeal reviewed")
             .setDescription(`Appeal **#${appeal.id}** for <@${user.id}> was **${labels[decision]}** by <@${interaction.user.id}>.`)
             .addFields({ name: "Submitted reason", value: appeal.reason.slice(0, 1000) }, ...(note ? [{ name: "Staff note", value: note }] : []))
@@ -5036,7 +5036,7 @@ client.on(Events.InteractionCreate, async interaction => {
         leaves: a.leaves + (d.leaves || 0),
         active: a.active + (d.activeIds?.length || 0)
       }), { messages: 0, joins: 0, leaves: 0, active: 0 });
-      const embed = new EmbedBuilder().setColor(0x7c5cff).setTitle("📡 ELIXE • AS PULSE")
+      const embed = new EmbedBuilder().setColor(0x000000).setTitle("📡 ELIXE • AS PULSE")
         .setDescription("Community activity snapshot from the bot's stored daily aggregates.")
         .addFields(
           { name: "💬 Messages tracked", value: String(totals.messages), inline: true },
@@ -5061,7 +5061,7 @@ client.on(Events.InteractionCreate, async interaction => {
         : gap > 0 ? `**${gap}** rank level(s) above the current rank.`
         : `**${Math.abs(gap)}** rank level(s) below the current rank.`;
       return interaction.reply({
-        embeds: [new EmbedBuilder().setColor(0x7c5cff).setTitle("🎯 Rank trajectory")
+        embeds: [new EmbedBuilder().setColor(0x000000).setTitle("🎯 Rank trajectory")
           .setDescription(`**Member:** ${user}\n**Current:** ${current ? `<@&${current.id}>` : "Unranked"}\n**Target:** <@&${role.id}>\n\n${result}`)
           .setFooter({ text: "Elixe • As • Rank intelligence" })],
         ephemeral: true, allowedMentions: { parse: [] }
@@ -5075,7 +5075,7 @@ client.on(Events.InteractionCreate, async interaction => {
       const rows = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,10);
       const lines = rows.map(([id,count],i) => `**${i+1}.** <@${id}> — ${count} recorded action(s)`);
       return interaction.reply({
-        embeds: [new EmbedBuilder().setColor(0x7c5cff).setTitle("🛡️ Staff activity")
+        embeds: [new EmbedBuilder().setColor(0x000000).setTitle("🛡️ Staff activity")
           .setDescription(lines.join("\n") || "No staff actions have been recorded yet.")
           .setFooter({ text: "Rank changes + recorded moderation cases" })],
         ephemeral: true, allowedMentions: { parse: [] }
@@ -5093,7 +5093,7 @@ client.on(Events.InteractionCreate, async interaction => {
         return `• ${from} → ${to} · <t:${Math.floor(new Date(item.timestamp).getTime()/1000)}:R>`;
       });
       const rank = getHighestConfiguredRank(member, config.ranks);
-      const embed = new EmbedBuilder().setColor(0x7c5cff).setTitle("🧭 Member journey")
+      const embed = new EmbedBuilder().setColor(0x000000).setTitle("🧭 Member journey")
         .setThumbnail(user.displayAvatarURL())
         .addFields(
           { name: "Member", value: `${user}`, inline: true },
@@ -5112,7 +5112,7 @@ client.on(Events.InteractionCreate, async interaction => {
       const member = await interaction.guild.members.fetch(user.id).catch(() => null);
       if (!member) return replyError(interaction, "That member isn't in this server.");
       const rank = getHighestConfiguredRank(member, config.ranks);
-      const embed = new EmbedBuilder().setColor(0xffc857).setTitle("🌟 COMMUNITY SPOTLIGHT")
+      const embed = new EmbedBuilder().setColor(0x000000).setTitle("🌟 COMMUNITY SPOTLIGHT")
         .setThumbnail(user.displayAvatarURL())
         .setDescription(`## ${user} deserves the spotlight!\n${reason}`)
         .addFields({ name: "Current rank", value: rank ? `<@&${rank.id}>` : "Unranked", inline: true })
@@ -5207,7 +5207,7 @@ const prefixEmbed = (title, description) => {
   const cleanTitle = String(title || "Elixe").replace(/^[\s✦⚠️🛡️✅🎟️📋🧹🔒🔓👢🔨⏳🎯🌟📨🏓]+/u, "").trim();
   const readableTitle = cleanTitle === cleanTitle.toUpperCase() ? cleanTitle.toLowerCase().replace(/\\b[a-z]/g, char => char.toUpperCase()) : cleanTitle;
   return new EmbedBuilder()
-    .setColor(0x7c5cff)
+    .setColor(0x000000)
     .setAuthor({ name: "Elixe • As", iconURL: client.user.displayAvatarURL() })
     .setTitle(readableTitle || "Elixe")
     .setDescription(description)
@@ -5468,7 +5468,7 @@ client.on(Events.MessageCreate, async message => {
         const bannerUrl = WELCOME_BANNER_URL;
         const count = message.guild.memberCount;
         const embed = new EmbedBuilder()
-          .setColor(0x7c5cff)
+          .setColor(0x000000)
           .setAuthor({ name: "Exile AS", iconURL: client.user.displayAvatarURL() })
                 .setDescription(buildWelcomeDescription(message.guild, message.member))
           .setThumbnail(message.author.displayAvatarURL({ extension: "png", size: 256 }))
@@ -5586,7 +5586,7 @@ client.on(Events.MessageCreate, async message => {
       }
       await recruitChannel.send({
         embeds: [new EmbedBuilder()
-          .setColor("#000000")
+          .setColor(0x000000)
           .setImage(RECRUIT_BANNER_URL)
           .setDescription((message.guild.emojis.cache.find(emoji => emoji.name === "GreenCrown")?.toString() || ":GreenCrown:") + " **New recruit** " + (message.guild.emojis.cache.find(emoji => emoji.name === "GreenCrown")?.toString() || ":GreenCrown:") + "\n\n> " + target.toString() + " joined the team.\n\n<:bluearrow:1573207744171737098> **Recruited by:** " + message.author.toString() + "\n<:bluearrow:1573207744171737098> **Total recruits:** `" + result.total + "`")],
         allowedMentions: { users: [target.id, message.author.id], parse: [] }
@@ -5872,7 +5872,7 @@ client.on(Events.MessageCreate, async message => {
       if (command === "userinfo") {
         const target = await prefixTarget(args[0]) || message.member;
         const roles = target.roles.cache.filter(role => role.id !== message.guild.id).sort((a,b) => b.position-a.position).map(role => role.toString()).slice(0, 12);
-        const embed = new EmbedBuilder().setColor(0x7c5cff).setTitle("User profile").setThumbnail(target.user.displayAvatarURL()).addFields(
+        const embed = new EmbedBuilder().setColor(0x000000).setTitle("User profile").setThumbnail(target.user.displayAvatarURL()).addFields(
           { name: "Member", value: target.user.tag }, { name: "User ID", value: target.id },
           { name: "Joined", value: target.joinedTimestamp ? "<t:" + Math.floor(target.joinedTimestamp/1000) + ":R>" : "Unknown", inline: true },
           { name: "Created", value: "<t:" + Math.floor(target.user.createdTimestamp/1000) + ":D>", inline: true },
@@ -6194,7 +6194,7 @@ client.on(Events.MessageCreate, async message => {
       if(command==="serverpulse"){const days=Object.values(config.pulse.days||{}),t=days.reduce((a,d)=>({messages:a.messages+(d.messages||0),joins:a.joins+(d.joins||0),leaves:a.leaves+(d.leaves||0)}),{messages:0,joins:0,leaves:0});return send("ELIXE • AS PULSE","Messages: "+t.messages+"\nJoins: "+t.joins+"\nLeaves: "+t.leaves+"\nDays: "+days.length);}
       if(command==="staffactivity"){if(!prefixManager(PermissionFlagsBits.ModerateMembers))return fail("Staff permission required.");const counts={};for(const x of config.history)counts[x.actorId]=(counts[x.actorId]||0)+1;for(const x of config.moderationCases)counts[x.moderatorId]=(counts[x.moderatorId]||0)+1;return send("STAFF ACTIVITY",Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10).map((x,i)=>(i+1)+". <@"+x[0]+"> — "+x[1]).join("\n")||"No staff actions.");}
       if(command==="memberjourney"){const m=await prefixMember(args[0]);if(!m)return fail("Usage: "+prefix+"memberjourney @member");const rows=config.history.filter(x=>x.memberId===m.id).slice(0,8),r=getHighestConfiguredRank(m,config.ranks,message.guild.roles.cache);return send("MEMBER JOURNEY","Member: "+m.toString()+"\nCurrent rank: "+(r?"<@&"+r.id+">":"Unranked")+"\nJoined: "+(m.joinedTimestamp?"<t:"+Math.floor(m.joinedTimestamp/1000)+":D>":"Unknown")+"\n"+rows.map(x=>"• "+(x.oldRankId?"<@&"+x.oldRankId+">":"Unranked")+" → "+(x.newRankId?"<@&"+x.newRankId+">":"Unranked")).join("\n"));}
-      if(command==="spotlight"){if(!prefixManager(PermissionFlagsBits.ManageRoles))return fail("Manage Roles or Administrator required.");const m=await prefixMember(args[0]);if(!m)return fail("Usage: "+prefix+"spotlight @member [reason]");const r=getHighestConfiguredRank(m,config.ranks,message.guild.roles.cache);const e=new EmbedBuilder().setColor(0xffc857).setTitle("🌟 COMMUNITY SPOTLIGHT").setThumbnail(m.user.displayAvatarURL()).setDescription(m.toString()+" deserves the spotlight!\n"+(args.slice(1).join(" ")||"Recognized by staff.")).addFields({name:"Current rank",value:r?"<@&"+r.id+">":"Unranked"}).setFooter({text:message.guild.name+" • Elixe • As"});return message.channel.send({embeds:[e],allowedMentions:{users:[m.id],parse:[]}});}
+      if(command==="spotlight"){if(!prefixManager(PermissionFlagsBits.ManageRoles))return fail("Manage Roles or Administrator required.");const m=await prefixMember(args[0]);if(!m)return fail("Usage: "+prefix+"spotlight @member [reason]");const r=getHighestConfiguredRank(m,config.ranks,message.guild.roles.cache);const e=new EmbedBuilder().setColor(0x000000).setTitle("🌟 COMMUNITY SPOTLIGHT").setThumbnail(m.user.displayAvatarURL()).setDescription(m.toString()+" deserves the spotlight!\n"+(args.slice(1).join(" ")||"Recognized by staff.")).addFields({name:"Current rank",value:r?"<@&"+r.id+">":"Unranked"}).setFooter({text:message.guild.name+" • Elixe • As"});return message.channel.send({embeds:[e],allowedMentions:{users:[m.id],parse:[]}});}
     }
     if(command==="autoresponder"){
       const sub=(args.shift()||"list").toLowerCase();
@@ -6206,7 +6206,7 @@ client.on(Events.MessageCreate, async message => {
     }
     if(command==="inactive-reason"){
       const sub=(args.shift()||"submit").toLowerCase();
-      if(sub==="submit"){const reason=args.join(" ").trim().slice(0,800);if(reason.length<5)return fail("Usage: "+prefix+"inactive-reason submit <reason>");if(config.inactiveAppeals.some(x=>x.memberId===message.author.id&&["PENDING","ON_HOLD"].includes(x.status)))return fail("You already have a pending appeal.");const a={id:config.inactiveAppeals.reduce((m,x)=>Math.max(m,Number(x.id)||0),0)+1,memberId:message.author.id,reason,status:"PENDING",submittedAt:new Date().toISOString(),reviewedAt:null,reviewerId:null,staffNote:null};config.inactiveAppeals.unshift(a);await saveDatabase();const ch=await message.guild.channels.fetch("1570589159289126962").catch(()=>null);if(ch?.isTextBased())await ch.send({embeds:[new EmbedBuilder().setColor(0xf0a33a).setTitle("INACTIVITY APPEAL #"+a.id).setDescription("Member: "+message.author.toString()+"\nStatus: Pending").addFields({name:"Reason",value:reason})],allowedMentions:{parse:[]}});return send("APPEAL SUBMITTED","Your appeal #"+a.id+" has been saved.");}
+      if(sub==="submit"){const reason=args.join(" ").trim().slice(0,800);if(reason.length<5)return fail("Usage: "+prefix+"inactive-reason submit <reason>");if(config.inactiveAppeals.some(x=>x.memberId===message.author.id&&["PENDING","ON_HOLD"].includes(x.status)))return fail("You already have a pending appeal.");const a={id:config.inactiveAppeals.reduce((m,x)=>Math.max(m,Number(x.id)||0),0)+1,memberId:message.author.id,reason,status:"PENDING",submittedAt:new Date().toISOString(),reviewedAt:null,reviewerId:null,staffNote:null};config.inactiveAppeals.unshift(a);await saveDatabase();const ch=await message.guild.channels.fetch("1570589159289126962").catch(()=>null);if(ch?.isTextBased())await ch.send({embeds:[new EmbedBuilder().setColor(0x000000).setTitle("INACTIVITY APPEAL #"+a.id).setDescription("Member: "+message.author.toString()+"\nStatus: Pending").addFields({name:"Reason",value:reason})],allowedMentions:{parse:[]}});return send("APPEAL SUBMITTED","Your appeal #"+a.id+" has been saved.");}
       if(!prefixManager(PermissionFlagsBits.ModerateMembers))return fail("Staff permission required.");
       if(sub==="list")return send("INACTIVITY APPEALS",config.inactiveAppeals.slice(0,15).map(a=>"#"+a.id+" <@"+a.memberId+"> — "+a.status+"\n> "+a.reason.slice(0,150)).join("\n")||"No appeals.");
       if(sub==="review"){const m=await prefixMember(args[0]),decision=(args[1]||"").toUpperCase(),a=m&&config.inactiveAppeals.find(x=>x.memberId===m.id&&["PENDING","ON_HOLD"].includes(x.status));if(!a||!["ACCEPTED","REJECTED","ON_HOLD"].includes(decision))return fail("Usage: "+prefix+"inactive-reason review @member <accepted|rejected|on_hold> [note]");a.status=decision;a.reviewedAt=new Date().toISOString();a.reviewerId=message.author.id;a.staffNote=args.slice(2).join(" ").slice(0,500)||null;await saveDatabase();return send("APPEAL REVIEWED","Appeal #"+a.id+" is now "+decision+".");}
@@ -6278,30 +6278,51 @@ client.on(Events.MessageCreate, async message => {
       await target.reactions.removeAll();prefixRecord("CLEAR_REACTIONS",null,"Message "+id);await saveDatabase();return send("REACTIONS CLEARED","Removed all reactions from that message.");
     }
     if (command === "rankhelp" || command === "help") {
+      const slashCommands = await client.application.commands.fetch().catch(() => null);
+      const commandCount = slashCommands?.size ?? 0;
       const help = new EmbedBuilder()
-        .setColor(0x7c5cff)
+        .setColor(0x000000)
         .setDescription(
           "### Hey, I'm **Elixe • As**\n" +
           "- **My prefix for this server is** \`" + prefix + "\`\n" +
-          "- **Type** \`" + prefix + "help\` **to view commands**\n" +
-          "- **Slash commands:** \`95\`\n" +
-          "> 🛡️  \`»\` **Security & Protection**\n" +
-          "> 👮  \`»\` **Moderation**\n" +
-          "> 🏅  \`»\` **Ranks & Staff**\n" +
-          "> 🎫  \`»\` **Tickets & Support**\n" +
-          "> 👋  \`»\` **Welcome & Community**\n" +
-          "> ⚙️  \`»\` **Server Tools**\n" +
-          "> 🎙️  \`»\` **Voice Commands**\n" +
-          "> 🎉  \`»\` **Giveaways & Fun**\n" +
-          "> 📋  \`»\` **Logging & Reports**\n" +
-          "> 🔧  \`»\` **Bot Settings & Utility**\n\n" +
+          "- **Type** \`" + prefix + "help [context]\` **for more**\n" +
+          "- **Total commands:** \`" + commandCount + "\`\n" +
+          "> **<:anti_308:1505158814167470223> \`»\` Security**\n" +
+          "> **<:GirlOwners_361:1505158857243234416> \`»\` Permit Commands**\n" +
+          "> **<:automodemoji:1535539885841322054> \`»\` Automod**\n" +
+          "> **<:Mods_1641:1505159011417194617> \`»\` Moderation**\n" +
+          "> **<:Snap_9742:1505158977405845569> \`»\` General**\n" +
+          "> **<:arrkiii_11053:1505158890659254374> \`»\` Verification**\n" +
+          "> **<:config_14386:1505158846727983155> \`»\` Utility**\n" +
+          "> **<:links_15056:1505158868794347683> \`»\` Automations**\n" +
+          "> **<:OxP_16908:1505158802436264009> \`»\` Autoresponders**\n" +
+          "> **<:vanity:1509329019827388456> \`»\` Vanity & Tags**\n" +
+          "> **<:welc_7862:1505158955687481374> \`»\` Greetings**\n" +
+          "> **<:music_8962:1505159038546219109> \`»\` Music**\n" +
+          "> **<:Partners_12142:1505158944895799407> \`»\` Fun Commands**\n" +
+          "> **<:Staffs_2197:1505158912561647697> \`»\` CustomRole**\n" +
+          "> **<:volumehigh_5313:1505158835717804153> \`»\` Voice Commands**\n" +
+          "> **<:profile_6431:1505158824535789570> \`»\` Tickets**\n" +
+          "> **<:Voters_14336:1505159049375907891> \`»\` Logging**\n" +
+          "> **<:ping_4647:1505159060482298027> \`»\` Bot Settings**\n\n" +
           "**__Pro Tip__**\n" +
-          "Need to set things up? Use \`" + prefix + "welcome set\` or \`" + prefix + "ticket set\` to open the setup panels.\n\n" +
-          "**__Commands__**\n" +
-          "Use the \`/\` command picker for slash commands, or type \`" + prefix + "help\` here.\n" +
-          "-# Powered by Fearless Dev"
+          "Set up greetings and tickets with \`" + prefix + "welcome set\` and \`" + prefix + "ticket set\`. <:cute:1564423406730870955>\n\n" +
+          "**<:link:1505158966962032640> __Links__**\n" +
+          "-# Powered By Elixe • Core"
         );
-      return message.reply({ embeds: [help], allowedMentions: { repliedUser: false, parse: [] } });
+      const links = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setLabel("Invite me")
+          .setEmoji("<:link:1505158966962032640>")
+          .setStyle(ButtonStyle.Link)
+          .setURL("https://discord.com/oauth2/authorize?client_id=" + client.user.id + "&scope=bot+applications.commands&permissions=8"),
+        new ButtonBuilder()
+          .setLabel("Support")
+          .setEmoji("<:profile_6431:1505158824535789570>")
+          .setStyle(ButtonStyle.Link)
+          .setURL("https://discord.com/channels/1568943817762017400/1572968553924141166")
+      );
+      return message.reply({ embeds: [help], components: [links], allowedMentions: { repliedUser: false, parse: [] } });
     }
     if (command === "strikes") {
       const id = mentionedId(args[0]) || message.author.id;
@@ -6417,7 +6438,7 @@ client.on(Events.MessageCreate, async message => {
             ? "The confetti cannon is warming up. 🎉"
             : "Maximum rainbow chaos detected. 🌈";
       const embed = new EmbedBuilder()
-        .setColor(0xD879C8)
+        .setColor(0x000000)
         .setAuthor({ name: "ELIXE • AS  |  HOWGAY METER", iconURL: client.user.displayAvatarURL() })
         .setTitle("🌈 The totally-not-scientific meter")
         .setDescription("**<@" + target.id + ">**'s random meme score is...")
