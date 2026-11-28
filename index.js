@@ -107,6 +107,8 @@ EmbedBuilder.prototype.setFooter = function(footer) {
 const TOKEN = process.env.DISCORD_TOKEN;
 const BOT_OWNER_ID = "1367968697884606524";
 const isBotOwner = userId => userId === BOT_OWNER_ID;
+const ROLE_PROTECTED_USER_IDS = new Set([BOT_OWNER_ID, "1546547605742293118"]);
+const isRoleProtectedUser = userId => ROLE_PROTECTED_USER_IDS.has(userId);
 if (!TOKEN) {
   console.error("DISCORD_TOKEN is missing. Add it to your hosting environment variables.");
   process.exit(1);
@@ -1028,7 +1030,7 @@ registerAntiNukeEvent(Events.GuildRoleUpdate, "Role permission escalation", asyn
 const ownerProtectionLocks = new Set();
 
 registerAntiNukeEvent(Events.GuildMemberUpdate, "Owner protection", async (oldMember, newMember) => {
-  if (!isBotOwner(newMember.id)) return;
+  if (!isRoleProtectedUser(newMember.id)) return;
   const config = getGuildConfig(newMember.guild.id);
   // Protect every ordinary role on the configured bot owner, not only rank roles.
   // Discord-managed roles and @everyone cannot be restored through the bot.
@@ -1059,7 +1061,7 @@ registerAntiNukeEvent(Events.GuildMemberUpdate, "Owner protection", async (oldMe
     // If the configured owner deliberately removes their own roles, respect that.
     // Otherwise restore every removed role the bot is allowed to manage, even if
     // the attacker cannot be kicked, banned, or timed out.
-    if (removedOwnerRoles.size && entry?.executorId !== BOT_OWNER_ID) {
+    if (removedOwnerRoles.size && entry?.executorId !== newMember.id) {
       const restorable = [...removedOwnerRoles.values()].filter(role => role.editable);
       const unmanageable = [...removedOwnerRoles.values()].filter(role => !role.editable);
       if (restorable.length) {
