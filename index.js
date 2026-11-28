@@ -77,9 +77,9 @@ function buildServerInfoEmbed(guild, requester) {
   const logo = guild.iconURL({ size: 256 });
   return new EmbedBuilder()
     .setColor(0x7c5cff)
-    .setAuthor({ name: "ELIXE • AS", ...(logo ? { iconURL: logo } : {}) })
-    .setTitle("Server Information")
-    .setDescription("**ELIXE • AS - Beyond The Ordinary**")
+    .setAuthor({ name: "Elixe • As", ...(logo ? { iconURL: logo } : {}) })
+    .setTitle("Server info")
+    .setDescription("A quick look at this server.")
     .setThumbnail(logo)
     .addFields(
       { name: "General Info", value: "**Name:** " + guild.name + "\n**Server ID:** " + guild.id + "\n**Owner:** <@" + guild.ownerId + ">\n**Created:** <t:" + createdAt + ":R> • <t:" + createdAt + ":F>", inline: false },
@@ -91,18 +91,7 @@ function buildServerInfoEmbed(guild, requester) {
     .setTimestamp(new Date());
 }
 
-const originalSetTitle = EmbedBuilder.prototype.setTitle;
-EmbedBuilder.prototype.setTitle = function(title) {
-  return originalSetTitle.call(this, title == null ? title : premiumTypography(title));
-};
-const originalSetAuthor = EmbedBuilder.prototype.setAuthor;
-EmbedBuilder.prototype.setAuthor = function(author) {
-  return originalSetAuthor.call(this, author ? { ...author, name: premiumTypography(author.name) } : author);
-};
-const originalSetFooter = EmbedBuilder.prototype.setFooter;
-EmbedBuilder.prototype.setFooter = function(footer) {
-  return originalSetFooter.call(this, footer ? { ...footer, text: premiumTypography(footer.text) } : footer);
-};
+// Keep embed text in normal Unicode for clear, consistent reading.
 
 const TOKEN = process.env.DISCORD_TOKEN;
 const BOT_OWNER_ID = "1367968697884606524";
@@ -2839,7 +2828,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
   // Persistent giveaway entry button.
   if (interaction.isButton() && interaction.customId.startsWith("px_giveaway_enter:")) {
-    if (!interaction.inGuild()) return interaction.reply({ content: "Giveaways can only be entered inside a server.", ephemeral: true });
+    if (!interaction.inGuild()) return interaction.reply({ content: "You can only enter giveaways in a server.", ephemeral: true });
     const messageId = interaction.customId.slice("px_giveaway_enter:".length);
     const config = getGuildConfig(interaction.guildId);
 
@@ -2876,7 +2865,7 @@ client.on(Events.InteractionCreate, async interaction => {
       const categoryId = "1572968553924141165";
       const ticketCategory = await interaction.guild.channels.fetch(categoryId).catch(() => null);
       if (!ticketCategory || ticketCategory.type !== ChannelType.GuildCategory) {
-        return interaction.editReply("The ticket category is missing or is not a category. Please ask an administrator to check the ticket setup.");
+        return interaction.editReply("Ticket category not found. Check the ticket setup.");
       }
       const username = interaction.user.username.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 45) || "member";
       const typeSlug = ticketType === "General Support" ? "general" : ticketType === "Team Application" ? "team-application" : ticketType === "Ally" ? "ally" : ticketType === "Merge" ? "merge" : ticketType === "TVT" ? "tvt" : "paid-promotion";
@@ -2917,14 +2906,14 @@ client.on(Events.InteractionCreate, async interaction => {
       return interaction.editReply("Your private ticket has been created: " + channel.toString());
     } catch (error) {
       console.error("[Tickets] Could not create ticket:", error);
-      return interaction.editReply("I couldn't create your ticket. Check that I have Manage Channels and View Channel permissions.");
+      return interaction.editReply("Couldn't create the ticket. Check my channel permissions.");
     }
   }
 
   if (interaction.isButton() && interaction.customId === "px_ticket_close") {
-    if (!interaction.inGuild() || !interaction.channel) return interaction.reply({ content: "This ticket is no longer available.", ephemeral: true });
+    if (!interaction.inGuild() || !interaction.channel) return interaction.reply({ content: "This ticket is unavailable.", ephemeral: true });
     const ownerId = getTicketData(interaction.channel)?.ownerId;
-    if (!ownerId) return interaction.reply({ content: "This button can only be used inside an Exile AS ticket.", ephemeral: true });
+    if (!ownerId) return interaction.reply({ content: "Use this button inside an Elixe ticket.", ephemeral: true });
     const config = getGuildConfig(interaction.guildId);
     const staffRole = config.ticketStaffRoleId;
     const closingMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
@@ -2932,7 +2921,7 @@ client.on(Events.InteractionCreate, async interaction => {
       interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels) ||
       (staffRole && closingMember?.roles.cache.has(staffRole));
     if (interaction.user.id !== ownerId && !isStaff) {
-      return interaction.reply({ content: "Only the ticket creator or ticket staff can close this ticket.", ephemeral: true });
+      return interaction.reply({ content: "Only the ticket owner or staff can close it.", ephemeral: true });
     }
     try {
       await interaction.channel.permissionOverwrites.edit(ownerId, {
@@ -2952,7 +2941,7 @@ client.on(Events.InteractionCreate, async interaction => {
       return;
     } catch (error) {
       console.error("[Tickets] Could not close ticket:", error);
-      return interaction.reply({ content: "I couldn't close this ticket. Check my channel permissions.", ephemeral: true });
+      return interaction.reply({ content: "Couldn't close the ticket. Check my channel permissions.", ephemeral: true });
     }
   }
 
@@ -3079,7 +3068,7 @@ client.on(Events.InteractionCreate, async interaction => {
         const confirmation = new EmbedBuilder()
           .setColor(0x7c5cff)
           .setTitle("⏳ TEMPORARY ROLE ASSIGNED")
-          .setDescription("A temporary role has been assigned successfully.")
+          .setDescription("Temporary role added.")
           .addFields(
             { name: "Member", value: target.toString(), inline: true },
             { name: "Role", value: role.toString(), inline: true },
@@ -3470,10 +3459,10 @@ client.on(Events.InteractionCreate, async interaction => {
         await interaction.deferReply({ ephemeral: true });
         try {
           await createGuildChannelBackup(interaction.guild, "manual /antinuke backup by " + interaction.user.id);
-          return interaction.editReply("✦ Manual channel-configuration backup completed successfully.");
+          return interaction.editReply("✦ Channel backup complete.");
         } catch (error) {
           console.error("[ANTI-NUKE] Manual backup failed:", error);
-          return interaction.editReply("The backup failed. Check the bot logs and Railway volume permissions.");
+          return interaction.editReply("Backup failed. Check the logs and volume permissions.");
         }
       }
       return replyError(interaction, "Unknown anti-nuke action.");
@@ -3528,7 +3517,7 @@ client.on(Events.InteractionCreate, async interaction => {
         });
       } catch (error) {
         console.error("[MessageArchive] Export failed:", error);
-        return interaction.editReply("The archive export failed. Check the PostgreSQL connection and bot logs.");
+        return interaction.editReply("Export failed. Check the database connection and logs.");
       }
     }
 
@@ -3719,7 +3708,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
       if (sub === "close") {
         if (interaction.user.id !== ticketData.ownerId && !staffAccess) {
-          return replyError(interaction, "Only the ticket creator or ticket staff can close this ticket.");
+          return replyError(interaction, "Only the ticket owner or staff can close it.");
         }
         if (ticketData.status === "closed") return replyError(interaction, "This ticket is already closed.");
         const reason = interaction.options.getString("reason")?.trim();
@@ -3774,7 +3763,7 @@ client.on(Events.InteractionCreate, async interaction => {
           return interaction.editReply({ content: "📄 Transcript generated (up to the latest 1,000 messages).", files: [attachment] });
         } catch (error) {
           console.error("[Tickets] Transcript generation failed:", error);
-          return interaction.editReply("I couldn't generate the transcript. Check that I have View Channel, Read Message History, and Attach Files permissions.");
+          return interaction.editReply("Couldn't create the transcript. Check my channel permissions.");
         }
       }
 
@@ -3860,7 +3849,7 @@ client.on(Events.InteractionCreate, async interaction => {
         return interaction.editReply("✅ Self-role panel published in " + targetChannel.toString() + ". Members can click any of the four emojis to add or remove the matching role.");
       } catch (error) {
         console.error("[SelfRoles] Could not publish panel:", error);
-        return interaction.editReply("I couldn't publish the panel or add its reactions. Check the channel permissions and that the custom emojis are available to the bot.");
+        return interaction.editReply("Couldn't publish the panel. Check channel permissions and custom emojis.");
       }
     }
 
@@ -3884,7 +3873,7 @@ client.on(Events.InteractionCreate, async interaction => {
         members = await interaction.guild.members.fetch();
       } catch (error) {
         console.error("[TagAll] Could not fetch all guild members:", error);
-        return interaction.editReply("I couldn't load the full member list. No nicknames were changed.");
+        return interaction.editReply("Couldn't load the member list. No nicknames were changed.");
       }
 
       let changed = 0;
