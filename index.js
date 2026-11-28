@@ -6278,7 +6278,7 @@ client.on(Events.MessageCreate, async message => {
       await target.reactions.removeAll();prefixRecord("CLEAR_REACTIONS",null,"Message "+id);await saveDatabase();return send("REACTIONS CLEARED","Removed all reactions from that message.");
     }
     if (command === "rankhelp" || command === "help") {
-      const slashCommands = await client.application.commands.fetch().catch(() => null);
+      const slashCommands = await message.guild.commands.fetch().catch(() => null);
       // 110 recognized prefix command names/aliases, plus registered slash commands.
       const commandCount = 110 + (slashCommands?.size ?? 0);
       const help = new EmbedBuilder()
