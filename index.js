@@ -5028,10 +5028,19 @@ client.on(Events.InteractionCreate, async interaction => {
         if (!desired) return replyError(interaction, "That role isn't in the configured rank hierarchy. Add it first with `/rank-config add`.");
         action = "SET";
       } else if (interaction.commandName === "promote") {
-        const currentIndex = current ? ranks.findIndex(r => r.id === current.id) : -1;
+        const orderedRanks = [...ranks].sort((a, b) => {
+          const roleA = interaction.guild.roles.cache.get(a.id);
+          const roleB = interaction.guild.roles.cache.get(b.id);
+          if (roleA && roleB) return roleA.position - roleB.position;
+          return (a.position || 0) - (b.position || 0);
+        });
+        const capIndex = orderedRanks.findIndex(r => r.id === MAX_PROMOTION_RANK_ID);
+        if (capIndex < 0) return replyError(interaction, "Promotion is disabled: the configured promotion ceiling role is missing from the rank hierarchy. Add <@&" + MAX_PROMOTION_RANK_ID + "> with `/rank-config add`.");
+        const currentIndex = current ? orderedRanks.findIndex(r => r.id === current.id) : -1;
+        if (currentIndex >= capIndex) return replyError(interaction, "This member has reached the promotion ceiling: <@&" + MAX_PROMOTION_RANK_ID + ">.");
         const nextIndex = currentIndex + 1;
-        if (nextIndex >= ranks.length) return replyError(interaction, "That member is already at the highest configured rank.");
-        desired = ranks[nextIndex];
+        if (nextIndex > capIndex) return replyError(interaction, "This member cannot be promoted beyond <@&" + MAX_PROMOTION_RANK_ID + ">.");
+        desired = orderedRanks[nextIndex];
       } else {
         if (!current) return replyError(interaction, "That member has no configured rank, so they can't be demoted.");
         const currentIndex = ranks.findIndex(r => r.id === current.id);
@@ -5047,6 +5056,8 @@ client.on(Events.InteractionCreate, async interaction => {
     return replyError(interaction, "Something went wrong. Check the bot logs and try again.");
   }
 });
+
+const MAX_PROMOTION_RANK_ID = "1572968552313520277";
 
 const DEFAULT_PREFIX = ".";
 const prefixEmbed = (title, description) => new EmbedBuilder()
@@ -6390,9 +6401,18 @@ client.on(Events.MessageCreate, async message => {
         if (!desired) return fail("Usage: .setrank @member @configured-rank [reason]");
         action = "SET"; reasonArgs = args.slice(2);
       } else if (command === "promote") {
-        const i = current ? ranks.findIndex(r=>r.id===current.id) : -1;
-        if (i+1 >= ranks.length) return fail("Already at the highest configured rank.");
-        desired = ranks[i+1];
+        const orderedRanks = [...ranks].sort((a, b) => {
+          const roleA = message.guild.roles.cache.get(a.id);
+          const roleB = message.guild.roles.cache.get(b.id);
+          if (roleA && roleB) return roleA.position - roleB.position;
+          return (a.position || 0) - (b.position || 0);
+        });
+        const capIndex = orderedRanks.findIndex(r => r.id === MAX_PROMOTION_RANK_ID);
+        if (capIndex < 0) return fail("Promotion is disabled: the promotion ceiling role is missing from /rank-config. Add <@&" + MAX_PROMOTION_RANK_ID + "> first.");
+        const i = current ? orderedRanks.findIndex(r=>r.id===current.id) : -1;
+        if (i >= capIndex) return fail("This member has reached the promotion ceiling: <@&" + MAX_PROMOTION_RANK_ID + ">.");
+        if (i + 1 > capIndex) return fail("This member cannot be promoted beyond <@&" + MAX_PROMOTION_RANK_ID + ">.");
+        desired = orderedRanks[i+1];
       } else {
         if (!current) return fail("That member has no configured rank.");
         const orderedRanks = [...ranks].sort((a, b) => {
