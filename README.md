@@ -53,12 +53,16 @@ To enable prefix commands, turn on **Message Content Intent** in the Discord Dev
 2. Install dependencies with `npm install`.
 3. Set `DISCORD_TOKEN` and `CLIENT_ID`. Set `GUILD_ID` for fast guild-scoped command registration during testing.
 4. Enable **Server Members Intent** and **Message Content Intent** in the Discord Developer Portal.
-5. For the browser dashboard, add these environment variables to Railway: `DASHBOARD_URL` (your public HTTPS Railway domain), `DISCORD_CLIENT_SECRET` (from Developer Portal → OAuth2 → Client Secret), and `DASHBOARD_SESSION_SECRET` (a long random secret). Keep the existing `CLIENT_ID`.
-6. In Developer Portal → OAuth2 → Redirects, add the exact URL `https://YOUR-DASHBOARD-DOMAIN/auth/callback` (replace the domain with your Railway domain). The dashboard uses Discord OAuth2 scopes `identify` and `guilds`.
-7. Open your Railway public domain in a browser and sign in with Discord. You must have Manage Roles or Administrator in a server, and Elixe • As must already be in that server.
-8. Invite the bot with the `bot` and `applications.commands` scopes. Grant only the permissions it needs: Manage Roles, View Channels, Send Messages, Embed Links, and Read Message History.
-9. Move the bot's highest role above every rank role it needs to manage.
-10. Run `npm start` (the prestart script registers slash commands).
+5. For the private browser dashboard, set these Railway environment variables:
+   - `DASHBOARD_PASSWORD`: a unique random password of at least 16 characters.
+   - `DASHBOARD_SESSION_SECRET`: a separate random secret of at least 32 characters.
+   - `DASHBOARD_GUILD_ID`: the ID of the one server this dashboard may manage.
+6. Open the Railway public HTTPS domain in a browser. Enter `DASHBOARD_PASSWORD` to unlock the dashboard. This implementation uses a shared dashboard password, **not Discord OAuth**; anyone with the password can access the configured server's dashboard.
+7. Invite the bot with the `bot` and `applications.commands` scopes. Grant only the permissions it needs: Manage Roles, View Channels, Send Messages, Embed Links, and Read Message History.
+8. Move the bot's highest role above every rank role it needs to manage.
+9. Run `npm start` (the prestart script registers slash commands).
+
+Keep both dashboard secrets private, never reuse your Discord password, and rotate them immediately if exposed. The dashboard is restricted to the configured `DASHBOARD_GUILD_ID`; its server-side API does not grant access to other guilds.
 
 ## Storage
 
