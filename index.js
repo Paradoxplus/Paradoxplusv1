@@ -1,7 +1,7 @@
 import "dotenv/config";
 import {
   Client, GatewayIntentBits, Partials, Events, AuditLogEvent, PermissionFlagsBits,
-  EmbedBuilder, AttachmentBuilder, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder
+  EmbedBuilder, AttachmentBuilder, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, ChannelSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle
 } from "discord.js";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -304,6 +304,8 @@ function getGuildConfig(guildId) {
   if (!Array.isArray(config.autoroleIds)) config.autoroleIds = [];
   if (!Array.isArray(config.tempRoles)) config.tempRoles = [];
   if (typeof config.ticketStaffRoleId !== "string") config.ticketStaffRoleId = null;
+  if (typeof config.ticketCategoryId !== "string") config.ticketCategoryId = null;
+  if (typeof config.ticketPanelChannelId !== "string") config.ticketPanelChannelId = null;
   if (!Array.isArray(config.dmOptIns)) config.dmOptIns = [];
   if (!Array.isArray(config.giveaways)) config.giveaways = [];
   if (!config.selfRolePanel || typeof config.selfRolePanel !== "object") config.selfRolePanel = null;
@@ -2351,6 +2353,57 @@ function isTicketStaff(interaction, config, member) {
     Boolean(config.ticketStaffRoleId && member?.roles.cache.has(config.ticketStaffRoleId));
 }
 
+function buildWelcomeSetupPayload(guild, config, userId) {
+  const channel = config.welcomeChannelId ? "<#" + config.welcomeChannelId + ">" : "Not set";
+  const message = config.welcomeMessage ? config.welcomeMessage.slice(0, 180) : "Default welcome message";
+  const embed = new EmbedBuilder()
+    .setColor(config.welcomeColor || 0x7c5cff)
+    .setTitle("Welcome setup")
+    .setDescription("Choose where new members are welcomed and customize the message.\n\n**Channel:** " + channel + "\n**Message:** " + message + "\n\nPlaceholders: `{user}`, `{server}`, `{memberCount}`.")
+    .setFooter({ text: "Elixe • As | Only the staff member who opened this panel can use it" });
+  const channelRow = new ActionRowBuilder().addComponents(
+    new ChannelSelectMenuBuilder()
+      .setCustomId("pxsetup:welcome:channel:" + userId)
+      .setPlaceholder("Select the welcome channel")
+      .setChannelTypes(ChannelType.GuildText)
+      .setMinValues(1).setMaxValues(1)
+  );
+  const actionRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("pxsetup:welcome:edit:" + userId).setLabel("Edit message").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("pxsetup:welcome:preview:" + userId).setLabel("Preview").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("pxsetup:welcome:disable:" + userId).setLabel("Disable").setStyle(ButtonStyle.Danger)
+  );
+  return { embeds: [embed], components: [channelRow, actionRow], allowedMentions: { parse: [] } };
+}
+
+function buildTicketSetupPayload(guild, config, userId) {
+  const category = config.ticketCategoryId ? "<#" + config.ticketCategoryId + ">" : "Not set";
+  const panelChannel = config.ticketPanelChannelId ? "<#" + config.ticketPanelChannelId + ">" : "Not set";
+  const embed = new EmbedBuilder()
+    .setColor(0x6d5dfc)
+    .setTitle("Ticket setup")
+    .setDescription("Choose where private tickets are created and where the ticket panel is posted.\n\n**Ticket category:** " + category + "\n**Panel channel:** " + panelChannel + "\n\nSelect both, then publish the panel.")
+    .setFooter({ text: "Elixe • As | Only the staff member who opened this panel can use it" });
+  const categoryRow = new ActionRowBuilder().addComponents(
+    new ChannelSelectMenuBuilder()
+      .setCustomId("pxsetup:ticket:category:" + userId)
+      .setPlaceholder("Select the ticket category")
+      .setChannelTypes(ChannelType.GuildCategory)
+      .setMinValues(1).setMaxValues(1)
+  );
+  const channelRow = new ActionRowBuilder().addComponents(
+    new ChannelSelectMenuBuilder()
+      .setCustomId("pxsetup:ticket:channel:" + userId)
+      .setPlaceholder("Select the ticket panel channel")
+      .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+      .setMinValues(1).setMaxValues(1)
+  );
+  const actionRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("pxsetup:ticket:publish:" + userId).setLabel("Publish ticket panel").setEmoji("🎫").setStyle(ButtonStyle.Primary)
+  );
+  return { embeds: [embed], components: [categoryRow, channelRow, actionRow], allowedMentions: { parse: [] } };
+}
+
 function buildTicketPanel(guild, botUser) {
   const menu = new StringSelectMenuBuilder()
     .setCustomId("px_ticket_create")
@@ -2798,6 +2851,106 @@ client.on(Events.MessageReactionRemove, (reaction, user) => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
+  if (interaction.customId?.startsWith("pxsetup:")) {
+    const parts = interaction.customId.split(":");
+    const [, area, action, ownerId] = parts;
+    if (!interaction.inGuild() || interaction.user.id !== ownerId) {
+      return interaction.reply({ content: "Only the staff member who opened this setup panel can use it.", ephemeral: true });
+    }
+    const config = getGuildConfig(interaction.guildId);
+    const canWelcome = isBotOwner(interaction.user.id) || interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) || interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild);
+    const canTickets = isBotOwner(interaction.user.id) || interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) || interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels);
+    if ((area === "welcome" && !canWelcome) || (area === "ticket" && !canTickets)) {
+      return interaction.reply({ content: "You no longer have permission to configure this system.", ephemeral: true });
+    }
+
+    if (interaction.isChannelSelectMenu()) {
+      const selected = await interaction.guild.channels.fetch(interaction.values[0]).catch(() => null);
+      if (!selected) return interaction.reply({ content: "That channel is no longer available.", ephemeral: true });
+      if (area === "welcome" && action === "channel") {
+        if (selected.type !== ChannelType.GuildText) return interaction.reply({ content: "Choose a text channel.", ephemeral: true });
+        const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
+        if (!selected.permissionsFor(botMember)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) return interaction.reply({ content: "I need View Channel, Send Messages and Embed Links in that channel.", ephemeral: true });
+        config.welcomeChannelId = selected.id;
+        await saveDatabase();
+        return interaction.update(buildWelcomeSetupPayload(interaction.guild, config, ownerId));
+      }
+      if (area === "ticket" && action === "category") {
+        if (selected.type !== ChannelType.GuildCategory) return interaction.reply({ content: "Choose a category.", ephemeral: true });
+        config.ticketCategoryId = selected.id;
+        await saveDatabase();
+        return interaction.update(buildTicketSetupPayload(interaction.guild, config, ownerId));
+      }
+      if (area === "ticket" && action === "channel") {
+        if (![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(selected.type)) return interaction.reply({ content: "Choose a text or announcement channel.", ephemeral: true });
+        const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
+        if (!selected.permissionsFor(botMember)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) return interaction.reply({ content: "I need View Channel, Send Messages and Embed Links in that channel.", ephemeral: true });
+        config.ticketPanelChannelId = selected.id;
+        await saveDatabase();
+        return interaction.update(buildTicketSetupPayload(interaction.guild, config, ownerId));
+      }
+    }
+
+    if (interaction.isButton()) {
+      if (area === "welcome" && action === "edit") {
+        const modal = new ModalBuilder().setCustomId("pxsetup:welcome:message:" + ownerId).setTitle("Edit welcome message");
+        const input = new TextInputBuilder()
+          .setCustomId("welcome_message")
+          .setLabel("Welcome message")
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+          .setMaxLength(3500)
+          .setValue(config.welcomeMessage || "Welcome {user} to {server}! You are member #{memberCount}.");
+        modal.addComponents(new ActionRowBuilder().addComponents(input));
+        return interaction.showModal(modal);
+      }
+      if (area === "welcome" && action === "preview") {
+        const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+        if (!member) return interaction.reply({ content: "Couldn't load your member profile for the preview.", ephemeral: true });
+        const preview = new EmbedBuilder()
+          .setColor(config.welcomeColor || 0x7c5cff)
+          .setAuthor({ name: interaction.guild.name, iconURL: interaction.client.user.displayAvatarURL() })
+          .setDescription(buildWelcomeDescription(interaction.guild, member))
+          .setThumbnail(config.welcomeThumbnailUrl || member.user.displayAvatarURL({ extension: "png", size: 256 }))
+          .setImage(config.welcomeImageUrl || WELCOME_BANNER_URL)
+          .setFooter({ text: "Elixe • As | Preview" });
+        return interaction.reply({ embeds: [preview], ephemeral: true, allowedMentions: { parse: [] } });
+      }
+      if (area === "welcome" && action === "disable") {
+        config.welcomeChannelId = null;
+        await saveDatabase();
+        return interaction.update(buildWelcomeSetupPayload(interaction.guild, config, ownerId));
+      }
+      if (area === "ticket" && action === "publish") {
+        if (!config.ticketCategoryId) return interaction.reply({ content: "Select a ticket category first.", ephemeral: true });
+        const category = await interaction.guild.channels.fetch(config.ticketCategoryId).catch(() => null);
+        if (!category || category.type !== ChannelType.GuildCategory) return interaction.reply({ content: "The selected ticket category is unavailable. Select it again.", ephemeral: true });
+        if (!config.ticketPanelChannelId) return interaction.reply({ content: "Select a panel channel first.", ephemeral: true });
+        const target = await interaction.guild.channels.fetch(config.ticketPanelChannelId).catch(() => null);
+        if (!target?.isTextBased()) return interaction.reply({ content: "The selected panel channel is unavailable.", ephemeral: true });
+        const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
+        if (!target.permissionsFor(botMember)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) return interaction.reply({ content: "I need View Channel, Send Messages and Embed Links in the panel channel.", ephemeral: true });
+        await target.send(buildTicketPanel(interaction.guild, interaction.client.user));
+        return interaction.reply({ content: "Ticket panel published in " + target.toString() + ". New tickets will be created under " + category.toString() + ".", ephemeral: true });
+      }
+    }
+  }
+
+  if (interaction.isModalSubmit() && interaction.customId.startsWith("pxsetup:welcome:message:")) {
+    const ownerId = interaction.customId.split(":").at(-1);
+    if (!interaction.inGuild() || interaction.user.id !== ownerId) return interaction.reply({ content: "This setup panel belongs to another staff member.", ephemeral: true });
+    const allowed = isBotOwner(interaction.user.id) || interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) || interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild);
+    if (!allowed) return interaction.reply({ content: "You no longer have permission to configure welcome messages.", ephemeral: true });
+    const config = getGuildConfig(interaction.guildId);
+    const nextMessage = interaction.fields.getTextInputValue("welcome_message").trim();
+    if (!nextMessage || nextMessage.length > 3500) return interaction.reply({ content: "Enter a welcome message up to 3,500 characters.", ephemeral: true });
+    config.welcomeMessage = nextMessage;
+    await saveDatabase();
+    return interaction.reply({ content: "Welcome message saved. Use Preview on the setup panel to check it.", ephemeral: true });
+  }
+
+  // Persistent giveaway entry button.
+
   if (interaction.isButton() && interaction.customId.startsWith("px_delete_approval:")) {
     if (!interaction.inGuild()) return interaction.reply({ content: "Server-only approval.", ephemeral: true });
     if (interaction.user.id !== interaction.guild.ownerId && !isBotOwner(interaction.user.id)) return interaction.reply({ content: "Only the server owner or Elixe • As owner can decide.", ephemeral: true });
@@ -2862,7 +3015,7 @@ client.on(Events.InteractionCreate, async interaction => {
         overwrites.push({ id: config.ticketStaffRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] });
       }
       const ticketType = interaction.values[0];
-      const categoryId = "1572968553924141165";
+      const categoryId = config.ticketCategoryId || "1572968553924141165";
       const ticketCategory = await interaction.guild.channels.fetch(categoryId).catch(() => null);
       if (!ticketCategory || ticketCategory.type !== ChannelType.GuildCategory) {
         return interaction.editReply("Ticket category not found. Check the ticket setup.");
@@ -5341,17 +5494,8 @@ client.on(Events.MessageCreate, async message => {
         return send("✦ Welcome message reset", "Restored the default welcome text. The banner is unchanged.");
       }
       if (sub === "set") {
-        const channelId = args[0]?.match(/^<#(\d+)>$/)?.[1] || null;
-        if (!channelId) return fail("Usage: " + prefix + "welcome set #channel");
-        const channel = await message.guild.channels.fetch(channelId).catch(() => null);
-        if (!channel?.isTextBased()) return fail("Please select a text channel.");
-        const botMember = message.guild.members.me ?? await message.guild.members.fetchMe();
-        if (!channel.permissionsFor(botMember)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) {
-          return fail("I need View Channel, Send Messages, and Embed Links permissions in that channel.");
-        }
-        config.welcomeChannelId = channel.id;
-        await saveDatabase();
-        return send("✦ Welcome channel configured", "Elixe • As will now send premium welcome messages in " + channel.toString() + ".");
+        await message.channel.send(buildWelcomeSetupPayload(message.guild, config, message.author.id));
+        return send("Welcome setup opened", "Use the panel above to select a channel, edit the message and preview it.");
       }
       if (sub === "remove" || sub === "disable" || sub === "off") {
         if (!config.welcomeChannelId) return fail("Welcome messages are not configured yet.");
@@ -5407,15 +5551,21 @@ client.on(Events.MessageCreate, async message => {
     }
     if (command === "ticket") {
       const sub = (args.shift() || "").toLowerCase();
-      if (sub !== "panel") return fail("Usage: " + prefix + "ticket panel [#channel]");
-      if (!isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.Administrator) && !message.member.permissions.has(PermissionFlagsBits.ManageChannels)) return fail("You need Manage Channels or Administrator to publish the ticket panel.");
+      const canManageTickets = isBotOwner(message.author.id) || message.member.permissions.has(PermissionFlagsBits.Administrator) || message.member.permissions.has(PermissionFlagsBits.ManageChannels);
+      if (sub === "set") {
+        if (!canManageTickets) return fail("You need Manage Channels or Administrator to configure tickets.");
+        await message.channel.send(buildTicketSetupPayload(message.guild, config, message.author.id));
+        return send("Ticket setup opened", "Select the ticket category and panel channel, then publish the panel.");
+      }
+      if (sub !== "panel") return fail("Usage: " + prefix + "ticket set or " + prefix + "ticket panel [#channel]");
+      if (!canManageTickets) return fail("You need Manage Channels or Administrator to publish the ticket panel.");
       const channelId = args[0]?.match(/^<#(\\d+)>$/)?.[1];
       const targetChannel = channelId ? await message.guild.channels.fetch(channelId).catch(() => null) : message.channel;
       if (!targetChannel || targetChannel.type !== ChannelType.GuildText) return fail("Choose a text channel in this server.");
       const botMember = message.guild.members.me ?? await message.guild.members.fetchMe();
       if (!targetChannel.permissionsFor(botMember)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) return fail("I need View Channel, Send Messages, and Embed Links in that channel.");
       await targetChannel.send(buildTicketPanel(message.guild, client.user));
-      return send("✦ TICKET PORTAL PUBLISHED", "The Elixe • As ticket panel is now live in " + targetChannel.toString() + ".");
+      return send("TICKET PORTAL PUBLISHED", "The ticket panel is now live in " + targetChannel.toString() + ".");
     }
     if (command === "recruit") {
       const id = mentionedId(args[0]);
