@@ -6280,85 +6280,27 @@ client.on(Events.MessageCreate, async message => {
     if (command === "rankhelp" || command === "help") {
       const help = new EmbedBuilder()
         .setColor(0x7c5cff)
-        .setAuthor({ name: "ＰＡＲＡＤＯＸＰＬＵＳ  •  COMMAND DIRECTORY", iconURL: client.user.displayAvatarURL() })
-        .setTitle("✦  COMMAND CENTER")
         .setDescription(
-          "A clean guide to Elixe • As commands.\n" +
-          " **Prefix:** \`" + prefix + "\`  •  **Slash commands:** use Discord's `/` command picker.\n" +
-          "━━━━━━━━━━━━━━━━━━━━━━━━"
-        )
-        .addFields(
-          {
-            name: "🌐  COMMUNITY",
-            value:
-              "\`" + prefix + "welcome set\` — Open welcome setup GUI\n" +
-              "\`" + prefix + "welcome remove\` — Disable welcomes\n" +
-              "\`" + prefix + "welcome test\` — DM yourself a preview\n" +
-              "\`" + prefix + "recruit @member\` — Record a recruit\n" +
-              "\`" + prefix + "recruits [@member]\` — View recruit stats\n" +
-              "\`" + prefix + "recruitleaderboard [daily|weekly|monthly|all]\` — Recruit rankings\n" +
-              "\`" + prefix + "dm-optin / dm-optout\` — Manage server DMs",
-            inline: false
-          },
-          {
-            name: "🏅  MEMBER RANKS",
-            value:
-              "\`" + prefix + "rank [@member]\` — Check a member's rank\n" +
-              "\`" + prefix + "rankpanel\` — View rank hierarchy\n" +
-              "\`" + prefix + "rankhistory @member\` — Rank history\n" +
-              "\`" + prefix + "ranksearch name\` — Find a member\n" +
-              "\`" + prefix + "rankstats\` — Rank statistics\n" +
-              "\`" + prefix + "rankleaderboard\` — Rank leaderboard",
-            inline: false
-          },
-          {
-            name: "🛡️  STAFF & MODERATION",
-            value:
-              "\`/promote\`, \`/demote\`, \`/setrank\` — Manage ranks\n" +
-              "\`" + prefix + "kick / ban / timeout\` — Prefix moderation\n" +
-              "\`/kick\`, \`/ban\`, \`/softban\`, \`/unban\`, \`/timeout\`, \`/untimeout\`\n" +
-              "\`/warn\`, \`/warnings\`, \`/unwarn\`, \`/clear-warnings\`\n" +
-              "\`/strike\`, \`/strikes\`, \`/remove-strike\`\n" +
-              "\`/modlog\`, \`/case\`, \`/case-reason\`, \`/banlist\`\n" +
-              "\`/note\`, \`/notes\`, \`/clear-notes\`",
-            inline: false
-          },
-          {
-            name: "🎫  TICKETS",
-            value:
-              "\`" + prefix + "ticket set\` — Open ticket setup GUI\n" +
-              "\`" + prefix + "ticket panel [#channel]\` — Publish ticket panel\n" +
-              "\`/ticket-panel channel:#channel\` — Publish using slash command\n" +
-              "Categories: Support • Member Report • Partnership • Alliance / Merge\n" +
-              "\`/ticket add @member\` / \`remove @member\`\n" +
-              "\`/ticket claim\` / \`unclaim\` — Staff ownership\n" +
-              "\`/ticket priority\` / \`info\` / \`rename\`\n" +
-              "\`/ticket close\` / \`reopen\` / \`transcript\`",
-            inline: false
-          },
-          {
-            name: "⚙️  SERVER TOOLS",
-            value:
-              "\`/lock\`, \`/unlock\`, \`/hide\`, \`/show\`, \`/slowmode\`, \`/slowmode-off\`\n" +
-              "\`/set-topic\`, \`/nickname\`, \`/nick-reset\`, \`/role-add\`, \`/role-remove\`\n" +
-              "\`/purge\`, \`/purge-user\`, \`/purge-bots\`, \`/purge-links\`, \`/purge-invites\`\n" +
-              "\`/purge-attachments\`, \`/purge-embeds\`, \`/purge-mentions\`, \`/purge-stickers\`, \`/purge-contains\`\n" +
-              "\`/userinfo\`, \`/serverinfo\`, \`/serverpulse\`, \`/modstats\`, \`/staffactivity\`, \`/memberjourney\`, \`/spotlight\`",
-            inline: false
-          },
-          {
-            name: "✨  TRIGGERS & QUICK HELP",
-            value:
-              "\`" + prefix + "triggerlist\` — View saved triggers\n" +
-              "\`" + prefix + "trigger add phrase | reply\` — Add a trigger\n" +
-              "\`" + prefix + "trigger remove \"phrase\"\` — Remove a trigger\n" +
-              "\`" + prefix + "ping\` — Check bot latency\n" +
-              "\`" + prefix + "help\` — Show this command guide",
-            inline: false
-          }
-        )
-        .setFooter({ text: "ELIXE • AS  •  ElixeManagerV1  •  Commands vary by permissions" })
-        .setTimestamp();
+          "### Hey, I'm **Elixe • As**\n" +
+          "- **My prefix for this server is** \`" + prefix + "\`\n" +
+          "- **Type** \`" + prefix + "help\` **to view commands**\n" +
+          "- **Slash commands:** \`95\`\n" +
+          "> 🛡️  \`»\` **Security & Protection**\n" +
+          "> 👮  \`»\` **Moderation**\n" +
+          "> 🏅  \`»\` **Ranks & Staff**\n" +
+          "> 🎫  \`»\` **Tickets & Support**\n" +
+          "> 👋  \`»\` **Welcome & Community**\n" +
+          "> ⚙️  \`»\` **Server Tools**\n" +
+          "> 🎙️  \`»\` **Voice Commands**\n" +
+          "> 🎉  \`»\` **Giveaways & Fun**\n" +
+          "> 📋  \`»\` **Logging & Reports**\n" +
+          "> 🔧  \`»\` **Bot Settings & Utility**\n\n" +
+          "**__Pro Tip__**\n" +
+          "Need to set things up? Use \`" + prefix + "welcome set\` or \`" + prefix + "ticket set\` to open the setup panels.\n\n" +
+          "**__Commands__**\n" +
+          "Use the \`/\` command picker for slash commands, or type \`" + prefix + "help\` here.\n" +
+          "-# Powered by Fearless Dev"
+        );
       return message.reply({ embeds: [help], allowedMentions: { repliedUser: false, parse: [] } });
     }
     if (command === "strikes") {
