@@ -21,7 +21,7 @@ const commands = [
     .addSubcommand(sc=>sc.setName("reroll").setDescription("Pick replacement winners from remaining entrants.")
       .addStringOption(o=>o.setName("giveaway_id").setDescription("Message ID shown in the giveaway").setRequired(true)))
     .addSubcommand(sc=>sc.setName("list").setDescription("View recent giveaways.")),
-  new SlashCommandBuilder().setName("ticket").setDescription("Create and manage private support tickets.")
+  new SlashCommandBuilder().setName("ticket").setDescription("Open and manage support tickets.")
     .addSubcommand(sc=>sc.setName("panel").setDescription("Post the dropdown ticket panel in a chosen channel.")
       .addChannelOption(o=>o.setName("channel").setDescription("Destination text channel; defaults to this channel").addChannelTypes(ChannelType.GuildText))
       .addRoleOption(o=>o.setName("staff_role").setDescription("Optional role that can view and manage tickets")))
@@ -127,10 +127,10 @@ const commands = [
     .addRoleOption(o=>o.setName("role").setDescription("Role to remove").setRequired(true)),
   new SlashCommandBuilder().setName("howgay").setDescription("Get a random howgay meme score (just for laughs).")
     .addUserOption(o=>o.setName("member").setDescription("Member to rate; defaults to you")),
-  new SlashCommandBuilder().setName("userinfo").setDescription("Show detailed information about a server member.")
+  new SlashCommandBuilder().setName("userinfo").setDescription("View member info.")
     .addUserOption(o=>o.setName("member").setDescription("Member to inspect")),
-  new SlashCommandBuilder().setName("serverinfo").setDescription("Show detailed server information."),
-  new SlashCommandBuilder().setName("modstats").setDescription("Show Elixe • As moderation case statistics.")
+  new SlashCommandBuilder().setName("serverinfo").setDescription("View server info."),
+  new SlashCommandBuilder().setName("modstats").setDescription("View moderation stats.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers),
   new SlashCommandBuilder().setName("unban").setDescription("Unban a user by Discord ID.")
     .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers)
@@ -181,7 +181,7 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName("promote")
-    .setDescription("Move a member up one rank in the configured hierarchy.")
+    .setDescription("Move a member up one rank.")
     .addUserOption(o =>
       o.setName("member").setDescription("Member to promote").setRequired(true))
     .addStringOption(o =>
@@ -189,7 +189,7 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName("demote")
-    .setDescription("Move a member down one rank in the configured hierarchy.")
+    .setDescription("Move a member down one rank.")
     .addUserOption(o =>
       o.setName("member").setDescription("Member to demote").setRequired(true))
     .addStringOption(o =>
@@ -197,7 +197,7 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName("setrank")
-    .setDescription("Set a member to an exact configured rank.")
+    .setDescription("Set a member's rank.")
     .addUserOption(o =>
       o.setName("member").setDescription("Member to update").setRequired(true))
     .addRoleOption(o =>
@@ -207,13 +207,13 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName("rank")
-    .setDescription("Show a member's current configured rank.")
+    .setDescription("Check a member's rank.")
     .addUserOption(o =>
       o.setName("member").setDescription("Member to check")),
 
   new SlashCommandBuilder()
     .setName("rank-config")
-    .setDescription("Configure this server's rank system.")
+    .setDescription("Set up this server's ranks.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
 
     .addSubcommand(s => s.setName("add")
@@ -268,7 +268,7 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName("rank-history")
-    .setDescription("Show a member's recent rank changes.")
+    .setDescription("View recent rank changes.")
     .addUserOption(o => o.setName("member").setDescription("Member to inspect").setRequired(true)),
 
   new SlashCommandBuilder()
@@ -278,7 +278,7 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName("rank-stats")
-    .setDescription("Show how members are distributed across ranks."),
+    .setDescription("View rank distribution."),
 
   new SlashCommandBuilder()
     .setName("rank-leaderboard")
