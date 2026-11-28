@@ -6308,7 +6308,7 @@ client.on(Events.MessageCreate, async message => {
           "**__Pro Tip__**\n" +
           "Set up greetings and tickets with \`" + prefix + "welcome set\` and \`" + prefix + "ticket set\`. <:cute:1564423406730870955>\n\n" +
           "**<:link:1505158966962032640> __Links__**\n" +
-          "-# Powered by Fearless Dev"
+          "-# Powered By Elixe • Core"
         );
       const links = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
