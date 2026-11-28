@@ -99,7 +99,9 @@ export async function initRecruitmentDatabase() {
     connectionString: process.env.DATABASE_URL,
     max: 5,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
+    connectionTimeoutMillis: 5000,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
   });
   // pg.Pool emits "error" for idle clients that fail asynchronously. Without
   // a listener, EventEmitter treats that as an uncaught error and can crash
@@ -523,4 +525,16 @@ export async function pruneMessageArchive() {
   requireDatabase();
   // Message archive retention is permanent; this function intentionally deletes nothing.
   return 0;
+}
+
+
+export async function pingRecruitmentDatabase() {
+  if (!ready || !pool) return false;
+  try {
+    await pool.query({ text: "SELECT 1", query_timeout: 5000 });
+    return true;
+  } catch (error) {
+    console.error("[Health] PostgreSQL check failed:", error.message);
+    return false;
+  }
 }

@@ -7,7 +7,7 @@ const htmlPath = path.join(process.cwd(), "dashboard", "index.html");
 const json = (res,status,data) => { res.writeHead(status,{"content-type":"application/json; charset=utf-8","cache-control":"no-store"}); res.end(JSON.stringify(data)); };
 const cookies = h => Object.fromEntries((h||"").split(";").map(x=>x.trim().split(/=(.*)/s).slice(0,2)).filter(x=>x.length===2));
 const equal = (a,b) => { const x=Buffer.from(a),y=Buffer.from(b); return x.length===y.length && crypto.timingSafeEqual(x,y); };
-export function startDashboard({client,getGuildConfig,saveDatabase}) {
+export function startDashboard({client,getGuildConfig,saveDatabase,getReliability}) {
  const password=process.env.DASHBOARD_PASSWORD, secret=process.env.DASHBOARD_SESSION_SECRET, guildId=process.env.DASHBOARD_GUILD_ID;
  if(!password || password.length<16 || !secret || secret.length<32 || !/^\d{17,20}$/.test(guildId||"")) {
   console.warn("Dashboard disabled: set DASHBOARD_PASSWORD (16+ chars), DASHBOARD_SESSION_SECRET (32+ chars), and DASHBOARD_GUILD_ID."); return;
@@ -20,6 +20,7 @@ export function startDashboard({client,getGuildConfig,saveDatabase}) {
  const server=http.createServer(async(req,res)=>{
   try {
    const url=new URL(req.url,"http://localhost"), cookie=cookies(req.headers.cookie);
+   if(req.method==="GET"&&url.pathname==="/healthz"){const status=await getReliability?.()||{};const healthy=status.gateway==="Online"&&status.database==="Online";return json(res,healthy?200:503,{ok:healthy,...status});}
    if(req.method==="POST"&&url.pathname==="/auth/login"){
     const ip=req.socket.remoteAddress||"unknown",now=Date.now();let a=attempts.get(ip)||{count:0,until:now+600000};
     if(a.until<now)a={count:0,until:now+600000};if(a.count>=8)return json(res,429,{error:"Too many attempts. Wait 10 minutes."});
@@ -65,7 +66,7 @@ export function startDashboard({client,getGuildConfig,saveDatabase}) {
      const rankedMembers=members.filter(member=>config.ranks.some(rank=>member.roles.cache.has(rank.id))).size;
      const pulseDays=Object.entries(config.pulse?.days||{}).sort((a,b)=>a[0].localeCompare(b[0])).slice(-7).map(([date,v])=>({date,messages:v.messages||0,joins:v.joins||0,leaves:v.leaves||0,active:(v.activeIds||[]).length}));
      const pulseTotals=pulseDays.reduce((a,v)=>({messages:a.messages+v.messages,joins:a.joins+v.joins,leaves:a.leaves+v.leaves}),{messages:0,joins:0,leaves:0});
-     return json(res,200,{guild:{id:guild.id,name:guild.name,icon:guild.iconURL({size:128})},stats:{members:members.size,rankedMembers,rankCount:config.ranks.length,botPing:client.ws.ping},pulse:{days:pulseDays,totals:pulseTotals},rankCounts,leaderboard,activity,ranks,ignored,available,channels,logChannelId:config.logChannelId||"",announceChannelId:config.announceChannelId||"",botReady:true});
+     return json(res,200,{guild:{id:guild.id,name:guild.name,icon:guild.iconURL({size:128})},reliability:await getReliability?.()||{},stats:{members:members.size,rankedMembers,rankCount:config.ranks.length,botPing:client.ws.ping},pulse:{days:pulseDays,totals:pulseTotals},rankCounts,leaderboard,activity,ranks,ignored,available,channels,logChannelId:config.logChannelId||"",announceChannelId:config.announceChannelId||"",botReady:true});
     }
     if(req.method==="POST"){
      const input=await body(req);
