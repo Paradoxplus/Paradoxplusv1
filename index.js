@@ -6308,10 +6308,21 @@ client.on(Events.MessageCreate, async message => {
           "**__Pro Tip__**\n" +
           "Set up greetings and tickets with \`" + prefix + "welcome set\` and \`" + prefix + "ticket set\`. <:cute:1564423406730870955>\n\n" +
           "**<:link:1505158966962032640> __Links__**\n" +
-          "[Invite me](https://discord.com/oauth2/authorize?client_id=" + client.user.id + "&scope=bot+applications.commands&permissions=8)\n" +
           "-# Powered by Fearless Dev"
         );
-      return message.reply({ embeds: [help], allowedMentions: { repliedUser: false, parse: [] } });
+      const links = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setLabel("Invite me")
+          .setEmoji("<:link:1505158966962032640>")
+          .setStyle(ButtonStyle.Link)
+          .setURL("https://discord.com/oauth2/authorize?client_id=" + client.user.id + "&scope=bot+applications.commands&permissions=8"),
+        new ButtonBuilder()
+          .setLabel("Support")
+          .setEmoji("<:profile_6431:1505158824535789570>")
+          .setStyle(ButtonStyle.Link)
+          .setURL("https://discord.com/channels/1568943817762017400/1572968553924141166")
+      );
+      return message.reply({ embeds: [help], components: [links], allowedMentions: { repliedUser: false, parse: [] } });
     }
     if (command === "strikes") {
       const id = mentionedId(args[0]) || message.author.id;
