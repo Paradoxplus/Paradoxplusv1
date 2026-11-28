@@ -6299,7 +6299,7 @@ client.on(Events.MessageCreate, async message => {
           "Need to set things up? Use \`" + prefix + "welcome set\` or \`" + prefix + "ticket set\` to open the setup panels.\n\n" +
           "**__Commands__**\n" +
           "Use the \`/\` command picker for slash commands, or type \`" + prefix + "help\` here.\n" +
-          "-# Powered by Elixe • As"
+          "-# Powered by Fearless Dev"
         );
       return message.reply({ embeds: [help], allowedMentions: { repliedUser: false, parse: [] } });
     }
