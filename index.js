@@ -6289,7 +6289,7 @@ client.on(Events.MessageCreate, async message => {
           {
             name: "🌐  COMMUNITY",
             value:
-              "\`" + prefix + "welcome set #channel\` — Set welcome channel\n" +
+              "\`" + prefix + "welcome set\` — Open welcome setup GUI\n" +
               "\`" + prefix + "welcome remove\` — Disable welcomes\n" +
               "\`" + prefix + "welcome test\` — DM yourself a preview\n" +
               "\`" + prefix + "recruit @member\` — Record a recruit\n" +
@@ -6324,8 +6324,9 @@ client.on(Events.MessageCreate, async message => {
           {
             name: "🎫  TICKETS",
             value:
-              "\`/ticket-panel channel:#channel\` — Publish the ticket portal\n" +
-              "\`/ticket panel channel:#channel\` — Choose where the panel is posted (optional)\n" +
+              "\`" + prefix + "ticket set\` — Open ticket setup GUI\n" +
+              "\`" + prefix + "ticket panel [#channel]\` — Publish ticket panel\n" +
+              "\`/ticket-panel channel:#channel\` — Publish using slash command\n" +
               "Categories: Support • Member Report • Partnership • Alliance / Merge\n" +
               "\`/ticket add @member\` / \`remove @member\`\n" +
               "\`/ticket claim\` / \`unclaim\` — Staff ownership\n" +
