@@ -4609,7 +4609,7 @@ client.on(Events.InteractionCreate, async interaction => {
         const target=await interaction.guild.members.fetch(user.id).catch(()=>null);
         if(!target)return replyError(interaction,"Member not found.");
         const actor=await interaction.guild.members.fetch(interaction.user.id);
-        if(target.id === interaction.user.id && !isRoleProtectedUser(interaction.user.id))return replyError(interaction,"Only whitelisted owners can assign roles to themselves.");
+         // Warning targets are not role assignments; no self-role restriction applies here.
         if(!canActOnTarget(actor,target,interaction.guild))return replyError(interaction,"That member has an equal or higher role than you.");
         const warning={id:config.warnings.length+1,memberId:user.id,moderatorId:interaction.user.id,reason,timestamp:new Date().toISOString()};
         config.warnings.unshift(warning); config.warnings=config.warnings.slice(0,1000);
@@ -4667,7 +4667,8 @@ client.on(Events.InteractionCreate, async interaction => {
         if(!target)return replyError(interaction,"Member not found.");
         const actor=await interaction.guild.members.fetch(interaction.user.id);
         const bot=await interaction.guild.members.fetchMe();
-        if(!canActOnTarget(actor,target,interaction.guild))return replyError(interaction,"That member has an equal or higher role than you.");
+         if(cmd==="role-add" && target.id===interaction.user.id && !isRoleProtectedUser(interaction.user.id))return replyError(interaction,"Only whitelisted owners can assign roles to themselves.");
+         if(!(cmd==="role-remove" && target.id===interaction.user.id) && !canActOnTarget(actor,target,interaction.guild))return replyError(interaction,"That member has an equal or higher role than you.");
         const actorIsAdmin = isBotOwner(interaction.user.id) || interaction.guild.ownerId === interaction.user.id || actor.permissions.has(PermissionFlagsBits.Administrator);
         if(target.id === interaction.guild.ownerId || !target.manageable)return replyError(interaction,"I can't manage that member. Move my bot role above the member's highest role.");
         if(role.managed || (!actorIsAdmin && role.position >= actor.roles.highest.position))return replyError(interaction,"That role is managed or above your highest role.");
@@ -5857,7 +5858,8 @@ client.on(Events.MessageCreate, async message => {
       if (!target || !role) return fail("Usage: " + prefix + command + " @member @role");
       const bot = message.guild.members.me ?? await message.guild.members.fetchMe();
       const actorIsAdmin = isBotOwner(message.author.id) || message.guild.ownerId === message.author.id || message.member.permissions.has(PermissionFlagsBits.Administrator);
-       if (target.id === message.author.id && !isRoleProtectedUser(message.author.id)) return fail("Only whitelisted owners can assign roles to themselves.");
+       if (command === "role-add" && target.id === message.author.id && !isRoleProtectedUser(message.author.id)) return fail("Only whitelisted owners can assign roles to themselves.");
+       if (!(command === "role-remove" && target.id === message.author.id) && !canActOnTarget(message.member, target, message.guild)) return fail("You cannot manage a member whose highest role is equal to or above yours.");
       if (!canActOnTarget(message.member, target, message.guild)) return fail("You cannot manage a member whose highest role is equal to or above yours.");
       if (target.id === message.guild.ownerId || !target.manageable) return fail("I cannot manage that member. Move my bot role above the member's highest role.");
       if (role.managed || (!actorIsAdmin && role.position >= message.member.roles.highest.position)) return fail("That role is above your highest role or is managed.");
