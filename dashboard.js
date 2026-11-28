@@ -20,7 +20,7 @@ export function startDashboard({client,getGuildConfig,saveDatabase,getReliabilit
  const server=http.createServer(async(req,res)=>{
   try {
    const url=new URL(req.url,"http://localhost"), cookie=cookies(req.headers.cookie);
-   if(req.method==="GET"&&url.pathname==="/healthz"){const status=getReliability?.()||{};const healthy=status.gateway==="Online"&&status.database==="Online";return json(res,healthy?200:503,{ok:healthy,...status});}
+   if(req.method==="GET"&&url.pathname==="/healthz"){const status=await getReliability?.()||{};const healthy=status.gateway==="Online"&&status.database==="Online";return json(res,healthy?200:503,{ok:healthy,...status});}
    if(req.method==="POST"&&url.pathname==="/auth/login"){
     const ip=req.socket.remoteAddress||"unknown",now=Date.now();let a=attempts.get(ip)||{count:0,until:now+600000};
     if(a.until<now)a={count:0,until:now+600000};if(a.count>=8)return json(res,429,{error:"Too many attempts. Wait 10 minutes."});
@@ -66,7 +66,7 @@ export function startDashboard({client,getGuildConfig,saveDatabase,getReliabilit
      const rankedMembers=members.filter(member=>config.ranks.some(rank=>member.roles.cache.has(rank.id))).size;
      const pulseDays=Object.entries(config.pulse?.days||{}).sort((a,b)=>a[0].localeCompare(b[0])).slice(-7).map(([date,v])=>({date,messages:v.messages||0,joins:v.joins||0,leaves:v.leaves||0,active:(v.activeIds||[]).length}));
      const pulseTotals=pulseDays.reduce((a,v)=>({messages:a.messages+v.messages,joins:a.joins+v.joins,leaves:a.leaves+v.leaves}),{messages:0,joins:0,leaves:0});
-     return json(res,200,{guild:{id:guild.id,name:guild.name,icon:guild.iconURL({size:128})},reliability:getReliability?.()||{},stats:{members:members.size,rankedMembers,rankCount:config.ranks.length,botPing:client.ws.ping},pulse:{days:pulseDays,totals:pulseTotals},rankCounts,leaderboard,activity,ranks,ignored,available,channels,logChannelId:config.logChannelId||"",announceChannelId:config.announceChannelId||"",botReady:true});
+     return json(res,200,{guild:{id:guild.id,name:guild.name,icon:guild.iconURL({size:128})},reliability:await getReliability?.()||{},stats:{members:members.size,rankedMembers,rankCount:config.ranks.length,botPing:client.ws.ping},pulse:{days:pulseDays,totals:pulseTotals},rankCounts,leaderboard,activity,ranks,ignored,available,channels,logChannelId:config.logChannelId||"",announceChannelId:config.announceChannelId||"",botReady:true});
     }
     if(req.method==="POST"){
      const input=await body(req);
