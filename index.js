@@ -46,7 +46,7 @@ function buildWelcomeDescription(guild, member) {
 }
 
 
-import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot, importDatabaseSnapshot, archiveDiscordMessage, getArchivedChannelMessages, loadSharedBotState, saveSharedBotState, tryAcquireBotLease, renewBotLease, releaseBotLease, announcePrimaryPresence, isPrimaryPresenceFresh } from "./recruitment.js";
+import { initRecruitmentDatabase, recordRecruit, removeRecruit, getRecruitStats, getRecruitLeaderboard, isRecruitmentDatabaseReady, exportDatabaseSnapshot, importDatabaseSnapshot, archiveDiscordMessage, getArchivedChannelMessages, loadSharedBotState, saveSharedBotState, tryAcquireBotLease, renewBotLease, releaseBotLease, announcePrimaryPresence, isPrimaryPresenceFresh, pingRecruitmentDatabase } from "./recruitment.js";
 
  
 // Discord does not support loading custom fonts, so use Unicode sans-serif bold
@@ -6557,7 +6557,7 @@ async function acquireBotLeaseAndStart() {
     console.log("[Failover] ACTIVE — this host owns the Discord gateway lease (epoch " + activeBotLease.epoch + ").");
     if (!dashboardStarted) {
       await loadDatabase();
-      startDashboard({ client, getGuildConfig, saveDatabase, getReliability: () => ({ gateway: client.isReady() ? "Online" : "Offline", database: isRecruitmentDatabaseReady() ? "Online" : "Offline", uptime: Math.floor(process.uptime()/3600)+"h "+Math.floor(process.uptime()%3600/60)+"m", memoryMb: Math.round(process.memoryUsage().rss/1024/1024), checkedAt: new Date().toISOString(), host: BOT_INSTANCE_LABEL, lease: activeBotLease ? "Active" : "Standby" }) });
+      startDashboard({ client, getGuildConfig, saveDatabase, getReliability: async () => ({ gateway: client.isReady() ? "Online" : "Offline", database: await pingRecruitmentDatabase() ? "Online" : "Offline", uptime: Math.floor(process.uptime()/3600)+"h "+Math.floor(process.uptime()%3600/60)+"m", memoryMb: Math.round(process.memoryUsage().rss/1024/1024), checkedAt: new Date().toISOString(), host: BOT_INSTANCE_LABEL, lease: activeBotLease ? "Active" : "Standby", uptimeTarget: "99%" }) });
       dashboardStarted = true;
     }
 
