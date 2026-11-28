@@ -305,6 +305,7 @@ function getGuildConfig(guildId) {
   if (typeof config.ticketStaffRoleId !== "string") config.ticketStaffRoleId = null;
   if (typeof config.ticketCategoryId !== "string") config.ticketCategoryId = null;
   if (typeof config.ticketPanelChannelId !== "string") config.ticketPanelChannelId = null;
+  if (typeof config.botOffline !== "boolean") config.botOffline = false;
   if (!Array.isArray(config.dmOptIns)) config.dmOptIns = [];
   if (!Array.isArray(config.giveaways)) config.giveaways = [];
   if (!config.selfRolePanel || typeof config.selfRolePanel !== "object") config.selfRolePanel = null;
@@ -3105,6 +3106,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
   try {
     const config = getGuildConfig(interaction.guildId);
+    if (config.botOffline) return replyError(interaction, "The bot is currently offline for maintenance. A whitelisted owner can restore it with the online prefix command.");
 
     if (interaction.commandName === "howgay") {
       const target = interaction.options.getUser("member") || interaction.user;
@@ -5278,6 +5280,21 @@ client.on(Events.MessageCreate, async message => {
   });
   const fail = text => send("Error", text);
   try {
+    if (command === "shutdown" || command === "online") {
+      if (!isRoleProtectedUser(message.author.id)) return fail("Only whitelisted owners can control bot availability.");
+      if (command === "shutdown") {
+        if (config.botOffline) return send("BOT OFFLINE", "The bot is already in maintenance mode. Use `" + prefix + "online` to restore commands.");
+        config.botOffline = true;
+        await saveDatabase();
+        return send("BOT OFFLINE", "Command handling has been paused. Use `" + prefix + "online` to bring commands back.");
+      }
+      if (!config.botOffline) return send("BOT ONLINE", "The bot is already online.");
+      config.botOffline = false;
+      await saveDatabase();
+      return send("BOT ONLINE", "Command handling has been restored.");
+    }
+    if (config.botOffline) return;
+
     if (command === "autoban") {
       if (!isBotOwner(message.author.id)) return fail("⛔ Only the bot owner (fearless1.dll) can manage the autoban list. Server owners, administrators, and top roles cannot use this command.");
       const sub = (args.shift() || "").toLowerCase();
