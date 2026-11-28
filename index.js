@@ -5860,7 +5860,6 @@ client.on(Events.MessageCreate, async message => {
       const actorIsAdmin = isBotOwner(message.author.id) || message.guild.ownerId === message.author.id || message.member.permissions.has(PermissionFlagsBits.Administrator);
        if (command === "role-add" && target.id === message.author.id && !isRoleProtectedUser(message.author.id)) return fail("Only whitelisted owners can assign roles to themselves.");
        if (!(command === "role-remove" && target.id === message.author.id) && !canActOnTarget(message.member, target, message.guild)) return fail("You cannot manage a member whose highest role is equal to or above yours.");
-      if (!canActOnTarget(message.member, target, message.guild)) return fail("You cannot manage a member whose highest role is equal to or above yours.");
       if (target.id === message.guild.ownerId || !target.manageable) return fail("I cannot manage that member. Move my bot role above the member's highest role.");
       if (role.managed || (!actorIsAdmin && role.position >= message.member.roles.highest.position)) return fail("That role is above your highest role or is managed.");
       if (!bot.permissions.has(PermissionFlagsBits.ManageRoles) || !role.editable || role.position >= bot.roles.highest.position) return fail("I cannot manage that role. Give me Manage Roles and move my bot role above it.");
