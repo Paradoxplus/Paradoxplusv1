@@ -5504,7 +5504,7 @@ client.on(Events.MessageCreate, async message => {
         await saveDatabase();
         return send("✦ Welcome messages disabled", "Removed the welcome channel <#" + previous + ">.");
       }
-      return fail("Usage: " + prefix + "welcome set #channel\\n" + prefix + "welcome message <text>\\n" + prefix + "welcome reset\\n" + prefix + "welcome test\\n" + prefix + "welcome remove");
+      return fail("Usage: " + prefix + "welcome set (open setup)\\n" + prefix + "welcome message <text>\\n" + prefix + "welcome reset\\n" + prefix + "welcome test\\n" + prefix + "welcome remove");
     }
     if (command === "prefix") {
       if (!isBotOwner(message.author.id) && !message.member.permissions.has(PermissionFlagsBits.Administrator) && !message.member.permissions.has(PermissionFlagsBits.ManageGuild)) return fail("You need Manage Server or Administrator to change the prefix.");
