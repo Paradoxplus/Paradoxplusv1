@@ -5257,8 +5257,10 @@ client.on(Events.MessageCreate, async message => {
   if (!message.guild || message.author.bot) return;
   const config = getGuildConfig(message.guild.id);
   const prefix = typeof config.prefix === "string" && config.prefix.length >= 1 && config.prefix.length <= 5 ? config.prefix : DEFAULT_PREFIX;
-  if (!message.content.startsWith(prefix)) return;
-  const args = message.content.slice(prefix.length).trim().split(/\s+/);
+  const availabilityCommand = /^\?(shutdown|online)$/i.test(message.content.trim());
+  if (!message.content.startsWith(prefix) && !availabilityCommand) return;
+  const commandPrefix = availabilityCommand ? "?" : prefix;
+  const args = message.content.slice(commandPrefix.length).trim().split(/\s+/);
   let command = (args.shift() || "").toLowerCase();
   if (command === "si") command = "serverinfo";
   if (command === "role") {
