@@ -416,7 +416,7 @@ async function sendOptInDmall(guild, config, content) {
 }
 
 async function replyError(interaction, message) {
-  const payload = { content: `⚠️ ${message}`, ephemeral: true };
+  const payload = { content: message, ephemeral: true };
   if (interaction.deferred || interaction.replied) return interaction.editReply(payload);
   return interaction.reply(payload);
 }
@@ -2358,8 +2358,8 @@ function buildWelcomeSetupPayload(guild, config, userId) {
   const embed = new EmbedBuilder()
     .setColor(config.welcomeColor || 0x7c5cff)
     .setTitle("Welcome setup")
-    .setDescription("Choose where new members are welcomed and customize the message.\n\n**Channel:** " + channel + "\n**Message:** " + message + "\n\nPlaceholders: `{user}`, `{server}`, `{memberCount}`.")
-    .setFooter({ text: "Elixe • As | Only the staff member who opened this panel can use it" });
+    .setDescription("Choose the welcome channel and message.\n\n**Channel:** " + channel + "\n**Message:** " + message + "\n\nPlaceholders: `{user}`, `{server}`, `{memberCount}`.")
+    .setFooter({ text: "Elixe • As" });
   const channelRow = new ActionRowBuilder().addComponents(
     new ChannelSelectMenuBuilder()
       .setCustomId("pxsetup:welcome:channel:" + userId)
@@ -2381,7 +2381,7 @@ function buildTicketSetupPayload(guild, config, userId) {
   const embed = new EmbedBuilder()
     .setColor(0x6d5dfc)
     .setTitle("Ticket setup")
-    .setDescription("Choose where private tickets are created and where the ticket panel is posted.\n\n**Ticket category:** " + category + "\n**Panel channel:** " + panelChannel + "\n\nSelect both, then publish the panel.")
+    .setDescription("Choose where tickets are created and where the panel is posted.\n\n**Ticket category:** " + category + "\n**Panel channel:** " + panelChannel + "\n\nSelect both, then publish the panel.")
     .setFooter({ text: "Elixe • As | Only the staff member who opened this panel can use it" });
   const categoryRow = new ActionRowBuilder().addComponents(
     new ChannelSelectMenuBuilder()
@@ -2406,7 +2406,7 @@ function buildTicketSetupPayload(guild, config, userId) {
 function buildTicketPanel(guild, botUser) {
   const menu = new StringSelectMenuBuilder()
     .setCustomId("px_ticket_create")
-    .setPlaceholder("🎫  Select a ticket category")
+    .setPlaceholder("Select a ticket category")
     .addOptions(
       { label: "Team Application", description: "Apply to join the team", value: "Team Application", emoji: "🛡️" },
       { label: "General Support", description: "Get help from the support team", value: "General Support", emoji: "🎫" },
@@ -2419,16 +2419,16 @@ function buildTicketPanel(guild, botUser) {
     .setColor(0x6d5dfc)
     .setTitle("Ticket support")
     .setDescription(
-      "## Exile AS | Ticket Support\n\n" +
-      "**Types Of Support We Provide**\n\n" +
+      "Choose a category below to open a ticket.\n\n" +
+      "**Available categories**\n\n" +
       "> - Team Application\n> - General Support\n> - Paid Promotion\n\n" +
-      "**Requirements for __Team Application:__**\n\n" +
+      "**Team application requirements**\n\n" +
       "> • Must be LT4+ in one of these gamemodes: Nethpot / SMP / Crystal\n" +
       "> • Must be active in both VC and Chat\n" +
       "> • Must act mature and have common sense\n\n" +
-      "**Types of help we can provide in __General Support:__**\n\n" +
+      "**General support includes**\n\n" +
       "> - Ally Request\n> - Merge Request\n> - TVT (Clan V/s Clan)\n> - Technical Help\n> - Staff Report\n> - Giveaways Rewards\n\n" +
-      "**NOTE:** Create a ticket only for one of the support types listed above."
+      "Please open a ticket only for the categories listed above."
     )
     .setThumbnail(guild.iconURL({ size: 256 }) || botUser.displayAvatarURL())
     .setImage(EXILE_AS_BANNER_URL)
@@ -3040,25 +3040,25 @@ client.on(Events.InteractionCreate, async interaction => {
       );
       const intro = new EmbedBuilder()
         .setColor(0x6d5dfc)
-        .setAuthor({ name: "EXILE AS  /  PRIVATE SUPPORT", iconURL: interaction.client.user.displayAvatarURL() })
-        .setTitle("✦  " + ticketType.toUpperCase() + "  /  SUPPORT ROOM")
+        .setAuthor({ name: "Elixe • As", iconURL: interaction.client.user.displayAvatarURL() })
+        .setTitle(ticketType + " ticket")
         .setDescription(
-          "Welcome " + member.toString() + " — your private ticket is open.\n" +
-          "Please explain your request and include any useful details. Staff will assist you soon."
+          "Ticket opened for " + member.toString() + ".\n" +
+          "Send your request here. A staff member will reply when available."
         )
         .addFields(
-          { name: "OWNER", value: member.toString(), inline: true },
-          { name: "DEPARTMENT", value: ticketType, inline: true },
-          { name: "STATUS", value: "🟢 Open", inline: true }
+          { name: "Opened by", value: member.toString(), inline: true },
+          { name: "Category", value: ticketType, inline: true },
+          { name: "Status", value: "Open", inline: true }
         )
         .setThumbnail(member.user.displayAvatarURL({ size: 256 }))
-        .setFooter({ text: "EXILE AS  /  Use the button below when your issue is resolved" })
+        .setFooter({ text: "Use the button below to close this ticket" })
         .setTimestamp();
       await channel.send({ embeds: [intro], components: [closeRow], allowedMentions: { users: [member.id], parse: [] } });
-      return interaction.editReply("Your private ticket has been created: " + channel.toString());
+      return interaction.editReply("Ticket created: " + channel.toString());
     } catch (error) {
       console.error("[Tickets] Could not create ticket:", error);
-      return interaction.editReply("Couldn't create the ticket. Check my channel permissions.");
+      return interaction.editReply("Ticket creation failed. Check my channel permissions.");
     }
   }
 
@@ -5204,7 +5204,7 @@ const MAX_PROMOTION_RANK_ID = "1572968552313520277";
 
 const DEFAULT_PREFIX = ".";
 const prefixEmbed = (title, description) => {
-  const cleanTitle = String(title || "Elixe").replace(/^[\\s✦⚠️🛡️✅🎟️📋🧹🔒🔓👢🔨⏳🎯🌟📨🏓]+/u, "").trim();
+  const cleanTitle = String(title || "Elixe").replace(/^[\s✦⚠️🛡️✅🎟️📋🧹🔒🔓👢🔨⏳🎯🌟📨🏓]+/u, "").trim();
   const readableTitle = cleanTitle === cleanTitle.toUpperCase() ? cleanTitle.toLowerCase().replace(/\\b[a-z]/g, char => char.toUpperCase()) : cleanTitle;
   return new EmbedBuilder()
     .setColor(0x7c5cff)
@@ -5477,7 +5477,7 @@ client.on(Events.MessageCreate, async message => {
           .setTimestamp();
         try {
           await message.author.send({ embeds: [embed], allowedMentions: { parse: [] } });
-          return send("✦ Welcome test sent", "I've sent the welcome preview to your DMs.");
+          return send("Welcome preview sent", "Check your DMs.");
         } catch {
           return fail("I couldn't DM you. Enable direct messages from server members, then try again.");
         }
@@ -5488,12 +5488,12 @@ client.on(Events.MessageCreate, async message => {
         if (nextMessage.length > 3500) return fail("Welcome message must be 3,500 characters or fewer.");
         config.welcomeMessage = nextMessage;
         await saveDatabase();
-        return send("✦ Welcome message updated", "The welcome text is saved. Your banner stays unchanged. Preview it with " + prefix + "welcome test.");
+        return send("Welcome message updated", "Preview it with " + prefix + "welcome test.");
       }
       if (sub === "reset") {
         config.welcomeMessage = null;
         await saveDatabase();
-        return send("✦ Welcome message reset", "Restored the default welcome text. The banner is unchanged.");
+        return send("Welcome message reset", "Default text restored.");
       }
       if (sub === "set") {
         await message.channel.send(buildWelcomeSetupPayload(message.guild, config, message.author.id));
@@ -5514,7 +5514,7 @@ client.on(Events.MessageCreate, async message => {
       if (!/^[^\\s]{1,5}$/.test(nextPrefix)) return fail("Usage: " + prefix + "prefix <new-prefix> (1–5 characters, no spaces)");
       config.prefix = nextPrefix;
       await saveDatabase();
-      return send("✦ PREFIX UPDATED", "This server's command prefix is now `" + nextPrefix + "`.");
+      return send("Prefix updated", "New prefix: `" + nextPrefix + "`.");
     }
     if (command === "triggerlist") {
       const rows = config.autoresponders || [];
