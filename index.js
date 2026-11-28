@@ -6447,7 +6447,7 @@ client.on(Events.MessageCreate, async message => {
     return fail(`Unknown command ${prefix}${command}. Use ${prefix}help.`);
   } catch (error) {
     console.error("Prefix command error:", error);
-    return fail("Something went wrong. Check the bot logs.");
+    return fail("Something went wrong. Check the logs.");
   }
 });
 
@@ -6557,7 +6557,7 @@ async function acquireBotLeaseAndStart() {
     console.log("[Failover] ACTIVE — this host owns the Discord gateway lease (epoch " + activeBotLease.epoch + ").");
     if (!dashboardStarted) {
       await loadDatabase();
-      startDashboard({ client, getGuildConfig, saveDatabase });
+      startDashboard({ client, getGuildConfig, saveDatabase, getReliability: () => ({ gateway: client.isReady() ? "Online" : "Offline", database: isRecruitmentDatabaseReady() ? "Online" : "Offline", uptime: Math.floor(process.uptime()/3600)+"h "+Math.floor(process.uptime()%3600/60)+"m", memoryMb: Math.round(process.memoryUsage().rss/1024/1024), checkedAt: new Date().toISOString(), host: BOT_INSTANCE_LABEL, lease: activeBotLease ? "Active" : "Standby" }) });
       dashboardStarted = true;
     }
 
