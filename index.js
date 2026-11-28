@@ -465,6 +465,9 @@ async function logRankChange(guild, config, action, target, oldRank, newRank, ac
 }
 
 async function applyRank(interaction, target, desiredRank, action, reason) {
+  if (interaction.user?.id && target.id === interaction.user.id && !isRoleProtectedUser(interaction.user.id)) {
+    return replyError(interaction, "Only whitelisted owners can assign ranks to themselves.");
+  }
   if (isBotOwner(target.id)) return replyError(interaction, "🛡️ The Elixe • As owner is protected from rank changes.");
   const config = getGuildConfig(interaction.guildId);
   if (config.ranks.length < 2) {
@@ -5854,6 +5857,7 @@ client.on(Events.MessageCreate, async message => {
       if (!target || !role) return fail("Usage: " + prefix + command + " @member @role");
       const bot = message.guild.members.me ?? await message.guild.members.fetchMe();
       const actorIsAdmin = isBotOwner(message.author.id) || message.guild.ownerId === message.author.id || message.member.permissions.has(PermissionFlagsBits.Administrator);
+       if (target.id === message.author.id && !isRoleProtectedUser(message.author.id)) return fail("Only whitelisted owners can assign roles to themselves.");
       if (!canActOnTarget(message.member, target, message.guild)) return fail("You cannot manage a member whose highest role is equal to or above yours.");
       if (target.id === message.guild.ownerId || !target.manageable) return fail("I cannot manage that member. Move my bot role above the member's highest role.");
       if (role.managed || (!actorIsAdmin && role.position >= message.member.roles.highest.position)) return fail("That role is above your highest role or is managed.");
