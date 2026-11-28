@@ -515,11 +515,11 @@ async function applyRank(interaction, target, desiredRank, action, reason) {
 
   // Acknowledge the successful role change immediately. Disk writes and
   // optional notifications run in the background so they don't delay replies.
-  const verb = action === "PROMOTED" ? "promoted" : action === "DEMOTED" ? "demoted" : "updated";
+  const verb = action === "PROMOTED" ? "promoted" : action === "DEMOTED" ? "demoted" : "rank updated";
   const from = oldRank ? `<@&${oldRank.id}>` : "Unranked";
   const response = await interaction.editReply({
-    content: `✅ **${target.user.tag}** was ${verb}.\n**Previous:** ${from}\n**New:** <@&${desiredRank.id}>${reason ? `\n**Reason:** ${reason}` : ""}`,
-    allowedMentions: { users: [], roles: [desiredRank.id] }
+    content: `✅ <@${target.id}> ${verb}: ${from} → <@&${desiredRank.id}>`,
+    allowedMentions: { users: [target.id], roles: [oldRank?.id, desiredRank.id].filter(Boolean), parse: [] }
   });
 
   void saveDatabase().catch(error => console.error("Rank history save failed:", error));
@@ -6436,8 +6436,8 @@ client.on(Events.MessageCreate, async message => {
       const adapter = {
         guild: message.guild, guildId: message.guild.id, user: message.author, client,
         editReply: payload => message.reply({
-          embeds: [prefixEmbed("✅ Rank updated", payload.content || "Rank updated.")],
-          allowedMentions: { repliedUser: false, parse: [] }
+          content: payload.content || "✅ Rank updated.",
+          allowedMentions: { repliedUser: false, users: [target.id], roles: [current?.id, desired?.id].filter(Boolean), parse: [] }
         })
       };
       return applyRank(adapter, target, desired, action, reasonArgs.join(" ").slice(0,300) || null);
