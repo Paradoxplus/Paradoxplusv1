@@ -20,7 +20,7 @@ export function startDashboard({client,getGuildConfig,saveDatabase,getReliabilit
  const server=http.createServer(async(req,res)=>{
   try {
    const url=new URL(req.url,"http://localhost"), cookie=cookies(req.headers.cookie);
-   if(req.method==="GET"&&url.pathname==="/healthz"){const status=await getReliability?.()||{};const healthy=status.gateway==="Online"&&status.database==="Online";return json(res,healthy?200:503,{ok:healthy,...status});}
+   if(req.method==="GET"&&url.pathname==="/healthz"){const status=await getReliability?.()||{};const healthy=status.database==="Online"&&(status.gateway==="Online"||status.lease==="Standby");return json(res,healthy?200:503,{ok:healthy,...status});}
    if(req.method==="POST"&&url.pathname==="/auth/login"){
     const ip=req.socket.remoteAddress||"unknown",now=Date.now();let a=attempts.get(ip)||{count:0,until:now+600000};
     if(a.until<now)a={count:0,until:now+600000};if(a.count>=8)return json(res,429,{error:"Too many attempts. Wait 10 minutes."});
