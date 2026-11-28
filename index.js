@@ -6544,12 +6544,6 @@ async function acquireBotLeaseAndStart() {
     }
 
     console.log("[Failover] ACTIVE — this host owns the Discord gateway lease (epoch " + activeBotLease.epoch + ").");
-    if (!dashboardStarted) {
-      await loadDatabase();
-      startDashboard({ client, getGuildConfig, saveDatabase, getReliability: async () => ({ gateway: client.isReady() ? "Online" : "Offline", database: await pingRecruitmentDatabase() ? "Online" : "Offline", uptime: Math.floor(process.uptime()/3600)+"h "+Math.floor(process.uptime()%3600/60)+"m", memoryMb: Math.round(process.memoryUsage().rss/1024/1024), checkedAt: new Date().toISOString(), host: BOT_INSTANCE_LABEL, lease: activeBotLease ? "Active" : "Standby", uptimeTarget: "99%" }) });
-      dashboardStarted = true;
-    }
-
     try {
       await client.login(TOKEN);
       const result = await startBotLeaseHeartbeat();
@@ -6571,4 +6565,10 @@ await initRecruitmentDatabase();
 if (!isRecruitmentDatabaseReady()) {
   throw new Error("[Failover] PostgreSQL initialization failed. Bot startup is blocked until Neon is reachable.");
 }
+
+// Keep the dashboard and health endpoint available on standby hosts too.
+// Only the Discord gateway is controlled by the shared lease.
+await loadDatabase();
+startDashboard({ client, getGuildConfig, saveDatabase, getReliability: async () => ({ gateway: client.isReady() ? "Online" : "Offline", database: await pingRecruitmentDatabase() ? "Online" : "Offline", uptime: Math.floor(process.uptime()/3600)+"h "+Math.floor(process.uptime()%3600/60)+"m", memoryMb: Math.round(process.memoryUsage().rss/1024/1024), checkedAt: new Date().toISOString(), host: BOT_INSTANCE_LABEL, lease: activeBotLease ? "Active" : "Standby", uptimeTarget: "99%" }) });
+dashboardStarted = true;
 await acquireBotLeaseAndStart();
