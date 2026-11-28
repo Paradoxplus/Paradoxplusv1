@@ -32,9 +32,8 @@ function getUploadedImageUrl(attachment) {
 function buildWelcomeDescription(guild, member) {
   const emoji = guild.emojis.cache.get("1415376887265628250")?.toString() || "✨";
   const defaultMessage =
-    emoji + " Welcome {user} to ExileAS | 1.9+ ! " + emoji + "\n\n" +
-    "**Hey there {user}**\n" +
-    "**We are hyped to have you here — enjoy your stay!**\n\n" +
+    "Welcome {user} to ExileAS | 1.9+.\n" +
+    "Check the channels below to get started.\n\n" +
     "> - <:arrow_yellow:1573218795319730176> [allies](https://discord.com/channels/1572968551973654528/1572968553617817764)\n" +
     "> - <:arrow_yellow:1573218795319730176> [war logs](https://discord.com/channels/1572968551973654528/1572968553617817767)\n" +
     "> - <:arrow_yellow:1573218795319730176> [rosters](https://discord.com/channels/1572968551973654528/1572968553617817763)\n" +
@@ -2418,7 +2417,7 @@ function buildTicketPanel(guild, botUser) {
     );
   const panel = new EmbedBuilder()
     .setColor(0x6d5dfc)
-    .setTitle("🎟️ Exile AS | Ticket Support")
+    .setTitle("Ticket support")
     .setDescription(
       "## Exile AS | Ticket Support\n\n" +
       "**Types Of Support We Provide**\n\n" +
@@ -2433,7 +2432,7 @@ function buildTicketPanel(guild, botUser) {
     )
     .setThumbnail(guild.iconURL({ size: 256 }) || botUser.displayAvatarURL())
     .setImage(EXILE_AS_BANNER_URL)
-    .setFooter({ text: "Powered By Exile • Core" });
+    .setFooter({ text: "Elixe • As" });
   return { embeds: [panel], components: [new ActionRowBuilder().addComponents(menu)] };
 }
 
@@ -2855,22 +2854,22 @@ client.on(Events.InteractionCreate, async interaction => {
     const parts = interaction.customId.split(":");
     const [, area, action, ownerId] = parts;
     if (!interaction.inGuild() || interaction.user.id !== ownerId) {
-      return interaction.reply({ content: "Only the staff member who opened this setup panel can use it.", ephemeral: true });
+      return interaction.reply({ content: "This setup panel belongs to someone else.", ephemeral: true });
     }
     const config = getGuildConfig(interaction.guildId);
     const canWelcome = isBotOwner(interaction.user.id) || interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) || interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild);
     const canTickets = isBotOwner(interaction.user.id) || interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) || interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels);
     if ((area === "welcome" && !canWelcome) || (area === "ticket" && !canTickets)) {
-      return interaction.reply({ content: "You no longer have permission to configure this system.", ephemeral: true });
+      return interaction.reply({ content: "You no longer have permission to change this setup.", ephemeral: true });
     }
 
     if (interaction.isChannelSelectMenu()) {
       const selected = await interaction.guild.channels.fetch(interaction.values[0]).catch(() => null);
-      if (!selected) return interaction.reply({ content: "That channel is no longer available.", ephemeral: true });
+      if (!selected) return interaction.reply({ content: "Channel not found. Select another one.", ephemeral: true });
       if (area === "welcome" && action === "channel") {
         if (selected.type !== ChannelType.GuildText) return interaction.reply({ content: "Choose a text channel.", ephemeral: true });
         const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
-        if (!selected.permissionsFor(botMember)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) return interaction.reply({ content: "I need View Channel, Send Messages and Embed Links in that channel.", ephemeral: true });
+        if (!selected.permissionsFor(botMember)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) return interaction.reply({ content: "I need View Channel, Send Messages and Embed Links there.", ephemeral: true });
         config.welcomeChannelId = selected.id;
         await saveDatabase();
         return interaction.update(buildWelcomeSetupPayload(interaction.guild, config, ownerId));
@@ -2924,10 +2923,10 @@ client.on(Events.InteractionCreate, async interaction => {
       if (area === "ticket" && action === "publish") {
         if (!config.ticketCategoryId) return interaction.reply({ content: "Select a ticket category first.", ephemeral: true });
         const category = await interaction.guild.channels.fetch(config.ticketCategoryId).catch(() => null);
-        if (!category || category.type !== ChannelType.GuildCategory) return interaction.reply({ content: "The selected ticket category is unavailable. Select it again.", ephemeral: true });
+        if (!category || category.type !== ChannelType.GuildCategory) return interaction.reply({ content: "Category not found. Select it again.", ephemeral: true });
         if (!config.ticketPanelChannelId) return interaction.reply({ content: "Select a panel channel first.", ephemeral: true });
         const target = await interaction.guild.channels.fetch(config.ticketPanelChannelId).catch(() => null);
-        if (!target?.isTextBased()) return interaction.reply({ content: "The selected panel channel is unavailable.", ephemeral: true });
+        if (!target?.isTextBased()) return interaction.reply({ content: "Panel channel not found. Select another one.", ephemeral: true });
         const botMember = interaction.guild.members.me ?? await interaction.guild.members.fetchMe();
         if (!target.permissionsFor(botMember)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) return interaction.reply({ content: "I need View Channel, Send Messages and Embed Links in the panel channel.", ephemeral: true });
         await target.send(buildTicketPanel(interaction.guild, interaction.client.user));
@@ -2946,7 +2945,7 @@ client.on(Events.InteractionCreate, async interaction => {
     if (!nextMessage || nextMessage.length > 3500) return interaction.reply({ content: "Enter a welcome message up to 3,500 characters.", ephemeral: true });
     config.welcomeMessage = nextMessage;
     await saveDatabase();
-    return interaction.reply({ content: "Welcome message saved. Use Preview on the setup panel to check it.", ephemeral: true });
+    return interaction.reply({ content: "Welcome message saved.", ephemeral: true });
   }
 
   // Persistent giveaway entry button.
@@ -3233,7 +3232,7 @@ client.on(Events.InteractionCreate, async interaction => {
         return interaction.reply({ embeds: [confirmation], ephemeral: false });
       } catch (error) {
         console.error("[TempRole] Assignment failed:", error);
-        return replyError(interaction, "I couldn't assign that role. Check my Manage Roles permission and role hierarchy.");
+        return replyError(interaction, "I can't assign that role. Check Manage Roles and role position.");
       }
     }
 
@@ -3261,7 +3260,7 @@ client.on(Events.InteractionCreate, async interaction => {
         return interaction.editReply(report.slice(0, 1950));
       } catch (error) {
         console.error("[RoleAll] Bulk assignment failed:", error);
-        return interaction.editReply("I couldn't complete the role assignment. Check my Server Members Intent, Manage Roles permission, and role hierarchy.");
+        return interaction.editReply("Role assignment failed. Check the Members intent, Manage Roles and role position.");
       }
     }
 
@@ -4178,7 +4177,7 @@ client.on(Events.InteractionCreate, async interaction => {
           await interaction.user.send({ embeds: [embed], allowedMentions: { parse: [] } });
           return interaction.reply({ content: "✦ Welcome preview sent to your DMs.", ephemeral: true });
         } catch {
-          return replyError(interaction, "I couldn't DM you. Enable direct messages from server members, then try again.");
+          return replyError(interaction, "I can't DM you. Enable server DMs and try again.");
         }
       }
     }
@@ -5197,20 +5196,23 @@ client.on(Events.InteractionCreate, async interaction => {
     }
   } catch (error) {
     console.error("Command error:", error);
-    return replyError(interaction, "Something went wrong. Check the bot logs and try again.");
+    return replyError(interaction, "Command failed. Check the bot logs for details.");
   }
 });
 
 const MAX_PROMOTION_RANK_ID = "1572968552313520277";
 
 const DEFAULT_PREFIX = ".";
-const prefixEmbed = (title, description) => new EmbedBuilder()
-  .setColor(0x7c5cff)
-  .setAuthor({ name: "ＰＡＲＡＤＯＸＰＬＵＳ  •  SYSTEM", iconURL: client.user.displayAvatarURL() })
-  .setTitle("✦ " + title)
-  .setDescription(description)
-  .setFooter({ text: "ELIXE • AS  •  Premium rank & moderation system" })
-  .setTimestamp();
+const prefixEmbed = (title, description) => {
+  const cleanTitle = String(title || "Elixe").replace(/^[\\s✦⚠️🛡️✅🎟️📋🧹🔒🔓👢🔨⏳🎯🌟📨🏓]+/u, "").trim();
+  const readableTitle = cleanTitle === cleanTitle.toUpperCase() ? cleanTitle.toLowerCase().replace(/\\b[a-z]/g, char => char.toUpperCase()) : cleanTitle;
+  return new EmbedBuilder()
+    .setColor(0x7c5cff)
+    .setAuthor({ name: "Elixe • As", iconURL: client.user.displayAvatarURL() })
+    .setTitle(readableTitle || "Elixe")
+    .setDescription(description)
+    .setFooter({ text: "Elixe • As" });
+};
 const mentionedId = (value, role = false) => value?.match(role ? /^<@&(\d+)>$/ : /^<@!?(\d+)>$/)?.[1] || null;
 
 async function applyRecruitPerks(guild, target) {
@@ -5268,7 +5270,7 @@ client.on(Events.MessageCreate, async message => {
     console.error("[PrefixCommand] Could not send command response:", error);
     return null;
   });
-  const fail = text => send("⚠️ Command error", text);
+  const fail = text => send("Error", text);
   try {
     if (command === "autoban") {
       if (!isBotOwner(message.author.id)) return fail("⛔ Only the bot owner (fearless1.dll) can manage the autoban list. Server owners, administrators, and top roles cannot use this command.");
@@ -5495,7 +5497,7 @@ client.on(Events.MessageCreate, async message => {
       }
       if (sub === "set") {
         await message.channel.send(buildWelcomeSetupPayload(message.guild, config, message.author.id));
-        return send("Welcome setup opened", "Use the panel above to select a channel, edit the message and preview it.");
+        return send("Welcome setup opened", "Choose a channel, edit the text, then preview it.");
       }
       if (sub === "remove" || sub === "disable" || sub === "off") {
         if (!config.welcomeChannelId) return fail("Welcome messages are not configured yet.");
@@ -5555,7 +5557,7 @@ client.on(Events.MessageCreate, async message => {
       if (sub === "set") {
         if (!canManageTickets) return fail("You need Manage Channels or Administrator to configure tickets.");
         await message.channel.send(buildTicketSetupPayload(message.guild, config, message.author.id));
-        return send("Ticket setup opened", "Select the ticket category and panel channel, then publish the panel.");
+        return send("Ticket setup opened", "Choose a category and panel channel, then publish.");
       }
       if (sub !== "panel") return fail("Usage: " + prefix + "ticket set or " + prefix + "ticket panel [#channel]");
       if (!canManageTickets) return fail("You need Manage Channels or Administrator to publish the ticket panel.");
@@ -5565,7 +5567,7 @@ client.on(Events.MessageCreate, async message => {
       const botMember = message.guild.members.me ?? await message.guild.members.fetchMe();
       if (!targetChannel.permissionsFor(botMember)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) return fail("I need View Channel, Send Messages, and Embed Links in that channel.");
       await targetChannel.send(buildTicketPanel(message.guild, client.user));
-      return send("TICKET PORTAL PUBLISHED", "The ticket panel is now live in " + targetChannel.toString() + ".");
+      return send("TICKET PORTAL PUBLISHED", "Panel posted in " + targetChannel.toString() + ".");
     }
     if (command === "recruit") {
       const id = mentionedId(args[0]);
@@ -5920,9 +5922,9 @@ client.on(Events.MessageCreate, async message => {
       const botMember = await message.guild.members.fetchMe({ force: true });
       if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) return fail("I need Manage Roles to temporarily remove and restore removable roles.");
       const freshTarget = await message.guild.members.fetch({ user: target.id, force: true }).catch(() => null);
-      if (!freshTarget) return fail("I could not refresh that member. Please try again.");
+      if (!freshTarget) return fail("Couldn't load that member. Try again.");
       const actorMember = await message.guild.members.fetch(message.author.id).catch(() => null);
-      if (!actorMember) return fail("I could not verify your server role.");
+      if (!actorMember) return fail("Couldn't verify your role. Try again.");
       if (actorMember.id !== message.guild.ownerId && freshTarget.roles.highest.comparePositionTo(actorMember.roles.highest) >= 0) {
         return fail("🛡️ You cannot mute a member whose highest role is equal to or higher than yours.");
       }
